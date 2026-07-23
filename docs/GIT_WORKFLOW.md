@@ -282,3 +282,25 @@ git diff --check
 git status --short
 git diff --staged
 ```
+
+## Vérifier la CI d'une Pull Request
+
+Le workflow `CI` est lancé automatiquement pour chaque Pull Request vers
+`main`. Avant fusion, ouvrir l'onglet **Checks**, sélectionner le workflow
+`CI`, puis vérifier que le job `CI checks` est entièrement vert.
+
+Reproduire localement les mêmes commandes :
+
+```powershell
+npm ci
+npm run lint
+npm test
+npm run build
+```
+
+Un nouveau commit poussé sur la branche relance les contrôles. Il est également
+possible d'utiliser **Re-run jobs** dans GitHub pour relancer une exécution.
+
+Cette CI ne déploie ni l'application ni Firebase et ne doit jamais accéder à
+Firestore de production. Consulter `docs/CI.md` pour les déclencheurs, les
+limitations et le diagnostic détaillé.

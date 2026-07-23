@@ -93,3 +93,22 @@ Tout changement visible par l'utilisateur doit mettre à jour la section
 Un tag de version ne doit jamais être créé depuis une branche autre que `main`.
 Il est créé uniquement après validation et fusion de la Pull Request de release,
 puis réussite des tests et du build sur `main` à jour.
+
+## Intégration continue
+
+Le workflow GitHub Actions `CI` s'exécute sur chaque Pull Request vers `main` et
+sur chaque push sur `main`. Le check `CI checks`, comprenant notamment les tests
+et le build, doit être vert avant toute fusion.
+
+Le résultat détaillé est disponible dans l'onglet **Checks** de la Pull Request.
+Les commandes peuvent être reproduites localement avec :
+
+```powershell
+npm ci
+npm run lint
+npm test
+npm run build
+```
+
+Ce workflow valide le projet mais ne réalise aucun déploiement. Son
+fonctionnement et ses limites sont documentés dans `docs/CI.md`.
