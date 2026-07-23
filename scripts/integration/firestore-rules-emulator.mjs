@@ -74,6 +74,31 @@ async function request(method, path, { uid, body } = {}) {
   };
 }
 
+async function runOwnerQuery(collectionName, uid, ownerUidFilter) {
+  const response = await fetch(`${baseUrl}:runQuery`, {
+    method: "POST",
+    headers: headers(uid),
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: collectionName }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: "ownerUid" },
+            op: "EQUAL",
+            value: { stringValue: ownerUidFilter },
+          },
+        },
+      },
+    }),
+  });
+  const text = await response.text();
+  return {
+    ok: response.ok,
+    status: response.status,
+    payload: text ? JSON.parse(text) : null,
+  };
+}
+
 function expectAllowed(result, label) {
   assert.equal(result.ok, true, `${label} should be allowed, got ${result.status}`);
 }
@@ -81,10 +106,6 @@ function expectAllowed(result, label) {
 function expectDenied(result, label) {
   assert.equal(result.ok, false, `${label} should be denied`);
   assert.equal(result.status, 403, `${label} should return 403, got ${result.status}`);
-}
-
-async function cleanup(path, uid) {
-  await request("DELETE", path, { uid });
 }
 
 const ownerUid = "rules-owner";
@@ -112,6 +133,7 @@ const protectedCollections = [
 
 for (const collectionName of protectedCollections) {
   const documentPath = `${collectionName}/rules-${collectionName}`;
+  const otherDocumentPath = `${collectionName}/rules-other-${collectionName}`;
 
   expectAllowed(
     await request("PATCH", documentPath, {
@@ -122,13 +144,36 @@ for (const collectionName of protectedCollections) {
   );
 
   expectAllowed(
+    await request("PATCH", otherDocumentPath, {
+      uid: otherUid,
+      body: fields(otherUid, { label: `${collectionName} other owner creation` }),
+    }),
+    `${collectionName} second owner valid creation`,
+  );
+
+  expectAllowed(
     await request("GET", documentPath, { uid: ownerUid }),
     `${collectionName} authenticated owner read`,
   );
 
   expectDenied(
+    await request("GET", documentPath, { uid: otherUid }),
+    `${collectionName} read by another owner`,
+  );
+
+  expectDenied(
     await request("GET", documentPath),
     `${collectionName} anonymous read`,
+  );
+
+  expectAllowed(
+    await runOwnerQuery(collectionName, ownerUid, ownerUid),
+    `${collectionName} ownerUid-scoped query used by listeners`,
+  );
+
+  expectDenied(
+    await request("GET", collectionName, { uid: ownerUid }),
+    `${collectionName} unscoped collection query`,
   );
 
   expectDenied(
@@ -170,7 +215,14 @@ expectDenied(
 );
 
 for (const collectionName of protectedCollections) {
-  await cleanup(`${collectionName}/rules-${collectionName}`, ownerUid);
+  expectAllowed(
+    await request("DELETE", `${collectionName}/rules-${collectionName}`, { uid: ownerUid }),
+    `${collectionName} delete by owner`,
+  );
+  expectAllowed(
+    await request("DELETE", `${collectionName}/rules-other-${collectionName}`, { uid: otherUid }),
+    `${collectionName} second owner cleanup`,
+  );
 }
 
 console.log("Firestore rules emulator tests passed.");

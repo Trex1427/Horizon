@@ -1,4 +1,5 @@
-import { collection, getDocs, writeBatch } from "firebase/firestore";
+import { collection, getDocs, query, where, writeBatch } from "firebase/firestore";
+import { requireCurrentUid } from "../auth/requireCurrentUid.js";
 
 const DEFAULT_BATCH_SIZE = 400;
 
@@ -34,11 +35,12 @@ function chunkRefs(refs = [], size = DEFAULT_BATCH_SIZE) {
 }
 
 async function buildDefaultTransport() {
-  const { db } = await import("../firebase.js");
+  const { auth, db } = await import("../firebase.js");
+  const ownerUid = requireCurrentUid(auth);
 
   return {
     async listDocumentRefs(collectionName) {
-      const snapshot = await getDocs(collection(db, collectionName));
+      const snapshot = await getDocs(query(collection(db, collectionName), where("ownerUid", "==", ownerUid)));
       return snapshot.docs.map((docSnapshot) => docSnapshot.ref);
     },
     createBatch() {

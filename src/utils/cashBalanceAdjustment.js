@@ -71,10 +71,11 @@ export function isCashAdjustmentTransaction(transaction = {}) {
   return String(transaction?.type || "").trim().toLowerCase() === CASH_ADJUSTMENT_TYPE;
 }
 
-export function buildCashAdjustmentId({ accountId, date, targetBalance, kind }) {
+export function buildCashAdjustmentId({ ownerUid, accountId, date, targetBalance, kind }) {
   const targetCents = Math.round((parseCashAmount(targetBalance) || 0) * 100);
   return [
     CASH_ADJUSTMENT_TYPE,
+    String(ownerUid || "").trim(),
     String(accountId || "").trim(),
     toIsoDateString(date),
     kind === CASH_ADJUSTMENT_KINDS.opening ? CASH_ADJUSTMENT_KINDS.opening : CASH_ADJUSTMENT_KINDS.balance,

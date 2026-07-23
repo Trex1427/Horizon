@@ -1,14 +1,15 @@
 import { addDoc, collection, doc, getDocs, limit, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
+import { requireCurrentUid, sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
 import { DEFAULT_CATEGORY_DEFINITIONS } from "../constants/categoryDefaults";
 
 const CATEGORIES_COLLECTION = "categories";
 let seedDefaultCategoriesPromise = null;
 
 export function subscribeToCategories(onData, onError) {
+  const ownerUid = requireCurrentUid(auth);
   return onSnapshot(
-    query(collection(db, CATEGORIES_COLLECTION), where("isActive", "==", true)),
+    query(collection(db, CATEGORIES_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
     (snapshot) => {
       const data = snapshot.docs
         .map((docSnapshot) => ({
@@ -33,7 +34,8 @@ export async function seedDefaultCategories() {
   }
 
   seedDefaultCategoriesPromise = (async () => {
-  const anyCategorySnapshot = await getDocs(query(collection(db, CATEGORIES_COLLECTION), limit(1)));
+  const ownerUid = requireCurrentUid(auth);
+  const anyCategorySnapshot = await getDocs(query(collection(db, CATEGORIES_COLLECTION), where("ownerUid", "==", ownerUid), limit(1)));
 
   if (!anyCategorySnapshot.empty) {
     return { success: true, created: false };

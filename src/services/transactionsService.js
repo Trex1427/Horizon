@@ -1,6 +1,6 @@
-import { addDoc, collection, doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
+import { requireCurrentUid, sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
 import { normalizeTransactionRecord, normalizeTransactionType } from "../utils/transactionTypeUtils.js";
 
 const TRANSACTIONS_COLLECTION = "transactions";
@@ -28,8 +28,9 @@ function normalizeTransactionPayload(payload = {}) {
 }
 
 export function subscribeToTransactions(onData, onError) {
+  const ownerUid = requireCurrentUid(auth);
   return onSnapshot(
-    collection(db, TRANSACTIONS_COLLECTION),
+    query(collection(db, TRANSACTIONS_COLLECTION), where("ownerUid", "==", ownerUid)),
     (snapshot) => {
       const data = snapshot.docs
         .map((docSnapshot) => normalizeTransactionRecord({
