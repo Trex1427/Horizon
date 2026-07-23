@@ -29,6 +29,7 @@ test("AuthProvider handles session restoration, redirect result, popup fallback 
   assert.equal(source.includes("signInWithPopup"), true);
   assert.equal(source.includes("signInWithRedirect"), true);
   assert.equal(source.includes("signOut"), true);
+  assert.equal(source.includes("signInWithEmailAndPassword"), true);
 });
 
 test("AuthGate never renders private children while loading or unauthenticated", () => {

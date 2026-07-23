@@ -34,6 +34,22 @@ export function mapAuthError(error) {
     return "Ce compte existe déjà avec une autre méthode de connexion.";
   }
 
+  if (code === "auth/invalid-email") {
+    return "Adresse e-mail invalide.";
+  }
+
+  if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") {
+    return "Adresse e-mail ou mot de passe incorrect.";
+  }
+
+  if (code === "auth/too-many-requests") {
+    return "Trop de tentatives de connexion. Réessayez dans quelques instants.";
+  }
+
+  if (code === "auth/network-request-failed") {
+    return "Problème réseau. Vérifiez votre connexion puis réessayez.";
+  }
+
   return "Connexion impossible pour le moment. Réessayez dans quelques instants.";
 }
 

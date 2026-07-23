@@ -1,4 +1,5 @@
-import { Box, Button, CircularProgress, Paper, Stack, Typography } from "@mui/material";
+import { useState } from "react";
+import { Box, Button, CircularProgress, Paper, Stack, TextField, Typography } from "@mui/material";
 import Google from "@mui/icons-material/Google";
 import Logout from "@mui/icons-material/Logout";
 import { useAuth } from "./useAuth";
@@ -35,16 +36,41 @@ function AuthShell({ children }) {
 export function AuthGate({ children }) {
   const {
     authError,
+    clearAuthError,
     isAuthenticated,
     isAuthorized,
     loading,
     logout,
     showLocalDiagnostic,
+    signInWithEmail,
     signInWithGoogle,
     signingIn,
     uid,
     user,
   } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [localError, setLocalError] = useState("");
+
+  const handleEmailSubmit = async (event) => {
+    event.preventDefault();
+
+    clearAuthError();
+    setLocalError("");
+
+    if (!email.trim() || !password) {
+      setLocalError("Renseignez l'email et le mot de passe.");
+      return;
+    }
+
+    await signInWithEmail(email.trim(), password);
+  };
+
+  const handleGoogleClick = async () => {
+    clearAuthError();
+    setLocalError("");
+    await signInWithGoogle();
+  };
 
   if (loading) {
     return (
@@ -114,7 +140,7 @@ export function AuthGate({ children }) {
             variant="contained"
             size="large"
             startIcon={<Google />}
-            onClick={signInWithGoogle}
+            onClick={handleGoogleClick}
             disabled={signingIn}
             sx={{
               minHeight: 48,
@@ -124,6 +150,62 @@ export function AuthGate({ children }) {
           >
             {signingIn ? "Connexion en cours..." : "Continuer avec Google"}
           </Button>
+
+          <Box
+            component="form"
+            onSubmit={handleEmailSubmit}
+            noValidate
+            sx={{
+              display: "grid",
+              gap: 1.25,
+              p: 1.5,
+              borderRadius: 2,
+              border: "1px solid rgba(20, 41, 43, 0.12)",
+              bgcolor: "rgba(255, 255, 255, 0.55)",
+            }}
+          >
+            <Typography variant="caption" sx={{ color: "text.secondary", textTransform: "uppercase", letterSpacing: 1 }}>
+              Connexion par email
+            </Typography>
+
+            <TextField
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              autoComplete="email"
+              fullWidth
+              size="small"
+              disabled={signingIn}
+            />
+
+            <TextField
+              label="Mot de passe"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              fullWidth
+              size="small"
+              disabled={signingIn}
+            />
+
+            {(localError || authError) && (
+              <Typography color="error" role="alert" variant="body2">
+                {localError || authError}
+              </Typography>
+            )}
+
+            <Button
+              type="submit"
+              variant="outlined"
+              size="large"
+              disabled={signingIn || !email.trim() || !password}
+              sx={{ minHeight: 48 }}
+            >
+              {signingIn ? "Connexion en cours..." : "Se connecter avec un email"}
+            </Button>
+          </Box>
         </Stack>
       </AuthShell>
     );

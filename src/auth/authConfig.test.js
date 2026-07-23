@@ -43,3 +43,11 @@ test("popup errors can fall back to redirect and auth messages stay user-facing"
   assert.match(mapAuthError({ code: "auth/popup-blocked" }), /redirection sécurisée/);
   assert.match(mapAuthError({ code: "auth/unauthorized-domain" }), /domaine/);
 });
+
+test("email/password auth messages stay user-friendly", () => {
+  assert.match(mapAuthError({ code: "auth/invalid-email" }), /Adresse e-mail invalide/);
+  assert.match(mapAuthError({ code: "auth/wrong-password" }), /Adresse e-mail ou mot de passe incorrect/);
+  assert.match(mapAuthError({ code: "auth/too-many-requests" }), /Trop de tentatives/);
+  assert.match(mapAuthError({ code: "auth/network-request-failed" }), /Problème réseau/);
+  assert.match(mapAuthError({ code: "auth/internal-error" }), /Connexion impossible/);
+});
