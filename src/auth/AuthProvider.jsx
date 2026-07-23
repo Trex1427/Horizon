@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  signInWithEmailAndPassword,
   getRedirectResult,
   onAuthStateChanged,
   signInWithPopup,
@@ -74,6 +75,10 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const clearAuthError = useCallback(() => {
+    setAuthError("");
+  }, []);
+
   useEffect(() => {
     if (!loading && user && !authorization.isAuthorized) {
       setAuthError("Ce compte n'est pas autorisé à accéder à Horizon.");
@@ -98,6 +103,18 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const signInWithEmail = useCallback(async (email, password) => {
+    setSigningIn(true);
+    setAuthError("");
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
+      setAuthError(mapAuthError(error));
+      setSigningIn(false);
+    }
+  }, []);
+
   const value = useMemo(() => ({
     user,
     uid: user?.uid || "",
@@ -108,6 +125,8 @@ export function AuthProvider({ children }) {
     authorizationReason: authorization.reason,
     showLocalDiagnostic: authorization.shouldShowLocalDiagnostic,
     signInWithGoogle,
+    signInWithEmail,
+    clearAuthError,
     logout,
     authError,
   }), [
@@ -115,9 +134,11 @@ export function AuthProvider({ children }) {
     authorization.isAuthorized,
     authorization.reason,
     authorization.shouldShowLocalDiagnostic,
+    clearAuthError,
     loading,
     logout,
     signInWithGoogle,
+    signInWithEmail,
     signingIn,
     user,
   ]);
