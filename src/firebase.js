@@ -12,24 +12,13 @@ function readBooleanEnv(value) {
   return String(value || "").trim().toLowerCase() === "true";
 }
 
-function getRequiredEnv(name) {
-  const value = String(import.meta.env[name] || "").trim();
-  const isTestMode = String(import.meta.env.MODE || "").trim() === "test";
-
-  if (!value && isTestMode) {
-    throw new Error(`Missing required env variable in test mode: ${name}`);
-  }
-
-  return value;
-}
-
 const firebaseConfig = {
-  apiKey: getRequiredEnv("VITE_FIREBASE_API_KEY"),
-  authDomain: getRequiredEnv("VITE_FIREBASE_AUTH_DOMAIN"),
-  projectId: getRequiredEnv("VITE_FIREBASE_PROJECT_ID"),
-  storageBucket: getRequiredEnv("VITE_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: getRequiredEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
-  appId: getRequiredEnv("VITE_FIREBASE_APP_ID"),
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);
