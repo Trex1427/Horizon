@@ -80,3 +80,16 @@ Ne jamais committer :
 
 Avant chaque commit, contrôler les fichiers préparés avec `git status` et
 `git diff --staged`.
+
+## Versionnage et changelog
+
+Horizon suit Semantic Versioning (`MAJOR.MINOR.PATCH`) avec des préversions
+comme `v1.0.0-beta.1` et `v1.0.0-rc.1`.
+
+Tout changement visible par l'utilisateur doit mettre à jour la section
+`Non publié` de `CHANGELOG.md`. La procédure complète est décrite dans
+`docs/VERSIONING.md`.
+
+Un tag de version ne doit jamais être créé depuis une branche autre que `main`.
+Il est créé uniquement après validation et fusion de la Pull Request de release,
+puis réussite des tests et du build sur `main` à jour.
