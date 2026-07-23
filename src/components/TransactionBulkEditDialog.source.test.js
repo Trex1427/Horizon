@@ -1,0 +1,56 @@
+﻿import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
+const dialogPath = resolve(process.cwd(), "src/components/TransactionBulkEditDialog.jsx");
+
+test("TransactionBulkEditDialog exposes dedicated classification mode", async () => {
+  const content = await readFile(dialogPath, "utf8");
+
+  assert.equal(content.includes('BulkClassificationSuggestionPanel'), true);
+  assert.equal(content.includes('getMockBulkClassificationSuggestion'), true);
+  assert.equal(content.includes('suggestionApplied'), true);
+  assert.equal(content.includes('handleAcceptMockSuggestion'), true);
+  assert.equal(content.includes('handleChooseAnotherCategory'), true);
+  assert.equal(content.includes('mode = "advanced"'), true);
+  assert.equal(content.includes('mode === "classification"'), true);
+  assert.equal(content.includes('"Classement de masse"'), true);
+  assert.equal(content.includes('Vous allez classer {selectedTransactionsLabel}.'), true);
+  assert.equal(content.includes('Transactions sélectionnées'), true);
+  assert.equal(content.includes('SELECTED_TRANSACTIONS_PREVIEW_LIMIT = 5'), true);
+  assert.equal(content.includes('selectedTransactions.slice(0, SELECTED_TRANSACTIONS_PREVIEW_LIMIT)'), true);
+  assert.equal(content.includes('Transaction sans libellé'), true);
+  assert.equal(content.includes('remainingSelectedTransactionsCount > 0'), true);
+  assert.equal(content.includes('Impact du classement'), true);
+  assert.equal(content.includes('Catégories actuelles'), true);
+  assert.equal(content.includes('Nouvelle catégorie'), true);
+  assert.equal(content.includes("Sélectionnez une catégorie pour afficher l'impact."), true);
+  assert.equal(content.includes('transactions seront réellement modifiées'), true);
+  assert.equal(content.includes('transactions sont déjà dans cette catégorie'), true);
+  assert.equal(content.includes('classificationImpact.categoryDistribution.map'), true);
+  assert.equal(content.includes('<Divider />'), true);
+  assert.equal(content.includes('PaperProps'), true);
+  assert.equal(content.includes('overflowY: "auto"'), true);
+  assert.equal(content.includes('flex: 1'), true);
+  assert.equal(content.includes('flexShrink: 0'), true);
+  assert.equal(content.includes('component="ul"'), true);
+  assert.equal(content.includes('component="li"'), true);
+  assert.equal(content.includes('Laisser un champ vide conserve la valeur actuelle. Les champs optionnels peuvent aussi être effacés.'), true);
+  assert.equal(content.includes('Classer ${selectedTransactionsLabel}'), true);
+  assert.equal(content.includes('Sans catégorie'), true);
+  assert.equal(content.includes('Divider component="li"'), false);
+  assert.equal(content.includes('UNCATEGORIZED_VALUE'), true);
+  assert.equal(content.includes('Confirmer le classement'), true);
+  assert.equal(content.includes('Selectionne au moins un champ a modifier.'), true);
+  assert.equal(content.includes('draft.categoryId === UNCATEGORIZED_VALUE ? "" : draft.categoryId'), true);
+  assert.equal(content.includes('categoryName: selectedCategoryLabel'), true);
+  assert.equal(content.includes('!isClassificationMode && ('), false);
+  assert.equal(content.includes('label="Sous-catégorie"'), true);
+  assert.equal(content.includes('label="Activité"'), true);
+  assert.equal(content.includes('label="Tiers"'), true);
+  assert.equal(content.includes('label="Projet"'), true);
+  assert.equal(content.includes('label="Compte"'), true);
+  assert.equal(content.includes('label="Type"'), true);
+  assert.equal(content.includes('summary.lines.map((line) => ('), true);
+});

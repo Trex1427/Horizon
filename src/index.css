@@ -1,0 +1,123 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;700&display=swap");
+
+:root {
+  --ink: #23363a;
+  --ink-strong: #16262b;
+  --muted: #5a757a;
+  --bg-base: #eef2e8;
+  --surface: rgba(255, 255, 255, 0.95);
+  --line: rgba(21, 52, 56, 0.16);
+  --brand: #0f5257;
+  --accent: #eb5e28;
+  --shadow-soft: 0 16px 40px rgba(19, 49, 52, 0.12);
+  --shadow-card: 0 8px 20px rgba(19, 49, 52, 0.08);
+  --sans: "Manrope", "Segoe UI", "Helvetica Neue", sans-serif;
+  --heading: "Fraunces", Georgia, serif;
+  --mono: "Consolas", "SFMono-Regular", monospace;
+
+  font: 16px/1.5 var(--sans);
+  letter-spacing: 0.01em;
+  color: var(--ink);
+  background: var(--bg-base);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 18% 14%, rgba(15, 82, 87, 0.24), transparent 36%),
+    radial-gradient(circle at 84% 12%, rgba(235, 94, 40, 0.2), transparent 32%),
+    linear-gradient(180deg, #f7f9f3 0%, #eef2e8 100%);
+}
+
+#root {
+  width: min(1220px, 100%);
+  margin: 0 auto;
+  text-align: left;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  position: relative;
+}
+
+#root::before {
+  content: "";
+  position: fixed;
+  inset: -20% -10% auto;
+  height: 55vh;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.55;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(15, 82, 87, 0.26), transparent 38%),
+    radial-gradient(circle at 75% 38%, rgba(235, 94, 40, 0.2), transparent 35%);
+  filter: blur(14px);
+  animation: driftGlow 14s ease-in-out infinite alternate;
+}
+
+h1,
+h2 {
+  font-family: var(--heading);
+  font-weight: 700;
+  color: var(--ink-strong);
+}
+
+h1 {
+  font-size: 56px;
+  letter-spacing: -1.68px;
+  margin: 32px 0;
+  @media (max-width: 1024px) {
+    font-size: 36px;
+    margin: 20px 0;
+  }
+}
+h2 {
+  font-size: 24px;
+  line-height: 118%;
+  letter-spacing: -0.24px;
+  margin: 0 0 8px;
+  @media (max-width: 1024px) {
+    font-size: 20px;
+  }
+}
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--brand);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+code,
+.counter {
+  font-family: var(--mono);
+  display: inline-flex;
+  border-radius: 4px;
+  color: var(--ink-strong);
+}
+
+code {
+  font-size: 15px;
+  line-height: 135%;
+  padding: 4px 8px;
+  background: rgba(21, 52, 56, 0.08);
+}
+
+@keyframes driftGlow {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  100% {
+    transform: translate3d(-3%, 2%, 0) scale(1.04);
+  }
+}

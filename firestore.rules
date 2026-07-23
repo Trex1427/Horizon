@@ -1,0 +1,162 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid is string && request.auth.uid.size() > 0;
+    }
+
+    function incomingOwnerUid() {
+      return request.resource.data.ownerUid;
+    }
+
+    function existingOwnerUid() {
+      return resource.data.ownerUid;
+    }
+
+    function createsOwnDocument() {
+      return isSignedIn()
+        && incomingOwnerUid() is string
+        && incomingOwnerUid() == request.auth.uid;
+    }
+
+    function readsOwnDocument() {
+      return isSignedIn()
+        && existingOwnerUid() is string
+        && existingOwnerUid() == request.auth.uid;
+    }
+
+    function updatesOwnDocument() {
+      return readsOwnDocument()
+        && incomingOwnerUid() is string
+        && incomingOwnerUid() == existingOwnerUid();
+    }
+
+    function deletesOwnDocument() {
+      return readsOwnDocument();
+    }
+
+    match /accounts/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /transactions/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /categories/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /subcategories/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /thirdParties/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /activities/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /projects/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /budgets/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /goals/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /objectives/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /fixedExpenses/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /recurringIncome/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /bankImports/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /receiptDrafts/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /transactionDrafts/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /opportunities/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /transfers/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

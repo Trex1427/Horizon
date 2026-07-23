@@ -1,0 +1,17 @@
+export const OBJECTIVE_STATUS = {
+  NOT_STARTED: 'NOT_STARTED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+};
+
+export const OBJECTIVE_STATUS_LABELS = {
+  NOT_STARTED: 'Non démarré',
+  IN_PROGRESS: 'En cours',
+  COMPLETED: 'Complété',
+};
+
+export const OBJECTIVE_STATUS_COLORS = {
+  NOT_STARTED: '#9E9E9E',
+  IN_PROGRESS: '#2196F3',
+  COMPLETED: '#4CAF50',
+};
