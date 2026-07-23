@@ -1,0 +1,68 @@
+name: Proposer une évolution
+description: Décrire une amélioration souhaitée pour Horizon.
+title: "[Évolution] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: user_need
+    attributes:
+      label: Besoin utilisateur
+      description: Quel besoin concret cette évolution doit-elle satisfaire ?
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_problem
+    attributes:
+      label: Problème actuel
+      description: Expliquez les limites du fonctionnement actuel.
+    validations:
+      required: true
+
+  - type: textarea
+    id: desired_solution
+    attributes:
+      label: Solution souhaitée
+      description: Décrivez le comportement ou le parcours envisagé.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_benefit
+    attributes:
+      label: Bénéfice attendu
+      description: Quel gain cette évolution apporterait-elle ?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priorité
+      options:
+        - Critique
+        - Haute
+        - Normale
+        - Faible
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Critères d'acceptation
+      description: Listez les conditions vérifiables permettant de considérer l'évolution terminée.
+      placeholder: |
+        - [ ] …
+        - [ ] …
+    validations:
+      required: true
+
+  - type: textarea
+    id: data_risks
+    attributes:
+      label: Risques sur les données
+      description: Identifiez les lectures, écritures, migrations ou risques Firestore éventuels. Indiquez « Aucun » si non applicable.
+    validations:
+      required: true
