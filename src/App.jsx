@@ -185,7 +185,7 @@ function AppContent() {
   const [transactionsNavigationContext, setTransactionsNavigationContext] = useState(null);
   const [analysisNavigationContext, setAnalysisNavigationContext] = useState(null);
   const { transactions, loading, error: transactionsError } = useTransactionsContext();
-  const { accounts, loading: accountsLoading, error: accountsError } = useAccounts();
+  const { accounts, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
   const { fixedExpenses, loading: fixedExpensesLoading, error: fixedExpensesError } = useFixedExpenses();
   const { recurringIncome, loading: recurringIncomeLoading, error: recurringIncomeError } = useRecurringIncome();
   const { opportunities, loading: opportunitiesLoading, error: opportunitiesError } = useOpportunities();
@@ -424,7 +424,9 @@ function AppContent() {
 
         {page === PAGES.CATEGORIES && <Categories />}
 
-        {page === PAGES.REFERENTIELS && <Referentiels accounts={accounts} />}
+        {page === PAGES.REFERENTIELS && (
+          <Referentiels accounts={accounts} addAccount={addAccount} updateAccount={updateAccount} deleteAccount={deleteAccount} />
+        )}
 
         {page === PAGES.PARAMETRES && <Parametres />}
 
