@@ -182,21 +182,68 @@ git revert a1b2c3d
 
 ## Créer un tag de version
 
-Créer un tag annoté depuis une version validée de `main` :
+Créer un tag annoté uniquement depuis une version validée de `main` :
 
 ```powershell
 git switch main
 git pull --ff-only origin main
-git tag -a 'v1.0.0' -m 'Version Horizon 1.0.0'
-git push origin 'v1.0.0'
+npm test
+npm run build
+git tag -a 'v1.0.0-beta.1' -m 'Horizon v1.0.0-beta.1'
 ```
 
-Vérifier les tags :
+Pousser ensuite le tag explicitement :
+
+```powershell
+git push origin 'v1.0.0-beta.1'
+```
+
+Afficher les tags et inspecter une version :
 
 ```powershell
 git tag --list
-git show 'v1.0.0'
+git show 'v1.0.0-beta.1'
 ```
+
+Si un tag local vient d'être créé par erreur et n'a jamais été publié, le
+supprimer localement :
+
+```powershell
+git tag --delete 'v1.0.0-beta.1'
+```
+
+Vérifier auparavant qu'il n'existe pas sur le remote :
+
+```powershell
+git ls-remote --tags origin 'refs/tags/v1.0.0-beta.1'
+```
+
+Ne jamais supprimer, déplacer ou recréer silencieusement un tag déjà publié.
+Publier une nouvelle version corrective afin de préserver la traçabilité.
+
+## Créer un correctif depuis `main`
+
+Partir de la version stable la plus récente :
+
+```powershell
+git switch main
+git pull --ff-only origin main
+git switch -c 'fix/v1.0.1-correction-transactions'
+```
+
+Après la correction et la mise à jour du changelog :
+
+```powershell
+npm test
+npm run build
+git diff --check
+git add chemin/du/fichier-corrige CHANGELOG.md
+git commit -m 'fix: corriger le problème de transactions'
+git push -u origin fix/v1.0.1-correction-transactions
+```
+
+Ouvrir une Pull Request vers `main`. Le nouveau tag est créé seulement après sa
+fusion et la validation du build sur `main`.
 
 ## Afficher l'historique
 
