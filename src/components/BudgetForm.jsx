@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MenuItem,
   Stack,
@@ -21,6 +21,24 @@ const defaultForm = {
 export function BudgetForm({ open, onClose, onSubmit, initialBudget, isLoading, categories = [] }) {
   const [formData, setFormData] = useState(defaultForm);
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlightRef = useRef(false);
+  const categoryOptions = useMemo(() => {
+    const seen = new Set();
+
+    return categories
+      .filter((category) => normalizeTransactionType(category.type) === "depense")
+      .filter((category) => !isTechnicalCategoryDisplayValue(category.name))
+      .filter((category) => {
+        const key = String(category.name || "").trim().toLowerCase();
+        if (!key || seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      });
+  }, [categories]);
 
   useEffect(() => {
     if (initialBudget) {
@@ -72,9 +90,9 @@ export function BudgetForm({ open, onClose, onSubmit, initialBudget, isLoading, 
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    if (submissionInFlightRef.current || isLoading || !validate()) return;
 
-    const selectedCategory = categories.find((category) => category.id === formData.categoryId);
+    const selectedCategory = categoryOptions.find((category) => category.id === formData.categoryId);
 
     const payload = {
       name: formData.name.trim(),
@@ -89,11 +107,19 @@ export function BudgetForm({ open, onClose, onSubmit, initialBudget, isLoading, 
       isActive: initialBudget?.isActive ?? true,
     };
 
-    const result = await onSubmit(payload);
-    if (result.success) {
-      setFormData({ ...defaultForm });
-      setErrors({});
-      onClose();
+    submissionInFlightRef.current = true;
+    setIsSubmitting(true);
+
+    try {
+      const result = await onSubmit(payload);
+      if (result.success) {
+        setFormData({ ...defaultForm });
+        setErrors({});
+        onClose();
+      }
+    } finally {
+      submissionInFlightRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -103,7 +129,7 @@ export function BudgetForm({ open, onClose, onSubmit, initialBudget, isLoading, 
       title={initialBudget ? "Modifier un budget" : "Ajouter un budget"}
       onClose={onClose}
       onSubmit={handleSubmit}
-      submitting={isLoading}
+      submitting={isLoading || isSubmitting}
       submitLabel={initialBudget ? "Enregistrer" : "Créer"}
       maxWidth="md"
     >
@@ -135,9 +161,7 @@ export function BudgetForm({ open, onClose, onSubmit, initialBudget, isLoading, 
             error={Boolean(errors.categoryId)}
             helperText={errors.categoryId}
           >
-            {categories
-              .filter((category) => normalizeTransactionType(category.type) === "depense")
-              .filter((category) => !isTechnicalCategoryDisplayValue(category.name))
+            {categoryOptions
               .map((category) => (
                 <MenuItem key={category.id} value={category.id}>
                   {getSafeCategoryLabel(category.name)}
