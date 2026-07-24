@@ -20,6 +20,14 @@ test("EntityDialog exposes a close control and loading state", async () => {
   assert.equal(content.includes("LinearProgress"), true);
 });
 
+test("EntityDialog reapplies targeted focus after the opening transition", async () => {
+  const content = await readFile(entityDialogPath, "utf8");
+
+  assert.equal(content.includes("TransitionProps"), true);
+  assert.equal(content.includes("onEntered"), true);
+  assert.equal(content.includes("focusFirstElement(contentRef.current, autoFocusSelector)"), true);
+});
+
 test("EntityDialog preserves scroll and adapts to mobile landscape", async () => {
   const content = await readFile(entityDialogPath, "utf8");
 
