@@ -155,6 +155,13 @@ service cloud.firestore {
       allow delete: if deletesOwnDocument();
     }
 
+    match /debtsReceivables/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if deletesOwnDocument();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

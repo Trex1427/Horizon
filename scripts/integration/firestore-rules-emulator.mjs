@@ -129,6 +129,7 @@ const protectedCollections = [
   "transactionDrafts",
   "opportunities",
   "transfers",
+  "debtsReceivables",
 ];
 
 for (const collectionName of protectedCollections) {
@@ -198,6 +199,14 @@ for (const collectionName of protectedCollections) {
       body: fields(otherUid, { label: `${collectionName} owner transfer attempt` }),
     }),
     `${collectionName} ownerUid mutation`,
+  );
+
+  expectDenied(
+    await request("PATCH", documentPath, {
+      uid: otherUid,
+      body: fields(ownerUid, { label: `${collectionName} update by another owner` }),
+    }),
+    `${collectionName} update by another owner`,
   );
 
   expectDenied(
