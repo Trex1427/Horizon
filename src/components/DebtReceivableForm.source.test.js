@@ -11,4 +11,11 @@ test("form serves create/update, validates and blocks duplicate submissions whil
   assert.match(source, /submittingRef\.current = true/);
   assert.match(source, /submittingRef\.current = false/);
   assert.match(source, /setSubmitError/);
+  assert.match(source, /label="Tiers"/);
+  assert.equal(source.includes("label=\"Contrepartie\""), false);
+  assert.match(source, /Le tiers est obligatoire\./);
+  assert.match(source, /<MenuItem value="">Sélectionner<\/MenuItem>/);
+  assert.match(source, /CREATE_THIRD_PARTY_VALUE/);
+  assert.match(source, /onRequestCreateThirdParty/);
+  assert.match(source, /Ancienne contrepartie détectée/);
 });

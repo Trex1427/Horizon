@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildDebtReceivableCreatePayload, buildDebtReceivablePayload, calculateDebtsReceivablesSummary, validateDebtReceivable } from "./debtsReceivablesModel.js";
 
-const valid = { type: "debt", label: " Prêt ", amount: "500.25", counterparty: " Banque ", dueDate: "2026-09-30", notes: " Note " };
+const valid = { type: "debt", label: " Prêt ", amount: "500.25", thirdPartyId: "tp-bank", dueDate: "2026-09-30", notes: " Note " };
 const now = new Date("2026-07-25T10:00:00Z");
 
 test("creates the minimal normalized model", () => {
   const payload = buildDebtReceivableCreatePayload(valid, now);
   assert.deepEqual(payload, {
-    type: "debt", label: "Prêt", amount: 500.25, counterparty: "Banque", dueDate: "2026-09-30",
+    type: "debt", label: "Prêt", amount: 500.25, thirdPartyId: "tp-bank", dueDate: "2026-09-30",
     notes: "Note", status: "open", updatedAt: now, createdAt: now, isDeleted: false,
   });
 });
@@ -22,8 +22,36 @@ test("update payload cannot carry ownerUid, status or deletion fields", () => {
 
 test("validations reject required fields, zero, negative, non-finite and invalid dates", () => {
   for (const amount of [0, -1, "bad", Infinity]) assert.ok(validateDebtReceivable({ ...valid, amount }).amount);
-  const errors = validateDebtReceivable({ type: "", label: " ", amount: 1, counterparty: "", dueDate: "2026-02-31" });
-  assert.deepEqual(Object.keys(errors).sort(), ["counterparty", "dueDate", "label", "type"]);
+  const errors = validateDebtReceivable({ type: "", label: " ", amount: 1, thirdPartyId: "", dueDate: "2026-02-31" });
+  assert.deepEqual(Object.keys(errors).sort(), ["dueDate", "label", "thirdPartyId", "type"]);
+});
+
+test("new documents no longer require counterparty text", () => {
+  const errors = validateDebtReceivable({
+    type: "receivable",
+    label: "Remboursement",
+    amount: 120,
+    thirdPartyId: "tp-1",
+    counterparty: "",
+    dueDate: null,
+  });
+  assert.equal(errors.counterparty, undefined);
+  assert.equal(errors.thirdPartyId, undefined);
+});
+
+test("legacy counterparty-only documents remain readable for compatibility", () => {
+  const legacyItem = {
+    type: "debt",
+    label: "Dette legacy",
+    amount: 300,
+    counterparty: "Ancienne contrepartie",
+    dueDate: null,
+    status: "open",
+    isDeleted: false,
+  };
+
+  const summary = calculateDebtsReceivablesSummary([legacyItem]);
+  assert.deepEqual(summary, { debts: 300, receivables: 0, net: -300 });
 });
 
 test("summary handles decimals, large values, deleted data and returns to zero", () => {

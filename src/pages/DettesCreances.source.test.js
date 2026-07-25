@@ -15,5 +15,9 @@ test("page presents summaries, CRUD actions, empty state and confirmation", asyn
   for (const label of ["Dettes ouvertes", "Créances ouvertes", "Solde net indicatif", "Modifier", "Supprimer", "Aucune dette ni créance ouverte"]) {
     assert.ok(page.includes(label), `missing ${label}`);
   }
+  assert.ok(page.includes("Tiers:"), "missing third-party display");
+  assert.ok(page.includes("compatibilité legacy"), "missing legacy compatibility fallback");
+  assert.ok(page.includes("introuvable ou supprimé"), "missing missing-third-party fallback");
+  assert.equal(page.includes("{item.thirdPartyId}"), false, "must not render raw thirdPartyId");
   assert.match(page, /Cette suppression est logique/);
 });

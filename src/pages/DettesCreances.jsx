@@ -3,6 +3,7 @@ import { Alert, Box, Button, Card, CardActions, CardContent, CircularProgress, D
 import DebtReceivableForm from "../components/DebtReceivableForm.jsx";
 import { PilotageEmptyState, PilotageHeader, PilotagePageShell, PilotageSection, PilotageSummary, PILOTAGE_COLORS } from "../components/PilotagePageLayout.jsx";
 import { useDebtsReceivables } from "../hooks/useDebtsReceivables.js";
+import { useThirdParties } from "../hooks/useThirdParties.js";
 import { calculateDebtsReceivablesSummary } from "../services/debtsReceivablesModel.js";
 
 const currency = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
@@ -14,11 +15,33 @@ function formatDate(value) {
 
 export default function DettesCreances() {
   const { items, loading, error, create, update, remove } = useDebtsReceivables();
+  const { thirdParties, addThirdParty } = useThirdParties({ includeInactive: true });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState("");
   const summary = useMemo(() => calculateDebtsReceivablesSummary(items), [items]);
+  const thirdPartyMap = useMemo(
+    () => new Map((thirdParties || []).map((thirdParty) => [thirdParty.id, thirdParty])),
+    [thirdParties],
+  );
+
+  function getThirdPartyDisplay(item) {
+    if (item?.thirdPartyId) {
+      const linkedThirdParty = thirdPartyMap.get(item.thirdPartyId);
+      if (linkedThirdParty) {
+        return `Tiers: ${linkedThirdParty.name}${linkedThirdParty.isActive === false ? " (Archive)" : ""}`;
+      }
+      return "Tiers: introuvable ou supprimé";
+    }
+
+    const legacyCounterparty = String(item?.counterparty || "").trim();
+    if (legacyCounterparty) {
+      return `Tiers (compatibilité legacy): ${legacyCounterparty}`;
+    }
+
+    return "Tiers à renseigner";
+  }
 
   async function confirmDelete() {
     const result = await remove(deleting.id);
@@ -47,7 +70,7 @@ export default function DettesCreances() {
                   <Box>
                     <Typography variant="overline" color={item.type === "debt" ? "error" : "success.main"}>{item.type === "debt" ? "Dette" : "Créance"}</Typography>
                     <Typography variant="h6">{item.label}</Typography>
-                    <Typography color="text.secondary">{item.counterparty}{item.dueDate ? ` · Échéance ${formatDate(item.dueDate)}` : ""}</Typography>
+                    <Typography color="text.secondary">{getThirdPartyDisplay(item)}{item.dueDate ? ` · Échéance ${formatDate(item.dueDate)}` : ""}</Typography>
                   </Box>
                   <Typography variant="h6" sx={{ fontVariantNumeric: "tabular-nums" }}>{formatCurrency(Number(item.amount))}</Typography>
                 </Stack>
@@ -57,7 +80,8 @@ export default function DettesCreances() {
           ))}
         </Stack>
       </PilotageSection>
-      <DebtReceivableForm key={`${editing?.id || "new"}-${formOpen}`} open={formOpen} initialItem={editing} onClose={() => { setFormOpen(false); setEditing(null); }}
+      <DebtReceivableForm key={`${editing?.id || "new"}-${formOpen}`} open={formOpen} initialItem={editing} thirdParties={thirdParties}
+        onRequestCreateThirdParty={addThirdParty} onClose={() => { setFormOpen(false); setEditing(null); }}
         onSubmit={(payload) => editing ? update(editing.id, payload) : create(payload)} />
       <Dialog open={Boolean(deleting)} onClose={() => setDeleting(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Supprimer cet élément ?</DialogTitle>

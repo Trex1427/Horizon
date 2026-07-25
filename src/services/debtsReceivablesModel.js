@@ -12,7 +12,7 @@ export function validateDebtReceivable(values = {}) {
   const amount = Number(values.amount);
   if (!TYPES.has(values.type)) errors.type = "Sélectionnez Dette ou Créance.";
   if (!String(values.label || "").trim()) errors.label = "Le libellé est obligatoire.";
-  if (!String(values.counterparty || "").trim()) errors.counterparty = "La contrepartie est obligatoire.";
+  if (!String(values.thirdPartyId || "").trim()) errors.thirdPartyId = "Le tiers est obligatoire.";
   if (!Number.isFinite(amount) || amount <= 0) errors.amount = "Le montant doit être strictement supérieur à zéro.";
   if (!isValidDateString(values.dueDate)) errors.dueDate = "La date d’échéance est invalide.";
   return errors;
@@ -29,7 +29,7 @@ export function buildDebtReceivablePayload(values = {}, now = new Date()) {
     type: values.type,
     label: String(values.label).trim(),
     amount: Number(values.amount),
-    counterparty: String(values.counterparty).trim(),
+    thirdPartyId: String(values.thirdPartyId || "").trim(),
     dueDate: values.dueDate || null,
     notes: String(values.notes || "").trim() || null,
     status: "open",
