@@ -727,7 +727,7 @@ export default function Analyse({ onOpenTransactionsFiltered, navigationContext 
 					<SummaryMetricCard
 						title="Revenus"
 						total={revenuesTotal}
-						share={100}
+						share={revenuesTotal > 0 ? 100 : 0}
 						variation={snapshot.variableIncome.variation}
 						tone={HORIZON_COLORS.green}
 						icon={<TrendingUp fontSize="small" />}
