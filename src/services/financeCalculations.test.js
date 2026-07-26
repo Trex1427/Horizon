@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 
 import {
   calculateAccountsBalances,
+  buildBudgetFixedExpenseReservationMap,
+  calculateBudgetReservedFixedExpenseAmount,
   normalizeCategoryName,
   isTransactionMatchingBudgetCategory,
   matchesBudgetPeriod,
   calculateBudgetSpentAmount,
   calculateTransfersNetImpact,
   matchesExpectedTransaction,
+  selectNonOverlappingBudgetsForForecast,
 } from "./financeCalculations.js";
 
 test("normalizeCategoryName trims and lowercases", () => {
@@ -198,4 +201,84 @@ test("calculateTransfersNetImpact keeps zero global impact for internal transfer
   ]);
 
   assert.equal(netImpact, 0);
+});
+
+test("calculateBudgetReservedFixedExpenseAmount reserves only matching category and account", () => {
+  const budget = { categoryId: "energy", categoryName: "Energie", accountId: "account-1" };
+  const reserved = calculateBudgetReservedFixedExpenseAmount(budget, [
+    { categoryId: "energy", accountId: "account-1", amount: 40 },
+    { categoryId: "energy", accountId: "account-2", amount: 25 },
+    { categoryId: "food", accountId: "account-1", amount: 30 },
+  ]);
+  assert.equal(reserved, 40);
+});
+test("subcategory reservations target the exact envelope and never sibling envelopes", () => {
+  const budgets = [
+    { id: "rent", categoryId: "housing", subcategoryId: "rent", accountId: "main" },
+    { id: "electricity", categoryId: "housing", subcategoryId: "electricity", accountId: "main" },
+    { id: "insurance", categoryId: "housing", subcategoryId: "insurance", accountId: "main" },
+  ];
+  const reservations = buildBudgetFixedExpenseReservationMap(budgets, [{
+    categoryId: "housing",
+    subcategoryId: "electricity",
+    accountId: "main",
+    amount: 120,
+  }]);
+
+  assert.equal(reservations.get(budgets[0]), 0);
+  assert.equal(reservations.get(budgets[1]), 120);
+  assert.equal(reservations.get(budgets[2]), 0);
+});
+
+test("subcategory reservation falls back to category and prioritizes account-specific budget", () => {
+  const globalCategoryBudget = { id: "global", categoryId: "housing" };
+  const accountCategoryBudget = { id: "main", categoryId: "housing", accountId: "main" };
+  const reservations = buildBudgetFixedExpenseReservationMap(
+    [globalCategoryBudget, accountCategoryBudget],
+    [{ categoryId: "housing", subcategoryId: "electricity", accountId: "main", amount: 120 }]
+  );
+
+  assert.equal(reservations.get(globalCategoryBudget), 0);
+  assert.equal(reservations.get(accountCategoryBudget), 120);
+});
+
+test("exact subcategory budget takes priority over category budget without double reservation", () => {
+  const categoryBudget = { id: "housing", categoryId: "housing", accountId: "main" };
+  const electricityBudget = { id: "electricity", categoryId: "housing", subcategoryId: "electricity", accountId: "main" };
+  const reservations = buildBudgetFixedExpenseReservationMap(
+    [categoryBudget, electricityBudget],
+    [{ categoryId: "housing", subcategoryId: "electricity", accountId: "main", amount: 120 }]
+  );
+
+  assert.equal(reservations.get(categoryBudget), 0);
+  assert.equal(reservations.get(electricityBudget), 120);
+});
+
+test("historical matching requires the expected subcategory and falls back only for legacy expected items", () => {
+  const expected = { categoryId: "housing", subcategoryId: "electricity", accountId: "main" };
+  const options = {
+    expectedType: "depense",
+    expectedAmount: 120,
+    monthStart: new Date(2026, 7, 1),
+    monthEnd: new Date(2026, 7, 31, 23, 59, 59),
+  };
+
+  assert.equal(matchesExpectedTransaction({
+    type: "depense", montant: 120, date: "2026-08-10", categoryId: "housing", subcategoryId: "water", accountId: "main",
+  }, expected, options), false);
+  const transactionWithoutSubcategory = {
+    type: "depense", montant: 120, date: "2026-08-10", categoryId: "housing", accountId: "main",
+  };
+  assert.equal(matchesExpectedTransaction(transactionWithoutSubcategory, expected, options), false);
+  assert.equal(matchesExpectedTransaction(transactionWithoutSubcategory, { ...expected, subcategoryId: "" }, options), true);
+});
+test("global category budget replaces its detailed envelopes in financial totals", () => {
+  const globalBudget = { id: "global", categoryId: "housing", accountId: "main", startDate: "2026-01-01", endDate: "2026-12-31", amount: 1000 };
+  const details = [
+    { id: "rent", categoryId: "housing", subcategoryId: "rent", accountId: "main", startDate: "2026-01-01", endDate: "2026-12-31", amount: 700 },
+    { id: "electricity", categoryId: "housing", subcategoryId: "electricity", accountId: "main", startDate: "2026-01-01", endDate: "2026-12-31", amount: 150 },
+    { id: "insurance", categoryId: "housing", subcategoryId: "insurance", accountId: "main", startDate: "2026-01-01", endDate: "2026-12-31", amount: 150 },
+  ];
+  assert.deepEqual(selectNonOverlappingBudgetsForForecast([globalBudget, ...details]), [globalBudget]);
+  assert.deepEqual(selectNonOverlappingBudgetsForForecast(details), details);
 });

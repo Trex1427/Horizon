@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -52,7 +52,10 @@ export function FixedExpenseCard({ fixedExpense, onEdit, onDelete, accounts = []
     return "Période non définie";
   }, [fixedExpense.endDate, fixedExpense.startDate]);
 
-  const categoryLabel = getSafeCategoryLabel(fixedExpense.categoryName || fixedExpense.category, "Catégorie non définie");
+  const baseCategoryLabel = getSafeCategoryLabel(fixedExpense.categoryName || fixedExpense.category, "Catégorie non définie");
+  const categoryLabel = fixedExpense.subcategoryName
+    ? `${baseCategoryLabel} · ${fixedExpense.subcategoryName}`
+    : baseCategoryLabel;
   const statusLabel = fixedExpense.isActive === false ? "Inactif" : "Actif";
   const subtitle = `${categoryLabel} • ${accountName} • ${frequencyLabel} • ${periodLabel}`;
 

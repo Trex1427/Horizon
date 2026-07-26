@@ -118,3 +118,27 @@ test("buildQuickFixedExpensePayload derives fixed-expense model from transaction
   assert.equal(payload.endDate, null);
   assert.equal(payload.variations.length, 0);
 });
+
+test("legacy matching requires the same subcategory when the fixed expense defines one", () => {
+  const fixedExpenses = [
+    { id: "fx-electricity", accountId: "acc-1", categoryId: "housing", subcategoryId: "electricity", initialAmount: 120, isActive: true },
+    { id: "fx-water", accountId: "acc-1", categoryId: "housing", subcategoryId: "water", initialAmount: 120, isActive: true },
+  ];
+  const transaction = { date: "2026-07-13", type: "depense", montant: 120, accountId: "acc-1", categoryId: "housing", subcategoryId: "electricity" };
+
+  assert.equal(findMatchingFixedExpenseForTransaction(transaction, fixedExpenses)?.id, "fx-electricity");
+  assert.equal(findMatchingFixedExpenseForTransaction({ ...transaction, subcategoryId: "insurance" }, fixedExpenses), null);
+  assert.equal(findMatchingFixedExpenseForTransaction({ ...transaction, subcategoryId: "" }, fixedExpenses), null);
+});
+
+test("explicit fixedExpenseId remains prioritary and form synchronization copies subcategory", () => {
+  const fixedExpenses = [
+    { id: "fx-electricity", accountId: "acc-1", categoryId: "housing", categoryName: "Logement", subcategoryId: "electricity", subcategoryName: "Électricité", initialAmount: 120, isActive: true },
+  ];
+  const transaction = { fixedExpenseId: "fx-electricity", date: "2026-07-13", type: "depense", montant: 999, accountId: "other", categoryId: "other" };
+  assert.equal(findMatchingFixedExpenseForTransaction(transaction, fixedExpenses)?.id, "fx-electricity");
+
+  const draft = applyFixedExpenseToTransactionForm({ date: "2026-07-13" }, fixedExpenses[0]);
+  assert.equal(draft.subcategoryId, "electricity");
+  assert.equal(draft.subcategoryName, "Électricité");
+});

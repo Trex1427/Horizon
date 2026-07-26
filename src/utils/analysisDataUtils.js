@@ -340,7 +340,10 @@ function buildRecurringDueEntries(items = [], range, type = "expense", accountId
       rows.push({
         sourceId: item?.id || `${type === "income" ? resolveRecurringIncomeSourceName(item) : resolveItemCategory(item)}-${toIsoDate(monthDate)}`,
         sourceName: type === "income" ? resolveRecurringIncomeSourceName(item) : (item?.name || resolveItemCategory(item)),
+        categoryId: item?.categoryId || "",
         categoryName: resolveItemCategory(item),
+        subcategoryId: item?.subcategoryId || "",
+        subcategoryName: item?.subcategoryName || "",
         accountId: item?.accountId || "",
         amount,
         type: type === "income" ? "revenu" : "depense",
@@ -356,6 +359,7 @@ function buildRecurringDueEntries(items = [], range, type = "expense", accountId
 function mapDueEntriesToTransactions(dueEntries = [], transactions = []) {
   const usedTransactionIds = new Set();
   const matchedTransactions = [];
+  const resolvedEntries = [];
 
   dueEntries.forEach((entry) => {
     const matchingTransaction = (transactions || []).find((transaction) => {
@@ -373,7 +377,9 @@ function mapDueEntriesToTransactions(dueEntries = [], transactions = []) {
 
       return isLinkedFixedExpenseOccurrence || matchesExpectedTransaction(transaction, {
         accountId: entry.accountId,
+        categoryId: entry.categoryId,
         categoryName: entry.categoryName,
+        subcategoryId: entry.subcategoryId,
       }, {
         expectedType: entry.type,
         expectedAmount: entry.amount,
@@ -386,11 +392,24 @@ function mapDueEntriesToTransactions(dueEntries = [], transactions = []) {
       usedTransactionIds.add(matchingTransaction.id);
       matchedTransactions.push(matchingTransaction);
     }
+
+    resolvedEntries.push(matchingTransaction
+      ? {
+          ...entry,
+          amount: toAmount(matchingTransaction?.montant ?? matchingTransaction?.amount),
+          matchedTransactionId: matchingTransaction.id,
+          status: "paid",
+        }
+      : {
+          ...entry,
+          status: "planned",
+        });
   });
 
   return {
     usedTransactionIds,
     matchedTransactions,
+    resolvedEntries,
   };
 }
 
@@ -687,10 +706,10 @@ export function buildAnalysisSnapshot({
     .filter((transaction) => !prevRecurringMatches.usedTransactionIds.has(transaction.id))
     .map((transaction) => enrichTransactionCategory(transaction, categoryResolutionContext));
 
-  const filteredFixedDueEntries = fixedDueEntries.filter((entry) => matchesSelectedCategory(entry.categoryName));
-  const filteredFixedPrevDueEntries = fixedPrevDueEntries.filter((entry) => matchesSelectedCategory(entry.categoryName));
-  const filteredRecurringIncomeEntries = recurringIncomeEntries.filter((entry) => matchesSelectedCategory(entry.categoryName));
-  const filteredRecurringIncomePrevEntries = recurringIncomePrevEntries.filter((entry) => matchesSelectedCategory(entry.categoryName));
+  const filteredFixedDueEntries = fixedMatches.resolvedEntries.filter((entry) => matchesSelectedCategory(entry.categoryName));
+  const filteredFixedPrevDueEntries = prevFixedMatches.resolvedEntries.filter((entry) => matchesSelectedCategory(entry.categoryName));
+  const filteredRecurringIncomeEntries = recurringMatches.resolvedEntries.filter((entry) => matchesSelectedCategory(entry.categoryName));
+  const filteredRecurringIncomePrevEntries = prevRecurringMatches.resolvedEntries.filter((entry) => matchesSelectedCategory(entry.categoryName));
 
   const filteredVariableExpenses = normalizedSelectedCategory === "all"
     ? variableExpenses

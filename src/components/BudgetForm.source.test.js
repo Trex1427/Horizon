@@ -1,3 +1,4 @@
+/* global process */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -22,4 +23,13 @@ test("BudgetForm uses the same canonical category per visible name as Transactio
   assert.equal(content.includes("const seen = new Set()"), true);
   assert.equal(content.includes("seen.has(key)"), true);
   assert.equal(content.includes("categoryOptions.find((category) => category.id === formData.categoryId)"), true);
+});
+test("BudgetForm exposes optional filtered subcategory selection and edit persistence", async () => {
+  const content = await readFile(budgetFormPath, "utf8");
+  assert.equal(content.includes('label="Sous-catégorie (optionnelle)"'), true);
+  assert.equal(content.includes('name="subcategoryId"'), true);
+  assert.equal(content.includes('subcategoryId: initialBudget.subcategoryId || ""'), true);
+  assert.equal(content.includes('subcategoryId: selectedSubcategory?.id || null'), true);
+  assert.equal(content.includes("resetIncompatibleBudgetSubcategory"), true);
+  assert.equal(content.includes('errors.submit && <Alert severity="error">'), true);
 });

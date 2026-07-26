@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   IconButton,
@@ -18,12 +19,18 @@ import {
   validateFixedExpenseForm,
 } from "../services/recurringAndFixedFormPayloads";
 import { getSafeCategoryLabel } from "../utils/displayTextUtils";
+import {
+  getFixedExpenseSubcategoryOptions,
+  resetIncompatibleFixedExpenseSubcategory,
+} from "../utils/fixedExpenseFormUtils";
 
 const defaultForm = {
   name: "",
   categoryId: "",
   categoryName: "",
   category: "",
+  subcategoryId: "",
+  subcategoryName: "",
   accountId: "",
   frequency: "monthly",
   initialAmount: "",
@@ -53,13 +60,21 @@ export function FixedExpenseForm({
   isLoading,
   accounts = [],
   categories = [],
+  subcategories = [],
 }) {
   const [formData, setFormData] = useState(defaultForm);
   const [variations, setVariations] = useState([]);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
 
   const expenseCategories = useMemo(() => getExpenseCategoryOptions(categories), [categories]);
+  const subcategoryOptions = useMemo(
+    () => getFixedExpenseSubcategoryOptions(subcategories, formData.categoryId),
+    [formData.categoryId, subcategories]
+  );
 
+  // The dialog intentionally rehydrates its local draft whenever the edited entity changes.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (initialExpense) {
       const initialCategoryName = initialExpense.categoryName || initialExpense.category || "";
@@ -74,6 +89,8 @@ export function FixedExpenseForm({
         categoryId: initialExpense.categoryId || selectedCategory?.id || "",
         categoryName: initialExpense.categoryName || selectedCategory?.name || initialCategoryName,
         category: initialExpense.category || selectedCategory?.name || initialCategoryName,
+        subcategoryId: initialExpense.subcategoryId || "",
+        subcategoryName: initialExpense.subcategoryName || "",
         accountId: initialExpense.accountId || "",
         frequency: initialExpense.frequency || "monthly",
         initialAmount: String(initialExpense.initialAmount ?? ""),
@@ -94,6 +111,7 @@ export function FixedExpenseForm({
     }
     setErrors({});
   }, [initialExpense, open, expenseCategories]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -127,14 +145,26 @@ export function FixedExpenseForm({
   const handleSubmit = async () => {
     if (!validate()) return;
 
-    const payload = buildFixedExpensePayload({ ...formData, variations }, expenseCategories, initialExpense);
+    const payload = buildFixedExpensePayload({ ...formData, variations }, expenseCategories, initialExpense, subcategories);
 
-    const result = await onSubmit(payload);
-    if (result.success) {
+    setSubmitting(true);
+    setErrors((prev) => ({ ...prev, submit: null }));
+    let result;
+    try {
+      result = await onSubmit(payload);
+    } catch (error) {
+      result = { success: false, error: error?.message || "Enregistrement impossible" };
+    } finally {
+      setSubmitting(false);
+    }
+
+    if (result?.success) {
       setFormData(defaultForm);
       setVariations([]);
       setErrors({});
       onClose();
+    } else {
+      setErrors((prev) => ({ ...prev, submit: result?.error || "Enregistrement impossible" }));
     }
   };
 
@@ -144,11 +174,12 @@ export function FixedExpenseForm({
       title={initialExpense ? "Modifier un frais fixe" : "Ajouter un frais fixe"}
       onClose={onClose}
       onSubmit={handleSubmit}
-      submitting={isLoading}
+      submitting={isLoading || submitting}
       submitLabel={initialExpense ? "Enregistrer" : "Créer"}
       maxWidth="md"
     >
       <Stack spacing={2} sx={{ mt: 1 }}>
+        {errors.submit && <Alert severity="error">{errors.submit}</Alert>}
         <TextField
           label="Nom"
           name="name"
@@ -169,8 +200,7 @@ export function FixedExpenseForm({
             const selectedName = selectedCategory?.name || event.target.value;
 
             setFormData((prev) => ({
-              ...prev,
-              categoryId: selectedCategory?.id || "",
+              ...resetIncompatibleFixedExpenseSubcategory(prev, selectedCategory?.id || "", subcategories),
               categoryName: selectedName,
               category: selectedName,
             }));
@@ -196,6 +226,32 @@ export function FixedExpenseForm({
             ))}
         </TextField>
 
+        <TextField
+          label="Sous-catégorie (optionnelle)"
+          name="subcategoryId"
+          select
+          value={formData.subcategoryId}
+          onChange={(event) => {
+            const selectedSubcategory = subcategoryOptions.find((subcategory) => subcategory.id === event.target.value);
+            setFormData((prev) => ({
+              ...prev,
+              subcategoryId: selectedSubcategory?.id || "",
+              subcategoryName: selectedSubcategory?.name || "",
+            }));
+            setErrors((prev) => ({ ...prev, subcategoryId: null, submit: null }));
+          }}
+          fullWidth
+          disabled={!formData.categoryId}
+          error={Boolean(errors.subcategoryId)}
+          helperText={errors.subcategoryId || (!formData.categoryId ? "Sélectionnez d’abord une catégorie" : "Laisser vide pour un frais fixe de catégorie")}
+        >
+          <MenuItem value="">Aucune — frais fixe de catégorie</MenuItem>
+          {subcategoryOptions.map((subcategory) => (
+            <MenuItem key={subcategory.id} value={subcategory.id}>
+              {subcategory.name}
+            </MenuItem>
+          ))}
+        </TextField>
         <AccountSelector
           value={formData.accountId}
           onChange={handleChange}

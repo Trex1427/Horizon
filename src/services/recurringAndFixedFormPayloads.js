@@ -1,10 +1,6 @@
 import { getSafeCategoryLabel, isTechnicalCategoryDisplayValue } from "../utils/displayTextUtils.js";
 import { normalizeTransactionType } from "../utils/transactionTypeUtils.js";
 
-function normalizeCategoryName(value) {
-  return (value || "").trim().toLowerCase();
-}
-
 function toTrimmedString(value) {
   return String(value || "").trim();
 }
@@ -57,13 +53,20 @@ export function validateFixedExpenseForm(formData = {}) {
   return nextErrors;
 }
 
-export function buildFixedExpensePayload(formData = {}, categories = [], initialExpense = null) {
+export function buildFixedExpensePayload(formData = {}, categories = [], initialExpense = null, subcategories = []) {
   const selectedCategory = getExpenseCategoryOptions(categories).find((category) => category.id === formData.categoryId);
   const normalizedCategory = getNormalizedCategory(selectedCategory, formData.categoryName || formData.category || initialExpense?.categoryName || "");
+  const selectedSubcategory = subcategories.find((subcategory) => (
+    subcategory.id === formData.subcategoryId
+    && subcategory.categoryId === normalizedCategory.categoryId
+    && subcategory.isActive !== false
+  ));
 
   return {
     name: toTrimmedString(formData.name),
     ...normalizedCategory,
+    subcategoryId: selectedSubcategory?.id || null,
+    subcategoryName: selectedSubcategory?.name || null,
     accountId: formData.accountId || null,
     frequency: formData.frequency || "monthly",
     initialAmount: Number(formData.initialAmount),

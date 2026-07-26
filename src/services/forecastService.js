@@ -1,8 +1,10 @@
 import {
+  buildBudgetFixedExpenseReservationMap,
   calculateBudgetSpentAmount,
   calculateCurrentAccountsBalance,
   isDateInRange,
   matchesExpectedTransaction,
+  selectNonOverlappingBudgetsForForecast,
   toDateValue,
 } from "./financeCalculations.js";
 import { getRecurringIncomeApplicableAmount } from "../utils/recurringIncomeAmount.js";
@@ -156,11 +158,11 @@ export function calculateMonthlyForecast({
       return alreadyRealized ? sum : sum + amount;
     }, 0);
 
-  const expectedFixedExpenses = (fixedExpenses || [])
+  const pendingFixedExpenseOccurrences = (fixedExpenses || [])
     .filter((fixedExpense) => isRecurringItemDueThisMonth(fixedExpense, monthBounds))
-    .reduce((sum, fixedExpense) => {
+    .reduce((occurrences, fixedExpense) => {
       const amount = getApplicableAmount(fixedExpense, monthBounds.end);
-      if (amount <= 0) return sum;
+      if (amount <= 0) return occurrences;
 
       const alreadyRealized = (transactions || []).some((transaction) =>
         (String(transaction?.fixedExpenseId || "") === String(fixedExpense?.id || "")
@@ -174,11 +176,27 @@ export function calculateMonthlyForecast({
         })
       );
 
-      return alreadyRealized ? sum : sum + amount;
-    }, 0);
+      if (!alreadyRealized) {
+        occurrences.push({
+          ...fixedExpense,
+          amount,
+          montant: amount,
+        });
+      }
+      return occurrences;
+    }, []);
 
-  const remainingBudgets = (budgets || [])
-    .filter((budget) => isBudgetApplicableThisMonth(budget, monthBounds))
+  const expectedFixedExpenses = pendingFixedExpenseOccurrences
+    .reduce((sum, occurrence) => sum + toNumber(occurrence.amount), 0);
+
+  const applicableBudgets = selectNonOverlappingBudgetsForForecast(
+    (budgets || []).filter((budget) => isBudgetApplicableThisMonth(budget, monthBounds))
+  );
+  const fixedExpenseReservations = buildBudgetFixedExpenseReservationMap(
+    applicableBudgets,
+    pendingFixedExpenseOccurrences
+  );
+  const remainingBudgets = applicableBudgets
     .reduce((sum, budget) => {
       const budgetAmount = toNumber(budget?.amount);
       const range = getBudgetIntersectionRange(budget, monthBounds);
@@ -186,7 +204,8 @@ export function calculateMonthlyForecast({
         startDate: range.start,
         endDate: range.end,
       });
-      const remaining = Math.max(0, budgetAmount - spentAmount);
+      const reservedFixedExpenseAmount = fixedExpenseReservations.get(budget) || 0;
+      const remaining = Math.max(0, budgetAmount - spentAmount - reservedFixedExpenseAmount);
       return sum + remaining;
     }, 0);
 
