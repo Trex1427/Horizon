@@ -1,15 +1,16 @@
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
-import { withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
+import { requireCurrentUid, withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
 import { buildOpportunityCreatePayload, buildOpportunityPayload } from "./opportunityPayloads.js";
 
 const OPPORTUNITIES_COLLECTION = "opportunities";
 
 export function subscribeToOpportunities(onData, onError, options = {}) {
+  const ownerUid = requireCurrentUid(auth);
   const includeInactive = options?.includeInactive === true;
   const ref = includeInactive
-    ? collection(db, OPPORTUNITIES_COLLECTION)
-    : query(collection(db, OPPORTUNITIES_COLLECTION), where("isActive", "==", true));
+    ? query(collection(db, OPPORTUNITIES_COLLECTION), where("ownerUid", "==", ownerUid))
+    : query(collection(db, OPPORTUNITIES_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true));
 
   return onSnapshot(
     ref,

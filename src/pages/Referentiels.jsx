@@ -273,7 +273,7 @@ function applySearch(items, query, getHaystack) {
   return items.filter((item) => getHaystack(item).includes(normalized));
 }
 
-export default function Referentiels({ accounts = [] }) {
+export default function Referentiels({ accounts = [], addAccount, updateAccount, deleteAccount }) {
   const enableDesktopDoubleClickEdit = useMediaQuery("(min-width:900px)");
   const [tab, setTab] = useState("accounts");
   const [message, setMessage] = useState("");
@@ -333,12 +333,28 @@ export default function Referentiels({ accounts = [] }) {
     deactivateProject,
   } = useProjects({ includeInactive: true });
 
+  const [accountForm, setAccountForm] = useState({ id: "", name: "", type: "standard", initialBalance: "0" });
   const [subcategoryForm, setSubcategoryForm] = useState({ id: "", name: "", categoryId: "", type: "depense" });
   const [subcategoryFilterType, setSubcategoryFilterType] = useState("all");
   const [subcategoryFilterCategory, setSubcategoryFilterCategory] = useState("all");
   const [activityForm, setActivityForm] = useState({ id: "", name: "", kind: "profit_center" });
   const [thirdPartyForm, setThirdPartyForm] = useState({ id: "", name: "", type: "supplier", notes: "" });
   const [projectForm, setProjectForm] = useState({ id: "", name: "", activityId: "", startDate: "", endDate: "", notes: "" });
+
+  function startCreate(setForm, emptyForm, inputId) {
+    setForm(emptyForm);
+    window.setTimeout(() => {
+      const input = document.getElementById(inputId);
+      input?.scrollIntoView({ behavior: "smooth", block: "center" });
+      input?.focus();
+    }, 0);
+  }
+
+  const startCreateAccount = () => startCreate(setAccountForm, { id: "", name: "", type: "standard", initialBalance: "0" }, "reference-account-name");
+  const startCreateSubcategory = () => startCreate(setSubcategoryForm, { id: "", name: "", categoryId: "", type: "depense" }, "reference-subcategory-name");
+  const startCreateActivity = () => startCreate(setActivityForm, { id: "", name: "", kind: "profit_center" }, "reference-activity-name");
+  const startCreateThirdParty = () => startCreate(setThirdPartyForm, { id: "", name: "", type: "supplier", notes: "" }, "reference-third-party-name");
+  const startCreateProject = () => startCreate(setProjectForm, { id: "", name: "", activityId: "", startDate: "", endDate: "", notes: "" }, "reference-project-name");
 
   const setTabSearch = (value) => setSearchByTab((previous) => ({ ...previous, [tab]: value }));
   const setTabStatus = (value) => setStatusByTab((previous) => ({ ...previous, [tab]: value }));
@@ -406,6 +422,23 @@ export default function Referentiels({ accounts = [] }) {
       return searchText(project.name, activity?.name, project.startDate, project.endDate, project.notes, getStatusLabel(project));
     });
   }, [activityMap, currentSearch, currentStatus, projects]);
+
+  async function handleSaveAccount() {
+    const name = accountForm.name.trim();
+    const initialBalance = Number(accountForm.initialBalance);
+    if (!name || !Number.isFinite(initialBalance)) {
+      setMessage("Nom obligatoire et solde initial numerique pour le compte.");
+      return;
+    }
+    const payload = { name, type: accountForm.type, initialBalance, isActive: true };
+    const result = accountForm.id ? await updateAccount(accountForm.id, payload) : await addAccount(payload);
+    if (!result?.success) {
+      setMessage(result?.error || "Erreur lors de l'enregistrement du compte.");
+      return;
+    }
+    setAccountForm({ id: "", name: "", type: "standard", initialBalance: "0" });
+    setMessage("Compte enregistre");
+  }
 
   async function handleSaveSubcategory() {
     if (!subcategoryForm.name || !subcategoryForm.categoryId) {
@@ -568,14 +601,30 @@ export default function Referentiels({ accounts = [] }) {
 
       {tab === "accounts" && (
         <Stack spacing={1.25}>
-          <ReferenceHeader title="Comptes" items={accounts} />
+          <ReferenceHeader title="Comptes" items={accounts} onAdd={startCreateAccount} />
           <Controls total={accounts.length} shown={visibleAccounts.length} label="comptes" placeholder="Rechercher un compte" />
+          <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" } }}>
+            <TextField id="reference-account-name" label="Nom" size="small" value={accountForm.name} onChange={(event) => setAccountForm((prev) => ({ ...prev, name: event.target.value }))} />
+            <TextField label="Type" select size="small" value={accountForm.type} onChange={(event) => setAccountForm((prev) => ({ ...prev, type: event.target.value }))}>
+              <MenuItem value="standard">Standard</MenuItem>
+              <MenuItem value="savings">Epargne</MenuItem>
+              <MenuItem value="business">Professionnel</MenuItem>
+              <MenuItem value="cash">Especes</MenuItem>
+              <MenuItem value="digital">Numerique</MenuItem>
+            </TextField>
+            <TextField label="Solde initial" size="small" type="number" value={accountForm.initialBalance} onChange={(event) => setAccountForm((prev) => ({ ...prev, initialBalance: event.target.value }))} />
+            <Stack direction="row" spacing={1}>
+              <Button variant="contained" onClick={handleSaveAccount}>{accountForm.id ? "Mettre à jour" : "Ajouter"}</Button>
+              {accountForm.id && <Button variant="outlined" onClick={startCreateAccount}>Annuler</Button>}
+            </Stack>
+          </Box>
           {visibleAccounts.length === 0 ? (
-            <EmptyState message={currentSearch ? "Aucun compte ne correspond à votre recherche." : "Aucun compte chargé."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} />
+            <EmptyState message={currentSearch ? "Aucun compte ne correspond à votre recherche." : "Aucun compte chargé."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={startCreateAccount} addLabel="Ajouter" />
           ) : (
             <Stack spacing={0.75}>
-              {visibleAccounts.map((account) => (
-                <ReferenceCard
+              {visibleAccounts.map((account) => {
+                const edit = () => setAccountForm({ id: account.id, name: account.name || "", type: account.type || "standard", initialBalance: String(account.initialBalance ?? 0) });
+                return <ReferenceCard
                   key={account.id || account.name}
                   item={account}
                   title={account.name || "Compte"}
@@ -584,10 +633,16 @@ export default function Referentiels({ accounts = [] }) {
                   details={[
                     account.icon ? `Icône: ${account.icon}` : "",
                     account.initialBalance !== undefined ? `Solde initial: ${Number(account.initialBalance || 0).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}` : "",
-                    "Lecture seule: aucun éditeur direct dédié",
+                  ]}
+                  editable
+                  onEdit={edit}
+                  editableRowProps={editableRowProps}
+                  actions={[
+                    { label: "Modifier", onClick: edit },
+                    { label: "Supprimer", danger: true, onClick: () => deleteAccount(account.id) },
                   ]}
                 />
-              ))}
+              })}
             </Stack>
           )}
         </Stack>
@@ -595,7 +650,7 @@ export default function Referentiels({ accounts = [] }) {
 
       {tab === "subcategories" && (
         <Stack spacing={1.25}>
-          <ReferenceHeader title="Sous-catégories" items={subcategories} onAdd={() => setSubcategoryForm({ id: "", name: "", categoryId: "", type: "depense" })} />
+          <ReferenceHeader title="Sous-catégories" items={subcategories} onAdd={startCreateSubcategory} />
           <Controls
             total={baseSubcategories.length}
             shown={visibleSubcategories.length}
@@ -619,7 +674,7 @@ export default function Referentiels({ accounts = [] }) {
             <Button size="small" variant="outlined" onClick={handleSeedSubcategories}>Charger exemples initiaux</Button>
           </Stack>
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" } }}>
-            <TextField label="Nom" size="small" value={subcategoryForm.name} onChange={(event) => setSubcategoryForm((prev) => ({ ...prev, name: event.target.value }))} />
+            <TextField id="reference-subcategory-name" label="Nom" size="small" value={subcategoryForm.name} onChange={(event) => setSubcategoryForm((prev) => ({ ...prev, name: event.target.value }))} />
             <TextField
               label="Catégorie"
               select
@@ -642,7 +697,7 @@ export default function Referentiels({ accounts = [] }) {
             </Stack>
           </Box>
           {visibleSubcategories.length === 0 ? (
-            <EmptyState message={currentSearch ? "Aucune sous-catégorie ne correspond à votre recherche." : "Aucune sous-catégorie à afficher."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={() => setSubcategoryForm({ id: "", name: "", categoryId: "", type: "depense" })} addLabel="Ajouter" />
+            <EmptyState message={currentSearch ? "Aucune sous-catégorie ne correspond à votre recherche." : "Aucune sous-catégorie à afficher."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={startCreateSubcategory} addLabel="Ajouter" />
           ) : (
             <Stack spacing={0.75}>
               {visibleSubcategories.map((subcategory) => {
@@ -677,11 +732,11 @@ export default function Referentiels({ accounts = [] }) {
 
       {tab === "activities" && (
         <Stack spacing={1.25}>
-          <ReferenceHeader title="Activités" items={activities} onAdd={() => setActivityForm({ id: "", name: "", kind: "profit_center" })} />
+          <ReferenceHeader title="Activités" items={activities} onAdd={startCreateActivity} />
           <Controls total={activities.length} shown={visibleActivities.length} label="activité(s)" placeholder="Rechercher une activité" />
           <Button size="small" variant="outlined" onClick={handleSeedActivities} sx={{ alignSelf: "flex-start" }}>Charger exemples</Button>
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
-            <TextField label="Nom" size="small" value={activityForm.name} onChange={(event) => setActivityForm((prev) => ({ ...prev, name: event.target.value }))} />
+            <TextField id="reference-activity-name" label="Nom" size="small" value={activityForm.name} onChange={(event) => setActivityForm((prev) => ({ ...prev, name: event.target.value }))} />
             <TextField label="Type d'activité" size="small" select value={activityForm.kind} onChange={(event) => setActivityForm((prev) => ({ ...prev, kind: event.target.value }))}>
               {ACTIVITY_KIND_OPTIONS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
             </TextField>
@@ -691,7 +746,7 @@ export default function Referentiels({ accounts = [] }) {
             </Stack>
           </Box>
           {visibleActivities.length === 0 ? (
-            <EmptyState message={currentSearch ? "Aucune activité ne correspond à votre recherche." : "Aucune activité à afficher."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={() => setActivityForm({ id: "", name: "", kind: "profit_center" })} addLabel="Ajouter" />
+            <EmptyState message={currentSearch ? "Aucune activité ne correspond à votre recherche." : "Aucune activité à afficher."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={startCreateActivity} addLabel="Ajouter" />
           ) : (
             <Stack spacing={0.75}>
               {visibleActivities.map((activity) => {
@@ -722,10 +777,10 @@ export default function Referentiels({ accounts = [] }) {
 
       {tab === "third-parties" && (
         <Stack spacing={1.25}>
-          <ReferenceHeader title="Tiers" items={thirdParties} onAdd={() => setThirdPartyForm({ id: "", name: "", type: "supplier", notes: "" })} />
+          <ReferenceHeader title="Tiers" items={thirdParties} onAdd={startCreateThirdParty} />
           <Controls total={thirdParties.length} shown={visibleThirdParties.length} label="tiers" placeholder="Rechercher un tiers" />
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" } }}>
-            <TextField label="Nom" size="small" value={thirdPartyForm.name} onChange={(event) => setThirdPartyForm((prev) => ({ ...prev, name: event.target.value }))} />
+            <TextField id="reference-third-party-name" label="Nom" size="small" value={thirdPartyForm.name} onChange={(event) => setThirdPartyForm((prev) => ({ ...prev, name: event.target.value }))} />
             <TextField label="Type" size="small" select value={thirdPartyForm.type} onChange={(event) => setThirdPartyForm((prev) => ({ ...prev, type: event.target.value }))}>
               {THIRD_PARTY_TYPE_OPTIONS.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
             </TextField>
@@ -736,7 +791,7 @@ export default function Referentiels({ accounts = [] }) {
             </Stack>
           </Box>
           {visibleThirdParties.length === 0 ? (
-            <EmptyState message={currentSearch ? "Aucun tiers ne correspond à votre recherche." : "Aucun tiers à afficher."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={() => setThirdPartyForm({ id: "", name: "", type: "supplier", notes: "" })} addLabel="Ajouter" />
+            <EmptyState message={currentSearch ? "Aucun tiers ne correspond à votre recherche." : "Aucun tiers à afficher."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={startCreateThirdParty} addLabel="Ajouter" />
           ) : (
             <Stack spacing={0.75}>
               {visibleThirdParties.map((thirdParty) => {
@@ -767,11 +822,11 @@ export default function Referentiels({ accounts = [] }) {
 
       {tab === "projects" && (
         <Stack spacing={1.25}>
-          <ReferenceHeader title="Projets" items={projects} onAdd={() => setProjectForm({ id: "", name: "", activityId: "", startDate: "", endDate: "", notes: "" })} />
+          <ReferenceHeader title="Projets" items={projects} onAdd={startCreateProject} />
           <Controls total={projects.length} shown={visibleProjects.length} label="projets" placeholder="Rechercher un projet" />
           <Button size="small" variant="outlined" onClick={handleSeedProjects} sx={{ alignSelf: "flex-start" }}>Charger exemples</Button>
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" } }}>
-            <TextField label="Nom" size="small" value={projectForm.name} onChange={(event) => setProjectForm((prev) => ({ ...prev, name: event.target.value }))} />
+            <TextField id="reference-project-name" label="Nom" size="small" value={projectForm.name} onChange={(event) => setProjectForm((prev) => ({ ...prev, name: event.target.value }))} />
             <TextField label="Activite liee (facultatif)" size="small" select value={projectForm.activityId} onChange={(event) => setProjectForm((prev) => ({ ...prev, activityId: event.target.value }))}>
               <MenuItem value="">Aucune</MenuItem>
               {activities.filter((activity) => activity.isActive).map((activity) => <MenuItem key={activity.id} value={activity.id}>{activity.name}</MenuItem>)}
@@ -785,7 +840,7 @@ export default function Referentiels({ accounts = [] }) {
             <TextField label="Notes" size="small" value={projectForm.notes} onChange={(event) => setProjectForm((prev) => ({ ...prev, notes: event.target.value }))} />
           </Box>
           {visibleProjects.length === 0 ? (
-            <EmptyState message={currentSearch ? "Aucun projet ne correspond à votre recherche." : "Aucun projet à afficher."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={() => setProjectForm({ id: "", name: "", activityId: "", startDate: "", endDate: "", notes: "" })} addLabel="Ajouter" />
+            <EmptyState message={currentSearch ? "Aucun projet ne correspond à votre recherche." : "Aucun projet à afficher."} searchValue={currentSearch} onClearSearch={() => setTabSearch("")} onAdd={startCreateProject} addLabel="Ajouter" />
           ) : (
             <Stack spacing={0.75}>
               {visibleProjects.map((project) => {

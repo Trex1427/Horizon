@@ -1,4 +1,5 @@
 import { collection, doc, getDocs, onSnapshot, query, serverTimestamp, where, writeBatch } from "firebase/firestore";
+import { requireCurrentUid } from "../../../auth/requireCurrentUid.js";
 
 const BANK_IMPORTS_COLLECTION = "bankImports";
 const TRANSACTIONS_COLLECTION = "transactions";
@@ -59,12 +60,20 @@ function createFirestoreTransport(database) {
     createDocRef: (collectionRef, id) => doc(collectionRef, id),
     createBatch: () => writeBatch(database),
     serverTimestamp: () => serverTimestamp(),
-    async getTransactionsForImportBatch(importBatchId, legacyImportId = "") {
+    async getTransactionsForImportBatch(ownerUid, importBatchId, legacyImportId = "") {
       const transactionsCollectionRef = collection(database, TRANSACTIONS_COLLECTION);
       const snapshots = await Promise.all([
-        getDocs(query(transactionsCollectionRef, where("importBatchId", "==", importBatchId))),
+        getDocs(query(
+          transactionsCollectionRef,
+          where("ownerUid", "==", ownerUid),
+          where("importBatchId", "==", importBatchId)
+        )),
         legacyImportId
-          ? getDocs(query(transactionsCollectionRef, where("importId", "==", legacyImportId)))
+          ? getDocs(query(
+            transactionsCollectionRef,
+            where("ownerUid", "==", ownerUid),
+            where("importId", "==", legacyImportId)
+          ))
           : Promise.resolve({ docs: [] }),
       ]);
       const documents = new Map();
@@ -87,13 +96,14 @@ export function subscribeToBankImports(onData, onError) {
   let disposed = false;
 
   import("../../../firebase.js")
-    .then(({ db }) => {
+    .then(({ auth, db }) => {
       if (disposed) {
         return;
       }
 
+      const ownerUid = requireCurrentUid(auth);
       unsubscribe = onSnapshot(
-        collection(db, BANK_IMPORTS_COLLECTION),
+        query(collection(db, BANK_IMPORTS_COLLECTION), where("ownerUid", "==", ownerUid)),
         (snapshot) => {
           const data = snapshot.docs
             .map((docSnapshot) => ({ id: docSnapshot.id, ...docSnapshot.data() }))
@@ -190,11 +200,20 @@ export function buildImportDeletionReport({ importRecord = {}, plan = {}, phase 
 }
 
 export async function prepareBankImportDeletion(importRecord = {}, transport = null) {
-  const effectiveTransport = transport || createFirestoreTransport((await import("../../../firebase.js")).db);
+  let effectiveTransport = transport;
+  let ownerUid = String(transport?.ownerUid || "").trim();
+  if (!effectiveTransport) {
+    const { auth, db } = await import("../../../firebase.js");
+    effectiveTransport = createFirestoreTransport(db);
+    ownerUid = requireCurrentUid(auth);
+  }
+  if (!ownerUid) {
+    throw new Error("Utilisateur Firebase requis pour lire les imports Firestore.");
+  }
   const importBatchId = normalizeBatchId(importRecord);
   const legacyImportId = String(importRecord.importId || "").trim();
   const transactionDocuments = importBatchId
-    ? await effectiveTransport.getTransactionsForImportBatch(importBatchId, legacyImportId)
+    ? await effectiveTransport.getTransactionsForImportBatch(ownerUid, importBatchId, legacyImportId)
     : [];
   const plan = buildImportDeletionPlan({ importRecord, transactionDocuments });
 
@@ -211,7 +230,12 @@ export async function prepareBankImportDeletion(importRecord = {}, transport = n
 }
 
 export async function deleteBankImportBatch({ importRecord = {}, transport = null } = {}) {
-  const effectiveTransport = transport || createFirestoreTransport((await import("../../../firebase.js")).db);
+  let effectiveTransport = transport;
+  if (!effectiveTransport) {
+    const { auth, db } = await import("../../../firebase.js");
+    effectiveTransport = createFirestoreTransport(db);
+    effectiveTransport.ownerUid = requireCurrentUid(auth);
+  }
   const startedAt = new Date().toISOString();
   const preparation = await prepareBankImportDeletion(importRecord, effectiveTransport);
   const { plan, transactionDocuments } = preparation;

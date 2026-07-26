@@ -75,7 +75,7 @@ export function AuthGate({ children }) {
   if (loading) {
     return (
       <AuthShell>
-        <Stack spacing={2.5} alignItems="center" textAlign="center">
+        <Stack spacing={2.5} sx={{ alignItems: "center", textAlign: "center" }}>
           <CircularProgress size={32} />
           <Typography variant="h6">Horizon</Typography>
           <Typography color="text.secondary">Chargement de la session...</Typography>

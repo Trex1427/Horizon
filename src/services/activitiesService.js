@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
-import { withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
+import { requireCurrentUid, withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
 import {
   normalizeActivityPayload,
   normalizeActivityPayloadForCreate,
@@ -9,10 +9,11 @@ import {
 const ACTIVITIES_COLLECTION = "activities";
 
 export function subscribeToActivities(onData, onError, options = {}) {
+  const ownerUid = requireCurrentUid(auth);
   const includeInactive = options?.includeInactive === true;
   const ref = includeInactive
-    ? collection(db, ACTIVITIES_COLLECTION)
-    : query(collection(db, ACTIVITIES_COLLECTION), where("isActive", "==", true));
+    ? query(collection(db, ACTIVITIES_COLLECTION), where("ownerUid", "==", ownerUid))
+    : query(collection(db, ACTIVITIES_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true));
 
   return onSnapshot(
     ref,

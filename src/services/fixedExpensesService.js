@@ -1,6 +1,6 @@
 import { collection, doc, getDocs, onSnapshot, query, runTransaction, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
+import { requireCurrentUid, sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
 import {
   areFixedExpensesCompatible,
   buildFixedExpenseDocumentId,
@@ -9,8 +9,9 @@ import {
 const FIXED_EXPENSES_COLLECTION = "fixedExpenses";
 
 export function subscribeToFixedExpenses(onData, onError) {
+  const ownerUid = requireCurrentUid(auth);
   return onSnapshot(
-    query(collection(db, FIXED_EXPENSES_COLLECTION), where("isActive", "==", true)),
+    query(collection(db, FIXED_EXPENSES_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
     (snapshot) => {
       const data = snapshot.docs
         .map((docSnapshot) => ({
@@ -53,7 +54,11 @@ function buildFixedExpenseCreatePayload(payload, now = new Date()) {
 
 export async function createFixedExpense(payload) {
   const documentPayload = withOwnerUidForCreate(buildFixedExpenseCreatePayload(payload), { auth });
-  const activeSnapshot = await getDocs(query(collection(db, FIXED_EXPENSES_COLLECTION), where("isActive", "==", true)));
+  const activeSnapshot = await getDocs(query(
+    collection(db, FIXED_EXPENSES_COLLECTION),
+    where("ownerUid", "==", documentPayload.ownerUid),
+    where("isActive", "==", true)
+  ));
   const compatibleDocument = activeSnapshot.docs.find((snapshot) => areFixedExpensesCompatible(documentPayload, snapshot.data()));
 
   if (compatibleDocument) {

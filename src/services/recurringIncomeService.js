@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
+import { requireCurrentUid, sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
 import { getRecurringIncomeApplicableAmount } from "../utils/recurringIncomeAmount.js";
 
 const RECURRING_INCOME_COLLECTION = "recurringIncome";
@@ -78,8 +78,9 @@ function isMatchingFrequency(income, targetDate) {
 }
 
 export function subscribeToRecurringIncome(onData, onError) {
+  const ownerUid = requireCurrentUid(auth);
   return onSnapshot(
-    query(collection(db, RECURRING_INCOME_COLLECTION), where("isActive", "==", true)),
+    query(collection(db, RECURRING_INCOME_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
     (snapshot) => {
       const data = snapshot.docs
         .map((docSnapshot) => ({

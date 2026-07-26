@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
-import { withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
+import { requireCurrentUid, withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
 import {
   normalizeThirdPartyPayload,
   normalizeThirdPartyPayloadForCreate,
@@ -9,10 +9,11 @@ import {
 const THIRD_PARTIES_COLLECTION = "thirdParties";
 
 export function subscribeToThirdParties(onData, onError, options = {}) {
+  const ownerUid = requireCurrentUid(auth);
   const includeInactive = options?.includeInactive === true;
   const ref = includeInactive
-    ? collection(db, THIRD_PARTIES_COLLECTION)
-    : query(collection(db, THIRD_PARTIES_COLLECTION), where("isActive", "==", true));
+    ? query(collection(db, THIRD_PARTIES_COLLECTION), where("ownerUid", "==", ownerUid))
+    : query(collection(db, THIRD_PARTIES_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true));
 
   return onSnapshot(
     ref,

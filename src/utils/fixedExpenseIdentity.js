@@ -1,4 +1,5 @@
 const IDENTITY_FIELDS = [
+  "ownerUid",
   "accountId",
   "categoryId",
   "subcategoryId",

@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
+import { requireCurrentUid, sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
 import { calculateBudgetSpentAmount, toDateValue } from "./financeCalculations";
 
 const BUDGETS_COLLECTION = "budgets";
@@ -21,8 +21,9 @@ function normalizeDateString(value) {
 
 
 export function subscribeToBudgets(onData, onError) {
+  const ownerUid = requireCurrentUid(auth);
   return onSnapshot(
-    query(collection(db, BUDGETS_COLLECTION), where("isActive", "==", true)),
+    query(collection(db, BUDGETS_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
     (snapshot) => {
       const data = snapshot.docs
         .map((docSnapshot) => ({

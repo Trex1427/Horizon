@@ -106,3 +106,17 @@ test("buildCashAdjustmentId is stable for duplicate-submit protection", () => {
 
   assert.equal(left, right);
 });
+
+test("buildCashAdjustmentId is isolated by ownerUid", () => {
+  const base = {
+    accountId: "default-cash",
+    date: "2026-07-23",
+    targetBalance: 120,
+    kind: "balance",
+  };
+
+  assert.notEqual(
+    buildCashAdjustmentId({ ...base, ownerUid: "owner-a" }),
+    buildCashAdjustmentId({ ...base, ownerUid: "owner-b" })
+  );
+});

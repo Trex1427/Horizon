@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import {
   browserLocalPersistence,
+  connectAuthEmulator,
   getAuth,
   GoogleAuthProvider,
   setPersistence,
@@ -53,6 +54,7 @@ if (emulatorEnabled) {
   }
 
   console.info("FIRESTORE MODE: EMULATOR", { host, port, projectId: firebaseConfig.projectId });
+  connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
 } else {
   console.info("FIRESTORE MODE: REMOTE", { projectId: firebaseConfig.projectId });
 }

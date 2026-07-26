@@ -32,6 +32,7 @@ function createImportRecord(overrides = {}) {
 function createFakeDeleteTransport({ documents = [], failCommit = false } = {}) {
   const operations = [];
   return {
+    ownerUid: "owner-a",
     operations,
     createCollectionRef: (name) => ({ name }),
     createDocRef: (collectionRef, id) => ({ collection: collectionRef.name, id }),

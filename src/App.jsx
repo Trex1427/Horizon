@@ -4,6 +4,7 @@ import Objectifs from "./pages/Objectifs";
 import FraisFixes from "./pages/FraisFixes";
 import RevenusRecurrents from "./pages/RevenusRecurrents";
 import Opportunites from "./pages/Opportunites";
+import DettesCreances from "./pages/DettesCreances";
 import Budgets from "./pages/Budgets";
 import Analyse from "./pages/Analyse";
 import Previsions from "./pages/Previsions";
@@ -68,6 +69,7 @@ const PAGES = {
   FRAIS_FIXES: "FRAIS_FIXES",
   REVENUS_RECURRENTS: "REVENUS_RECURRENTS",
   OPPORTUNITES: "OPPORTUNITES",
+  DETTES_CREANCES: "DETTES_CREANCES",
   BUDGETS: "BUDGETS",
   PREVISIONS: "PREVISIONS",
   CATEGORIES: "CATEGORIES",
@@ -84,6 +86,7 @@ const PAGE_ORDER = [
   PAGES.FRAIS_FIXES,
   PAGES.REVENUS_RECURRENTS,
   PAGES.OPPORTUNITES,
+  PAGES.DETTES_CREANCES,
   PAGES.BUDGETS,
   PAGES.PREVISIONS,
   PAGES.ANALYSE,
@@ -131,6 +134,12 @@ const MORE_MENU_PAGES = [
     label: "Opportunités",
     icon: <ShowChart />,
     page: PAGES.OPPORTUNITES,
+  },
+  {
+    key: PAGES.DETTES_CREANCES,
+    label: "Dettes et créances",
+    icon: <AccountBalance />,
+    page: PAGES.DETTES_CREANCES,
   },
   {
     key: PAGES.OBJECTIFS,
@@ -185,7 +194,7 @@ function AppContent() {
   const [transactionsNavigationContext, setTransactionsNavigationContext] = useState(null);
   const [analysisNavigationContext, setAnalysisNavigationContext] = useState(null);
   const { transactions, loading, error: transactionsError } = useTransactionsContext();
-  const { accounts, loading: accountsLoading, error: accountsError } = useAccounts();
+  const { accounts, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
   const { fixedExpenses, loading: fixedExpensesLoading, error: fixedExpensesError } = useFixedExpenses();
   const { recurringIncome, loading: recurringIncomeLoading, error: recurringIncomeError } = useRecurringIncome();
   const { opportunities, loading: opportunitiesLoading, error: opportunitiesError } = useOpportunities();
@@ -410,6 +419,8 @@ function AppContent() {
 
         {page === PAGES.OPPORTUNITES && <Opportunites />}
 
+        {page === PAGES.DETTES_CREANCES && <DettesCreances />}
+
         {page === PAGES.BUDGETS && <Budgets />}
 
         {page === PAGES.PREVISIONS && <Previsions />}
@@ -424,7 +435,9 @@ function AppContent() {
 
         {page === PAGES.CATEGORIES && <Categories />}
 
-        {page === PAGES.REFERENTIELS && <Referentiels accounts={accounts} />}
+        {page === PAGES.REFERENTIELS && (
+          <Referentiels accounts={accounts} addAccount={addAccount} updateAccount={updateAccount} deleteAccount={deleteAccount} />
+        )}
 
         {page === PAGES.PARAMETRES && <Parametres />}
 
@@ -569,6 +582,7 @@ function AppContent() {
           <BottomNavigationAction label="Frais fixes" icon={<PieChart />} />
           <BottomNavigationAction label="Revenus récurrents" icon={<ReceiptLong />} />
           <BottomNavigationAction label="Opportunités" icon={<ShowChart />} />
+          <BottomNavigationAction label="Dettes et créances" icon={<AccountBalance />} />
           <BottomNavigationAction label="Budgets" icon={<PieChart />} />
           <BottomNavigationAction label="Prévisions" icon={<ShowChart />} />
           <BottomNavigationAction label="Analyse" icon={<ShowChart />} />

@@ -30,6 +30,30 @@ test("Referentiels keeps local search and status filters without service changes
   assert.equal(content.includes("accounts = []"), true);
 });
 
+test("Referentiels connects account CRUD and gives every add action the same focused form behavior", async () => {
+  const content = await source("src/pages/Referentiels.jsx");
+  const app = await source("src/App.jsx");
+
+  for (const action of [
+    "startCreateAccount",
+    "startCreateSubcategory",
+    "startCreateActivity",
+    "startCreateThirdParty",
+    "startCreateProject",
+  ]) {
+    assert.match(content, new RegExp(`onAdd=\\{${action}\\}`));
+  }
+  assert.match(content, /handleSaveAccount/);
+  assert.match(content, /addAccount/);
+  assert.match(content, /updateAccount/);
+  assert.match(content, /deleteAccount/);
+  assert.doesNotMatch(content, /Lecture seule: aucun éditeur direct dédié/);
+  assert.match(app, /<Referentiels/);
+  for (const prop of ["accounts", "addAccount", "updateAccount", "deleteAccount"]) {
+    assert.match(app, new RegExp(`${prop}=\\{${prop}\\}`));
+  }
+});
+
 test("Categories page has the shared header, search, counters, and empty states", async () => {
   const content = await source("src/pages/Categories.jsx");
 

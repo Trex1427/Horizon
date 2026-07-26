@@ -36,6 +36,151 @@ service cloud.firestore {
       return readsOwnDocument();
     }
 
+    function parentPath(debtReceivableId) {
+      return /databases/$(database)/documents/debtsReceivables/$(debtReceivableId);
+    }
+
+    function paymentPath(paymentId) {
+      return /databases/$(database)/documents/debtReceivablePayments/$(paymentId);
+    }
+
+    function inferredPaymentsRevision(data) {
+      return data.keys().hasAny(["paymentsRevision"])
+        ? data.paymentsRevision
+        : 0;
+    }
+
+    function hasNoPersistedCalculatedDebtFields(data) {
+      return !data.keys().hasAny(["paidAmount", "remainingAmount", "status"]);
+    }
+
+    function doesNotChangePersistedCalculatedDebtFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(["paidAmount", "remainingAmount", "status"]);
+    }
+
+    function hasValidInitialPaymentMarkers() {
+      return request.resource.data.keys().hasAny(["paymentsRevision"])
+        && request.resource.data.paymentsRevision is int
+        && request.resource.data.paymentsRevision == 0
+        && !request.resource.data.keys().hasAny(["paymentsMutationId"]);
+    }
+
+    function hasValidPaymentsRevisionShape(data) {
+      return !data.keys().hasAny(["paymentsRevision"])
+        || (data.paymentsRevision is int && data.paymentsRevision >= 0);
+    }
+
+    function finalParentIsOwnedAndActive(debtReceivableId) {
+      return existsAfter(parentPath(debtReceivableId))
+        && getAfter(parentPath(debtReceivableId)).data.ownerUid == request.auth.uid
+        && getAfter(parentPath(debtReceivableId)).data.isDeleted != true;
+    }
+
+    function hasValidDateYyyyMmDd(value) {
+      return value is string
+        && value.matches('^\\d{4}-\\d{2}-\\d{2}$');
+    }
+
+    function hasValidPaymentSchema(data) {
+      return data.keys().hasOnly([
+          "ownerUid",
+          "debtReceivableId",
+          "amount",
+          "paymentDate",
+          "createdAt",
+          "updatedAt",
+          "isDeleted",
+          "note",
+          "transactionId",
+          "deletedAt",
+        ])
+        && data.keys().hasAll([
+          "ownerUid",
+          "debtReceivableId",
+          "amount",
+          "paymentDate",
+          "createdAt",
+          "updatedAt",
+          "isDeleted",
+        ])
+        && data.ownerUid is string
+        && data.ownerUid.size() > 0
+        && data.debtReceivableId is string
+        && data.debtReceivableId.size() > 0
+        && data.amount is number
+        && data.amount > 0
+        && hasValidDateYyyyMmDd(data.paymentDate)
+        && (data.createdAt is timestamp || data.createdAt == null)
+        && (data.updatedAt is timestamp || data.updatedAt == null)
+        && data.isDeleted is bool
+        && (!data.keys().hasAny(["note"]) || data.note is string || data.note == null)
+        && (!data.keys().hasAny(["transactionId"]) || data.transactionId == null)
+        && (!data.keys().hasAny(["deletedAt"]) || data.deletedAt is timestamp);
+    }
+
+    function hasReciprocalParentMutation(debtReceivableId, paymentId) {
+      return exists(parentPath(debtReceivableId))
+        && existsAfter(parentPath(debtReceivableId))
+        && get(parentPath(debtReceivableId)).data.ownerUid == request.auth.uid
+        && get(parentPath(debtReceivableId)).data.isDeleted != true
+        && finalParentIsOwnedAndActive(debtReceivableId)
+        && (
+          (
+            !get(parentPath(debtReceivableId)).data.keys().hasAny(["updatedAt"])
+            && !getAfter(parentPath(debtReceivableId)).data.keys().hasAny(["updatedAt"])
+          )
+          ||
+          (
+            get(parentPath(debtReceivableId)).data.keys().hasAny(["updatedAt"])
+            && getAfter(parentPath(debtReceivableId)).data.keys().hasAny(["updatedAt"])
+            && getAfter(parentPath(debtReceivableId)).data.updatedAt == get(parentPath(debtReceivableId)).data.updatedAt
+          )
+        )
+        && getAfter(parentPath(debtReceivableId)).data.diff(get(parentPath(debtReceivableId)).data).affectedKeys().hasOnly(["paymentsRevision", "paymentsMutationId"])
+        && getAfter(parentPath(debtReceivableId)).data.paymentsMutationId == paymentId
+        && inferredPaymentsRevision(getAfter(parentPath(debtReceivableId)).data) is int
+        && inferredPaymentsRevision(get(parentPath(debtReceivableId)).data) is int
+        && inferredPaymentsRevision(getAfter(parentPath(debtReceivableId)).data) == inferredPaymentsRevision(get(parentPath(debtReceivableId)).data) + 1
+        && !getAfter(parentPath(debtReceivableId)).data.diff(get(parentPath(debtReceivableId)).data).affectedKeys().hasAny(["paidAmount", "remainingAmount", "status"]);
+    }
+
+    function hasReciprocalPaymentWrite(debtReceivableId, paymentId) {
+      return paymentId is string
+        && paymentId.size() > 0
+        && existsAfter(paymentPath(paymentId))
+        && getAfter(paymentPath(paymentId)).data.ownerUid == request.auth.uid
+        && getAfter(paymentPath(paymentId)).data.debtReceivableId == debtReceivableId
+        && getAfter(paymentPath(paymentId)).data.updatedAt == request.time;
+    }
+
+    function isValidPaymentCoupledParentUpdate(debtReceivableId) {
+      return doesNotChangePersistedCalculatedDebtFields()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["paymentsRevision", "paymentsMutationId"])
+        && (
+          (
+            !resource.data.keys().hasAny(["updatedAt"])
+            && !request.resource.data.keys().hasAny(["updatedAt"])
+          )
+          ||
+          (
+            resource.data.keys().hasAny(["updatedAt"])
+            && request.resource.data.keys().hasAny(["updatedAt"])
+            && request.resource.data.updatedAt == resource.data.updatedAt
+          )
+        )
+        && request.resource.data.paymentsMutationId is string
+        && request.resource.data.paymentsMutationId.size() > 0
+        && hasValidPaymentsRevisionShape(request.resource.data)
+        && hasReciprocalPaymentWrite(debtReceivableId, request.resource.data.paymentsMutationId)
+        && inferredPaymentsRevision(request.resource.data) == inferredPaymentsRevision(resource.data) + 1;
+    }
+
+    function isOrdinaryDebtReceivableUpdate() {
+      return doesNotChangePersistedCalculatedDebtFields()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["paymentsRevision", "paymentsMutationId"])
+        && hasValidPaymentsRevisionShape(request.resource.data);
+    }
+
     match /accounts/{documentId} {
       allow get, list: if readsOwnDocument();
       allow create: if createsOwnDocument();
@@ -153,6 +298,54 @@ service cloud.firestore {
       allow create: if createsOwnDocument();
       allow update: if updatesOwnDocument();
       allow delete: if deletesOwnDocument();
+    }
+
+    match /debtsReceivables/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument()
+        && hasNoPersistedCalculatedDebtFields(request.resource.data)
+        && hasValidInitialPaymentMarkers();
+      allow update: if updatesOwnDocument()
+        && (isOrdinaryDebtReceivableUpdate() || isValidPaymentCoupledParentUpdate(documentId));
+      allow delete: if deletesOwnDocument();
+    }
+
+    match /debtReceivablePayments/{paymentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument()
+        && hasValidPaymentSchema(request.resource.data)
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.isDeleted == false
+        && !request.resource.data.keys().hasAny(["deletedAt"])
+        && getAfter(paymentPath(paymentId)).data.createdAt == request.time
+        && getAfter(paymentPath(paymentId)).data.updatedAt == request.time
+        && finalParentIsOwnedAndActive(request.resource.data.debtReceivableId)
+        && hasReciprocalParentMutation(request.resource.data.debtReceivableId, paymentId);
+      allow update: if readsOwnDocument()
+        && hasValidPaymentSchema(request.resource.data)
+        && resource.data.isDeleted != true
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.debtReceivableId == resource.data.debtReceivableId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (!request.resource.data.keys().hasAny(["transactionId"]) || request.resource.data.transactionId == null)
+        && request.resource.data.updatedAt == request.time
+        && (
+          (
+            request.resource.data.isDeleted == false
+            && !request.resource.data.keys().hasAny(["deletedAt"])
+          )
+          ||
+          (
+            request.resource.data.isDeleted == true
+            && resource.data.isDeleted == false
+            && request.resource.data.deletedAt == request.time
+            && request.resource.data.amount == resource.data.amount
+            && request.resource.data.paymentDate == resource.data.paymentDate
+            && request.resource.data.note == resource.data.note
+          )
+        )
+        && hasReciprocalParentMutation(request.resource.data.debtReceivableId, paymentId);
+      allow delete: if false;
     }
 
     match /{document=**} {

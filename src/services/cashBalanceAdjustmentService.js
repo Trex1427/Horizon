@@ -11,6 +11,7 @@ const TRANSACTIONS_COLLECTION = "transactions";
 export async function createCashBalanceAdjustment(payload) {
   const adjustment = withOwnerUidForCreate(buildCashAdjustmentPayload(payload), { auth });
   const id = buildCashAdjustmentId({
+    ownerUid: adjustment.ownerUid,
     accountId: adjustment.accountId,
     date: adjustment.date,
     targetBalance: adjustment.targetBalance,

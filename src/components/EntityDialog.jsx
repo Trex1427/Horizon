@@ -175,6 +175,15 @@ export default function EntityDialog({
         onClose={handleDialogClose}
         onKeyDown={handleKeyDown}
         disableRestoreFocus
+        slotProps={{
+          transition: {
+            onEntered: () => {
+              if (!useFullScreen) {
+                focusFirstElement(contentRef.current, autoFocusSelector);
+              }
+            },
+          },
+        }}
         fullWidth
         fullScreen={useFullScreen}
         maxWidth={maxWidth}

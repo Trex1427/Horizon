@@ -11,7 +11,7 @@ import {
   where,
 } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
-import { withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
+import { requireCurrentUid, withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
 import {
   normalizeSubcategoryPayloadForCreate,
   normalizeSubcategoryPayloadForUpdate,
@@ -21,10 +21,11 @@ const SUBCATEGORIES_COLLECTION = "subcategories";
 const TRANSACTIONS_COLLECTION = "transactions";
 
 export function subscribeToSubcategories(onData, onError, options = {}) {
+  const ownerUid = requireCurrentUid(auth);
   const includeInactive = options?.includeInactive === true;
   const ref = includeInactive
-    ? collection(db, SUBCATEGORIES_COLLECTION)
-    : query(collection(db, SUBCATEGORIES_COLLECTION), where("isActive", "==", true));
+    ? query(collection(db, SUBCATEGORIES_COLLECTION), where("ownerUid", "==", ownerUid))
+    : query(collection(db, SUBCATEGORIES_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true));
 
   return onSnapshot(
     ref,
@@ -61,6 +62,7 @@ export async function isSubcategoryUsed(subcategoryId = "") {
 
   const usageQuery = query(
     collection(db, TRANSACTIONS_COLLECTION),
+    where("ownerUid", "==", requireCurrentUid(auth)),
     where("subcategoryId", "==", normalizedId),
     limit(1)
   );

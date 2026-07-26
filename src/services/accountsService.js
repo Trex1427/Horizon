@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, getDocsFromServer, limit, onSnapshot, query, updateDoc, where, writeBatch } from "firebase/firestore";
 import { auth, db } from "../firebase";
-import { sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
+import { requireCurrentUid, sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
 import {
   DEFAULT_ACCOUNT_NAME,
   hasAnyAccountDocumentsWithReader,
@@ -11,8 +11,9 @@ const ACCOUNTS_COLLECTION = "accounts";
 export { DEFAULT_ACCOUNT_NAME };
 
 export function subscribeToAccounts(onData, onError) {
+  const ownerUid = requireCurrentUid(auth);
   return onSnapshot(
-    query(collection(db, ACCOUNTS_COLLECTION), where("isActive", "==", true)),
+    query(collection(db, ACCOUNTS_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
     (snapshot) => {
       const data = snapshot.docs
         .map((docSnapshot) => ({
@@ -42,9 +43,10 @@ export async function initializeDefaultAccountsIfEmpty(options = {}) {
     hasAnyAccountDocuments,
     commitDefaultAccounts: async (documents) => {
       const batch = writeBatch(db);
+      const ownerUid = requireCurrentUid(auth);
 
       for (const defaultAccount of documents) {
-        batch.set(doc(db, ACCOUNTS_COLLECTION, defaultAccount.id), withOwnerUidForCreate(defaultAccount.data, { auth }));
+        batch.set(doc(db, ACCOUNTS_COLLECTION, `${ownerUid}_${defaultAccount.id}`), withOwnerUidForCreate(defaultAccount.data, { auth }));
       }
 
       await batch.commit();
@@ -68,7 +70,8 @@ export async function deleteAccount(id) {
 }
 
 export async function hasAnyAccountDocuments() {
+  const ownerUid = requireCurrentUid(auth);
   return hasAnyAccountDocumentsWithReader(
-    () => getDocsFromServer(query(collection(db, ACCOUNTS_COLLECTION), limit(1)))
+    () => getDocsFromServer(query(collection(db, ACCOUNTS_COLLECTION), where("ownerUid", "==", ownerUid), limit(1)))
   );
 }

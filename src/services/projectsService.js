@@ -1,6 +1,6 @@
 import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
-import { withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
+import { requireCurrentUid, withOwnerUidForCreate } from "../auth/requireCurrentUid.js";
 import {
   normalizeProjectPayload,
   normalizeProjectPayloadForCreate,
@@ -9,10 +9,11 @@ import {
 const PROJECTS_COLLECTION = "projects";
 
 export function subscribeToProjects(onData, onError, options = {}) {
+  const ownerUid = requireCurrentUid(auth);
   const includeInactive = options?.includeInactive === true;
   const ref = includeInactive
-    ? collection(db, PROJECTS_COLLECTION)
-    : query(collection(db, PROJECTS_COLLECTION), where("isActive", "==", true));
+    ? query(collection(db, PROJECTS_COLLECTION), where("ownerUid", "==", ownerUid))
+    : query(collection(db, PROJECTS_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true));
 
   return onSnapshot(
     ref,

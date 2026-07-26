@@ -41,4 +41,8 @@ test("ignores inactive suggestions and keeps monthly amount differences compatib
 test("builds a stable id for concurrent identical creation attempts", () => {
   assert.equal(buildFixedExpenseDocumentId(telephone), buildFixedExpenseDocumentId({ ...telephone }));
   assert.notEqual(buildFixedExpenseDocumentId(telephone), buildFixedExpenseDocumentId({ ...telephone, accountId: "account-2" }));
+  assert.notEqual(
+    buildFixedExpenseDocumentId({ ...telephone, ownerUid: "owner-a" }),
+    buildFixedExpenseDocumentId({ ...telephone, ownerUid: "owner-b" })
+  );
 });

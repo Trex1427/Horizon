@@ -1,4 +1,5 @@
 const IDENTITY_FIELDS = [
+  "ownerUid",
   "accountId",
   "categoryId",
   "subcategoryId",
@@ -69,6 +70,7 @@ function buildDuplicateKey(fixedExpense) {
 
 function buildSimilarityKey(fixedExpense) {
   return [
+    String(fixedExpense?.ownerUid || "").trim(),
     normalizeText(fixedExpense?.name),
     String(fixedExpense?.accountId || "").trim(),
   ].join("|");
@@ -243,6 +245,7 @@ export function buildFixedExpenseDuplicateMergeReport({
       const linkedTransactions = group.flatMap((fixedExpense) => linkedTransactionsByFixedExpenseId.get(fixedExpense.id) || []);
       const guardrails = {
         noOrphanTransactions: orphanTransactions.filter((item) => group.some((fixedExpense) => fixedExpense.id === item.fixedExpenseId)).length === 0,
+        sameOwner: new Set(group.map((fixedExpense) => String(fixedExpense.ownerUid || ""))).size === 1,
         sameAccount: new Set(group.map((fixedExpense) => String(fixedExpense.accountId || ""))).size === 1,
         sameCategory: new Set(group.map((fixedExpense) => String(fixedExpense.categoryId || ""))).size === 1,
         sameSubcategory: new Set(group.map((fixedExpense) => String(fixedExpense.subcategoryId || ""))).size === 1,

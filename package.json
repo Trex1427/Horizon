@@ -11,6 +11,7 @@
     "seed:test": "firebase emulators:exec --only firestore \"node scripts/seed-test-emulator-data.mjs\"",
     "cleanup:test": "firebase emulators:exec --only firestore \"node scripts/cleanup-test-emulator-data.mjs\"",
     "test:rules": "firebase emulators:exec --only firestore \"node scripts/integration/firestore-rules-emulator.mjs\"",
+    "test:rules:debt-payments": "firebase emulators:exec --only firestore \"node scripts/integration/debt-receivable-payments-rules-emulator.mjs\"",
     "test:integration": "firebase emulators:exec --only firestore \"node scripts/integration/firestore-emulator-write-cycle.mjs\"",
     "test:cash-adjustment": "firebase emulators:exec --only firestore \"node scripts/integration/cash-balance-adjustment-emulator.mjs\"",
     "test:accounts-emulator": "firebase emulators:exec --only firestore \"node scripts/integration/default-accounts-idempotency-emulator.mjs\"",
