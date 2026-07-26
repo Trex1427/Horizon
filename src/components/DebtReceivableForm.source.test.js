@@ -12,6 +12,10 @@ test("form serves create/update, validates and blocks duplicate submissions whil
   assert.match(source, /submittingRef\.current = false/);
   assert.match(source, /setSubmitError/);
   assert.match(source, /label="Tiers"/);
+  assert.match(source, /Catégorie de la sortie initiale/);
+  assert.match(source, /Catégorie des remboursements/);
+  assert.match(source, /initialAccountId/);
+  assert.match(source, /Date de la sortie initiale/);
   assert.equal(source.includes("label=\"Contrepartie\""), false);
   assert.match(source, /Le tiers est obligatoire\./);
   assert.match(source, /<MenuItem value="">Sélectionner<\/MenuItem>/);

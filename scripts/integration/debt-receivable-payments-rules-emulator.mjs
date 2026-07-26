@@ -208,6 +208,7 @@ async function createPaymentWithServiceGuard({ uid, parentDocId, paymentDocId, a
 
   const createResult = await commit(uid, [
     paymentCreateWrite(paymentDocId, paymentBaseFields({ amount, paymentDate })),
+    linkedTransactionWrite(paymentDocId, { amount, paymentDate }),
     parentMutationWrite(revision + 1, paymentDocId),
   ]);
 
@@ -267,6 +268,8 @@ function paymentBaseFields({ uid = ownerUid, debtReceivableId = parentId, amount
     amount,
     paymentDate,
     note,
+    accountId: "acc-main",
+    label: "Paiement test",
     transactionId: null,
     isDeleted: false,
   };
@@ -287,6 +290,7 @@ function paymentCreateWrite(targetPaymentId, fields) {
     `debtReceivablePayments/${targetPaymentId}`,
     {
       ...fields,
+      transactionId: `tx-${targetPaymentId}`,
       createdAt: null,
       updatedAt: null,
     },
@@ -294,6 +298,42 @@ function paymentCreateWrite(targetPaymentId, fields) {
   );
 }
 
+function linkedTransactionWrite(targetPaymentId, { amount, paymentDate }) {
+  return commitWriteUpdate(
+    `transactions/tx-${targetPaymentId}`,
+    {
+      ownerUid,
+      date: paymentDate,
+      montant: amount,
+      description: "Paiement test",
+      type: "depense",
+      accountId: "acc-main",
+      destinationAccountId: null,
+      debtReceivableId: parentId,
+      debtReceivablePaymentId: targetPaymentId,
+      isDeleted: false,
+      createdAt: null,
+      updatedAt: null,
+    },
+    { transforms: ["createdAt", "updatedAt"] },
+  );
+}
+
+function linkedTransactionUpdateWrite(targetPaymentId, { amount, paymentDate }) {
+  return commitWriteUpdate(
+    `transactions/tx-${targetPaymentId}`,
+    { date: paymentDate, montant: amount, updatedAt: null },
+    { updateMask: ["date", "montant", "updatedAt"], transforms: ["updatedAt"] },
+  );
+}
+
+function linkedTransactionDeleteWrite(targetPaymentId) {
+  return commitWriteUpdate(
+    `transactions/tx-${targetPaymentId}`,
+    { isDeleted: true, deletedAt: null, updatedAt: null },
+    { updateMask: ["isDeleted", "deletedAt", "updatedAt"], transforms: ["updatedAt", "deletedAt"] },
+  );
+}
 function paymentUpdateWrite(targetPaymentId, fields, updateMask, transforms = ["updatedAt"]) {
   return commitWriteUpdate(
     `debtReceivablePayments/${targetPaymentId}`,
@@ -354,6 +394,71 @@ expectAllowed(
   ]),
   "suppression logique parent deleted fixture",
 );
+
+await adminDb.doc("accounts/acc-main").set({ ownerUid, name: "Compte test", isActive: true });
+const receivable400Id = "dr-receivable-900";
+const payment400Id = "pay-receivable-400";
+const transaction400Id = "tx-receivable-400";
+await adminDb.doc(`debtsReceivables/${receivable400Id}`).set({
+  ownerUid,
+  type: "receivable",
+  label: "Creance Julie",
+  amount: 900,
+  thirdPartyId: "tp-julie",
+  categoryId: "cat-remboursement",
+  initialCategoryId: "cat-pret",
+  initialAccountId: "acc-main",
+  initialDate: "2026-07-20",
+  initialTransactionId: "tx-initial-julie",
+  isDeleted: false,
+  paymentsRevision: 0,
+});
+expectAllowed(
+  await commit(ownerUid, [
+    commitWriteUpdate(`debtReceivablePayments/${payment400Id}`, {
+      ownerUid,
+      debtReceivableId: receivable400Id,
+      amount: 400,
+      paymentDate: "2026-07-26",
+      note: null,
+      accountId: "acc-main",
+      label: "Remboursement Julie",
+      transactionId: transaction400Id,
+      isDeleted: false,
+      createdAt: null,
+      updatedAt: null,
+    }, { transforms: ["createdAt", "updatedAt"] }),
+    commitWriteUpdate(`transactions/${transaction400Id}`, {
+      ownerUid,
+      date: "2026-07-26",
+      montant: 400,
+      description: "Remboursement Julie",
+      type: "revenu",
+      accountId: "acc-main",
+      destinationAccountId: null,
+      debtReceivableId: receivable400Id,
+      debtReceivablePaymentId: payment400Id,
+      thirdPartyId: "tp-julie",
+      thirdPartyName: "Julie",
+      categoryId: "cat-remboursement",
+      categoryName: "Remboursement",
+      categorie: "Remboursement",
+      isDeleted: false,
+      createdAt: null,
+      updatedAt: null,
+    }, { transforms: ["createdAt", "updatedAt"] }),
+    commitWriteUpdate(`debtsReceivables/${receivable400Id}`, {
+      paymentsRevision: 1,
+      paymentsMutationId: payment400Id,
+    }, { updateMask: ["paymentsRevision", "paymentsMutationId"] }),
+  ]),
+  "creance 900 remboursement 400 et revenu lie autorises",
+);
+const storedPayment400 = await getDocument(ownerUid, `debtReceivablePayments/${payment400Id}`);
+const storedTransaction400 = await getDocument(ownerUid, `transactions/${transaction400Id}`);
+assert.equal(readIntegerField(storedPayment400.payload?.fields?.amount), 400, "paiement 400 relu apres rechargement");
+assert.equal(readIntegerField(storedTransaction400.payload?.fields?.montant), 400, "revenu 400 relu apres rechargement");
+assert.equal(storedTransaction400.payload?.fields?.type?.stringValue, "revenu", "type revenu conserve");
 
 await seedLegacyParent(legacyParentPath, {
   ownerUid,
@@ -523,6 +628,7 @@ expectDenied(
 expectAllowed(
   await commit(ownerUid, [
     paymentCreateWrite(paymentId, paymentBaseFields({ amount: 30, paymentDate: "2026-07-25" })),
+    linkedTransactionWrite(paymentId, { amount: 30, paymentDate: "2026-07-25" }),
     parentMutationWrite(revision + 1, paymentId),
   ]),
   "creation valide d'un paiement",
@@ -536,6 +642,7 @@ expectAllowed(
       { amount: 25, paymentDate: "2026-07-26", note: "modification 1" },
       ["amount", "paymentDate", "note"],
     ),
+    linkedTransactionUpdateWrite(paymentId, { amount: 25, paymentDate: "2026-07-26" }),
     parentMutationWrite(revision + 1, paymentId),
   ]),
   "modification valide paiement",
@@ -549,6 +656,7 @@ expectAllowed(
       { amount: 20, paymentDate: "2026-07-27", note: "modification 2" },
       ["amount", "paymentDate", "note"],
     ),
+    linkedTransactionUpdateWrite(paymentId, { amount: 20, paymentDate: "2026-07-27" }),
     parentMutationWrite(revision + 1, paymentId),
   ]),
   "deux modifications successives meme paiement",
@@ -587,6 +695,7 @@ expectAllowed(
       ["isDeleted", "deletedAt"],
       ["updatedAt", "deletedAt"],
     ),
+    linkedTransactionDeleteWrite(paymentId),
     parentMutationWrite(revision + 1, paymentId),
   ]),
   "suppression logique valide",
@@ -659,6 +768,7 @@ expectDenied(
 expectAllowed(
   await commit(ownerUid, [
     paymentCreateWrite("pay-tech-only", paymentBaseFields({ amount: 10, paymentDate: "2026-07-28" })),
+    linkedTransactionWrite("pay-tech-only", { amount: 10, paymentDate: "2026-07-28" }),
     parentMutationWrite(revision + 1, "pay-tech-only"),
   ]),
   "mutation limitee aux deux champs techniques autorisee",

@@ -23,6 +23,11 @@ export function validateDebtReceivable(values = {}) {
   if (!TYPES.has(values.type)) errors.type = "Sélectionnez Dette ou Créance.";
   if (!String(values.label || "").trim()) errors.label = "Le libellé est obligatoire.";
   if (!String(values.thirdPartyId || "").trim()) errors.thirdPartyId = "Le tiers est obligatoire.";
+  if (!String(values.categoryId || "").trim()) errors.categoryId = "La catégorie est obligatoire.";
+  if (values.type === "receivable" && !String(values.initialCategoryId || "").trim()) errors.initialCategoryId = "La catégorie de la sortie initiale est obligatoire.";
+  if (values.type === "receivable" && !String(values.initialAccountId || "").trim()) errors.initialAccountId = "Le compte de sortie est obligatoire.";
+  if (values.type === "receivable" && !isValidDateString(values.initialDate)) errors.initialDate = "La date de sortie est invalide.";
+  if (values.type === "receivable" && !String(values.initialDate || "").trim()) errors.initialDate = "La date de sortie est obligatoire.";
   if (!Number.isFinite(amount) || amount <= 0) errors.amount = "Le montant doit être strictement supérieur à zéro.";
   if (!isValidDateString(values.dueDate)) errors.dueDate = "La date d’échéance est invalide.";
   return errors;
@@ -40,6 +45,10 @@ export function buildDebtReceivablePayload(values = {}, now = new Date()) {
     label: String(values.label).trim(),
     amount: Number(values.amount),
     thirdPartyId: String(values.thirdPartyId || "").trim(),
+    categoryId: String(values.categoryId || "").trim(),
+    initialCategoryId: values.type === "receivable" ? String(values.initialCategoryId || "").trim() : null,
+    initialAccountId: values.type === "receivable" ? String(values.initialAccountId || "").trim() : null,
+    initialDate: values.type === "receivable" ? String(values.initialDate || "").trim() : null,
     dueDate: values.dueDate || null,
     notes: String(values.notes || "").trim() || null,
     updatedAt: now,
@@ -86,4 +95,9 @@ export function enrichDebtReceivableWithPayments(item, payments = []) {
     remainingAmount: fromCents(remainingCents),
     functionalStatus: computeFunctionalStatus(totalCents, paidCents),
   };
+}
+export function calculateReceivableCashImpact(initialAmount, repayments = []) {
+  const initialCents = Math.max(0, toCents(initialAmount));
+  const repaymentCents = (repayments || []).filter((payment) => payment?.isDeleted !== true).reduce((sum, payment) => sum + Math.max(0, toCents(payment?.amount)), 0);
+  return fromCents(repaymentCents - initialCents);
 }

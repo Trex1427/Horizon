@@ -1,6 +1,8 @@
 import {
   collection,
   doc,
+  getDoc,
+  getDocs,
   onSnapshot,
   query,
   runTransaction,
@@ -13,6 +15,10 @@ import { isValidDateString } from "./debtsReceivablesModel.js";
 
 export const DEBT_RECEIVABLE_PAYMENTS_COLLECTION = "debtReceivablePayments";
 const DEBTS_RECEIVABLES_COLLECTION = "debtsReceivables";
+const TRANSACTIONS_COLLECTION = "transactions";
+const ACCOUNTS_COLLECTION = "accounts";
+const THIRD_PARTIES_COLLECTION = "thirdParties";
+const CATEGORIES_COLLECTION = "categories";
 const MAX_PAYMENT_MUTATION_RETRIES = 3;
 
 function toCents(value) {
@@ -26,13 +32,18 @@ function normalizePaymentInput(payload = {}) {
   const cents = toCents(amount);
   const paymentDate = String(payload.paymentDate || "").trim();
   const noteRaw = String(payload.note || "").trim();
+  const accountId = String(payload.accountId || "").trim();
+  const label = String(payload.label || "").trim();
 
   if (!Number.isFinite(amount) || !Number.isFinite(cents) || cents <= 0) {
     throw new Error("Le montant du paiement doit etre strictement superieur a zero.");
   }
 
-  if (!isValidDateString(paymentDate)) {
+  if (!paymentDate || !isValidDateString(paymentDate)) {
     throw new Error("La date de paiement est invalide.");
+  }
+  if (!accountId) {
+    throw new Error("Le compte bancaire est obligatoire.");
   }
 
   return {
@@ -40,9 +51,48 @@ function normalizePaymentInput(payload = {}) {
     amountCents: cents,
     paymentDate,
     note: noteRaw || null,
+    accountId,
+    label,
   };
 }
 
+async function readOwnedActiveAccount(transaction, accountId, ownerUid) {
+  const accountSnapshot = await transaction.get(doc(db, ACCOUNTS_COLLECTION, accountId));
+  if (!accountSnapshot.exists() || accountSnapshot.data().ownerUid !== ownerUid || accountSnapshot.data().isActive !== true) {
+    throw new Error("Le compte bancaire selectionne est introuvable ou inactif.");
+  }
+}
+
+async function readOwnedReference(transaction, collectionName, id, ownerUid, label) {
+  const safeId = String(id || "").trim();
+  if (!safeId) throw new Error(`${label} manquant sur la dette ou créance.`);
+  const snapshot = await transaction.get(doc(db, collectionName, safeId));
+  if (!snapshot.exists() || snapshot.data().ownerUid !== ownerUid || snapshot.data().isActive === false) {
+    throw new Error(`${label} introuvable, inactif ou inaccessible.`);
+  }
+  return { id: safeId, ...snapshot.data() };
+}
+
+function buildLinkedTransaction(normalized, parentData, parentId, paymentId, ownerUid, thirdParty, category) {
+  return {
+    ownerUid,
+    date: normalized.paymentDate,
+    montant: normalized.amount,
+    description: normalized.label || parentData.label || "Paiement dette / creance",
+    type: parentData.type === "receivable" ? "revenu" : "depense",
+    accountId: normalized.accountId,
+    destinationAccountId: null,
+    debtReceivableId: parentId,
+    debtReceivablePaymentId: paymentId,
+    thirdPartyId: thirdParty.id,
+    thirdPartyName: thirdParty.name || "",
+    categoryId: category.id,
+    categoryName: category.name || "",
+    categorie: category.name || "",
+    isDeleted: false,
+    updatedAt: serverTimestamp(),
+  };
+}
 function normalizeParentAmountCents(parentData = {}) {
   const cents = toCents(parentData.amount);
   if (!Number.isFinite(cents) || cents <= 0) {
@@ -106,15 +156,32 @@ function buildParentPaymentMutation(parentSnapshot, paymentId) {
   };
 }
 
-async function collectActivePayments(transaction, ownerUid, debtReceivableId) {
+async function collectActivePayments(ownerUid, debtReceivableId) {
   const activePaymentsQuery = query(
     collection(db, DEBT_RECEIVABLE_PAYMENTS_COLLECTION),
     where("ownerUid", "==", ownerUid),
     where("debtReceivableId", "==", debtReceivableId),
     where("isDeleted", "==", false),
   );
-  const activePaymentsSnapshot = await transaction.get(activePaymentsQuery);
+  const activePaymentsSnapshot = await getDocs(activePaymentsQuery);
   return activePaymentsSnapshot.docs;
+}
+
+async function readPaymentMutationBaseline(parentRef, ownerUid, debtReceivableId) {
+  const parentSnapshot = await getDoc(parentRef);
+  if (!parentSnapshot.exists()) throw new Error("Element parent introuvable.");
+  const parentData = parentSnapshot.data();
+  if (parentData.ownerUid !== ownerUid || parentData.isDeleted === true) {
+    throw new Error("Acces refuse au parent ou parent supprime.");
+  }
+  const activePaymentDocs = await collectActivePayments(ownerUid, debtReceivableId);
+  return { activePaymentDocs, paymentsRevision: inferredPaymentsRevision(parentData) };
+}
+
+function assertUnchangedPaymentBaseline(parentData, baseline) {
+  if (inferredPaymentsRevision(parentData) !== baseline.paymentsRevision) {
+    throw new Error("Conflict: les paiements ont change pendant l'enregistrement.");
+  }
 }
 
 export function subscribeToActiveDebtReceivablePayments(onData, onError) {
@@ -172,12 +239,18 @@ export async function createDebtReceivablePayment(debtReceivableId, payload) {
   const normalized = normalizePaymentInput(payload);
   const parentRef = doc(db, DEBTS_RECEIVABLES_COLLECTION, parentId);
   const paymentRef = doc(collection(db, DEBT_RECEIVABLE_PAYMENTS_COLLECTION));
+  const transactionRef = doc(collection(db, TRANSACTIONS_COLLECTION));
 
   return runPaymentMutationWithRetry(async () => {
+    const baseline = await readPaymentMutationBaseline(parentRef, ownerUid, parentId);
     await runTransaction(db, async (transaction) => {
       const { snapshot: parentSnapshot, data: parentData } = await readOwnedActiveParent(transaction, parentRef, ownerUid);
+      assertUnchangedPaymentBaseline(parentData, baseline);
+      await readOwnedActiveAccount(transaction, normalized.accountId, ownerUid);
+      const thirdParty = await readOwnedReference(transaction, THIRD_PARTIES_COLLECTION, parentData.thirdPartyId, ownerUid, "Le tiers");
+      const category = await readOwnedReference(transaction, CATEGORIES_COLLECTION, parentData.categoryId, ownerUid, "La catégorie");
       const parentAmountCents = normalizeParentAmountCents(parentData);
-      const activePaymentDocs = await collectActivePayments(transaction, ownerUid, parentId);
+      const activePaymentDocs = baseline.activePaymentDocs;
       const activePaidCents = activePaymentDocs.reduce((sum, paymentDoc) => {
         const cents = toCents(paymentDoc.data().amount);
         return sum + (Number.isFinite(cents) && cents > 0 ? cents : 0);
@@ -193,16 +266,23 @@ export async function createDebtReceivablePayment(debtReceivableId, payload) {
         amount: normalized.amount,
         paymentDate: normalized.paymentDate,
         note: normalized.note,
-        transactionId: null,
+        accountId: normalized.accountId,
+        label: normalized.label || parentData.label || "",
+        transactionId: transactionRef.id,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         isDeleted: false,
       });
 
+      transaction.set(transactionRef, {
+        ...buildLinkedTransaction(normalized, parentData, parentId, paymentRef.id, ownerUid, thirdParty, category),
+        createdAt: serverTimestamp(),
+      });
+
       transaction.update(parentRef, buildParentPaymentMutation(parentSnapshot, paymentRef.id));
     });
 
-    return { id: paymentRef.id };
+    return { id: paymentRef.id, transactionId: transactionRef.id };
   });
 }
 
@@ -217,6 +297,11 @@ export async function updateDebtReceivablePayment(paymentId, payload) {
   const paymentRef = doc(db, DEBT_RECEIVABLE_PAYMENTS_COLLECTION, safePaymentId);
 
   return runPaymentMutationWithRetry(async () => {
+    const paymentBeforeMutation = await getDoc(paymentRef);
+    if (!paymentBeforeMutation.exists()) throw new Error("Paiement introuvable.");
+    const baselineParentId = String(paymentBeforeMutation.data().debtReceivableId || "").trim();
+    const baselineParentRef = doc(db, DEBTS_RECEIVABLES_COLLECTION, baselineParentId);
+    const baseline = await readPaymentMutationBaseline(baselineParentRef, ownerUid, baselineParentId);
     await runTransaction(db, async (transaction) => {
       const paymentSnapshot = await transaction.get(paymentRef);
       if (!paymentSnapshot.exists()) {
@@ -234,9 +319,14 @@ export async function updateDebtReceivablePayment(paymentId, payload) {
       const parentId = String(paymentData.debtReceivableId || "").trim();
       const parentRef = doc(db, DEBTS_RECEIVABLES_COLLECTION, parentId);
       const { snapshot: parentSnapshot, data: parentData } = await readOwnedActiveParent(transaction, parentRef, ownerUid);
+      if (parentId !== baselineParentId) throw new Error("Conflict: le parent du paiement a change.");
+      assertUnchangedPaymentBaseline(parentData, baseline);
+      await readOwnedActiveAccount(transaction, normalized.accountId, ownerUid);
+      const thirdParty = await readOwnedReference(transaction, THIRD_PARTIES_COLLECTION, parentData.thirdPartyId, ownerUid, "Le tiers");
+      const category = await readOwnedReference(transaction, CATEGORIES_COLLECTION, parentData.categoryId, ownerUid, "La catégorie");
       const parentAmountCents = normalizeParentAmountCents(parentData);
 
-      const activePaymentDocs = await collectActivePayments(transaction, ownerUid, parentId);
+      const activePaymentDocs = baseline.activePaymentDocs;
       const activePaidCents = activePaymentDocs.reduce((sum, paymentDoc) => {
         const cents = toCents(paymentDoc.data().amount);
         return sum + (Number.isFinite(cents) && cents > 0 ? cents : 0);
@@ -248,13 +338,33 @@ export async function updateDebtReceivablePayment(paymentId, payload) {
         throw new Error("Le total des paiements depasse le montant initial.");
       }
 
+      const existingTransactionId = String(paymentData.transactionId || "").trim();
+      const transactionRef = existingTransactionId
+        ? doc(db, TRANSACTIONS_COLLECTION, existingTransactionId)
+        : doc(collection(db, TRANSACTIONS_COLLECTION));
+      if (existingTransactionId) {
+        const transactionSnapshot = await transaction.get(transactionRef);
+        if (!transactionSnapshot.exists() || transactionSnapshot.data().ownerUid !== ownerUid) {
+          throw new Error("La transaction liee au paiement est introuvable.");
+        }
+      }
+
       transaction.update(paymentRef, {
         amount: normalized.amount,
         paymentDate: normalized.paymentDate,
         note: normalized.note,
-        transactionId: null,
+        accountId: normalized.accountId,
+        label: normalized.label || parentData.label || "",
+        transactionId: transactionRef.id,
         updatedAt: serverTimestamp(),
       });
+
+      const linkedTransaction = buildLinkedTransaction(normalized, parentData, parentId, safePaymentId, ownerUid, thirdParty, category);
+      if (existingTransactionId) {
+        transaction.update(transactionRef, linkedTransaction);
+      } else {
+        transaction.set(transactionRef, { ...linkedTransaction, createdAt: serverTimestamp() });
+      }
 
       transaction.update(parentRef, buildParentPaymentMutation(parentSnapshot, safePaymentId));
     });
@@ -290,13 +400,30 @@ export async function deleteDebtReceivablePayment(paymentId) {
       const parentId = String(paymentData.debtReceivableId || "").trim();
       const parentRef = doc(db, DEBTS_RECEIVABLES_COLLECTION, parentId);
       const { snapshot: parentSnapshot } = await readOwnedActiveParent(transaction, parentRef, ownerUid);
+      const transactionId = String(paymentData.transactionId || "").trim();
+      const transactionRef = transactionId ? doc(db, TRANSACTIONS_COLLECTION, transactionId) : null;
+      let transactionExists = false;
+      if (transactionRef) {
+        const transactionSnapshot = await transaction.get(transactionRef);
+        transactionExists = transactionSnapshot.exists();
+        if (transactionExists && transactionSnapshot.data().ownerUid !== ownerUid) {
+          throw new Error("Acces refuse a la transaction liee au paiement.");
+        }
+      }
 
       transaction.update(paymentRef, {
         isDeleted: true,
         deletedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        transactionId: null,
       });
+
+      if (transactionRef && transactionExists) {
+        transaction.update(transactionRef, {
+          isDeleted: true,
+          deletedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
 
       transaction.update(parentRef, buildParentPaymentMutation(parentSnapshot, safePaymentId));
     });

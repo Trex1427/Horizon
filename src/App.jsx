@@ -194,7 +194,7 @@ function AppContent() {
   const [transactionsNavigationContext, setTransactionsNavigationContext] = useState(null);
   const [analysisNavigationContext, setAnalysisNavigationContext] = useState(null);
   const { transactions, loading, error: transactionsError } = useTransactionsContext();
-  const { accounts, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
+  const { accounts, defaultAccount, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
   const { fixedExpenses, loading: fixedExpensesLoading, error: fixedExpensesError } = useFixedExpenses();
   const { recurringIncome, loading: recurringIncomeLoading, error: recurringIncomeError } = useRecurringIncome();
   const { opportunities, loading: opportunitiesLoading, error: opportunitiesError } = useOpportunities();
@@ -419,7 +419,14 @@ function AppContent() {
 
         {page === PAGES.OPPORTUNITES && <Opportunites />}
 
-        {page === PAGES.DETTES_CREANCES && <DettesCreances />}
+        {page === PAGES.DETTES_CREANCES && (
+          <DettesCreances
+            accounts={accounts}
+            defaultAccount={defaultAccount}
+            accountsLoading={accountsLoading}
+            accountsError={accountsError}
+          />
+        )}
 
         {page === PAGES.BUDGETS && <Budgets />}
 

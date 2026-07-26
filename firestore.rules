@@ -44,6 +44,14 @@ service cloud.firestore {
       return /databases/$(database)/documents/debtReceivablePayments/$(paymentId);
     }
 
+    function transactionPath(transactionId) {
+      return /databases/$(database)/documents/transactions/$(transactionId);
+    }
+
+    function accountPath(accountId) {
+      return /databases/$(database)/documents/accounts/$(accountId);
+    }
+
     function inferredPaymentsRevision(data) {
       return data.keys().hasAny(["paymentsRevision"])
         ? data.paymentsRevision
@@ -91,6 +99,8 @@ service cloud.firestore {
           "updatedAt",
           "isDeleted",
           "note",
+          "accountId",
+          "label",
           "transactionId",
           "deletedAt",
         ])
@@ -114,10 +124,84 @@ service cloud.firestore {
         && (data.updatedAt is timestamp || data.updatedAt == null)
         && data.isDeleted is bool
         && (!data.keys().hasAny(["note"]) || data.note is string || data.note == null)
-        && (!data.keys().hasAny(["transactionId"]) || data.transactionId == null)
+        && (!data.keys().hasAny(["accountId"]) || data.accountId is string)
+        && (!data.keys().hasAny(["label"]) || data.label is string)
+        && (!data.keys().hasAny(["transactionId"]) || data.transactionId is string || data.transactionId == null)
         && (!data.keys().hasAny(["deletedAt"]) || data.deletedAt is timestamp);
     }
 
+    function isInitialDebtReceivableTransaction(data) {
+      return data.keys().hasAny(["debtReceivableInitial"])
+        && data.debtReceivableInitial == true
+        && data.debtReceivableId is string;
+    }
+
+    function hasReciprocalInitialDebtReceivableTransaction(transactionId) {
+      return isInitialDebtReceivableTransaction(request.resource.data)
+        && existsAfter(parentPath(request.resource.data.debtReceivableId))
+        && getAfter(parentPath(request.resource.data.debtReceivableId)).data.ownerUid == request.auth.uid
+        && getAfter(parentPath(request.resource.data.debtReceivableId)).data.initialTransactionId == transactionId
+        && request.resource.data.type == "depense"
+        && request.resource.data.montant == getAfter(parentPath(request.resource.data.debtReceivableId)).data.amount
+        && request.resource.data.date == getAfter(parentPath(request.resource.data.debtReceivableId)).data.initialDate
+        && request.resource.data.accountId == getAfter(parentPath(request.resource.data.debtReceivableId)).data.initialAccountId
+        && request.resource.data.categoryId == getAfter(parentPath(request.resource.data.debtReceivableId)).data.initialCategoryId
+        && request.resource.data.thirdPartyId == getAfter(parentPath(request.resource.data.debtReceivableId)).data.thirdPartyId
+        && request.resource.data.isDeleted == getAfter(parentPath(request.resource.data.debtReceivableId)).data.isDeleted
+        && request.resource.data.updatedAt == request.time
+        && getAfter(parentPath(request.resource.data.debtReceivableId)).data.updatedAt == request.time;
+    }
+    function isLinkedTransaction(data) {
+      return data.keys().hasAny(["debtReceivablePaymentId"])
+        && data.debtReceivablePaymentId is string
+        && data.debtReceivablePaymentId.size() > 0;
+    }
+
+    function hasReciprocalLinkedPayment(transactionId) {
+      return isLinkedTransaction(request.resource.data)
+        && existsAfter(paymentPath(request.resource.data.debtReceivablePaymentId))
+        && getAfter(paymentPath(request.resource.data.debtReceivablePaymentId)).data.ownerUid == request.auth.uid
+        && getAfter(paymentPath(request.resource.data.debtReceivablePaymentId)).data.transactionId == transactionId
+        && getAfter(paymentPath(request.resource.data.debtReceivablePaymentId)).data.debtReceivableId == request.resource.data.debtReceivableId
+        && getAfter(paymentPath(request.resource.data.debtReceivablePaymentId)).data.amount == request.resource.data.montant
+        && getAfter(paymentPath(request.resource.data.debtReceivablePaymentId)).data.paymentDate == request.resource.data.date
+        && getAfter(paymentPath(request.resource.data.debtReceivablePaymentId)).data.accountId == request.resource.data.accountId
+        && getAfter(paymentPath(request.resource.data.debtReceivablePaymentId)).data.isDeleted == request.resource.data.isDeleted
+        && getAfter(paymentPath(request.resource.data.debtReceivablePaymentId)).data.updatedAt == request.time
+        && existsAfter(parentPath(request.resource.data.debtReceivableId))
+        && request.resource.data.type == (getAfter(parentPath(request.resource.data.debtReceivableId)).data.type == "receivable" ? "revenu" : "depense")
+        && exists(accountPath(request.resource.data.accountId))
+        && get(accountPath(request.resource.data.accountId)).data.ownerUid == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function hasValidLinkedTransaction(transactionId, paymentId, debtReceivableId, shouldBeDeleted) {
+      return transactionId is string
+        && transactionId.size() > 0
+        && existsAfter(transactionPath(transactionId))
+        && getAfter(transactionPath(transactionId)).data.ownerUid == request.auth.uid
+        && getAfter(transactionPath(transactionId)).data.debtReceivablePaymentId == paymentId
+        && getAfter(transactionPath(transactionId)).data.debtReceivableId == debtReceivableId
+        && getAfter(transactionPath(transactionId)).data.accountId is string
+        && getAfter(transactionPath(transactionId)).data.accountId.size() > 0
+        && exists(accountPath(getAfter(transactionPath(transactionId)).data.accountId))
+        && get(accountPath(getAfter(transactionPath(transactionId)).data.accountId)).data.ownerUid == request.auth.uid
+        && getAfter(transactionPath(transactionId)).data.type in ["depense", "revenu"]
+        && getAfter(transactionPath(transactionId)).data.date is string
+        && getAfter(transactionPath(transactionId)).data.montant is number
+        && getAfter(transactionPath(transactionId)).data.montant is number
+        && getAfter(transactionPath(transactionId)).data.montant > 0
+        && getAfter(transactionPath(transactionId)).data.isDeleted == shouldBeDeleted
+        && getAfter(transactionPath(transactionId)).data.updatedAt == request.time;
+    }
+    function canDeletePaymentWithoutLinkedTransaction(transactionId) {
+      return request.resource.data.isDeleted == true
+        && (
+          !(transactionId is string)
+          || transactionId.size() == 0
+          || !existsAfter(transactionPath(transactionId))
+        );
+    }
     function hasReciprocalParentMutation(debtReceivableId, paymentId) {
       return exists(parentPath(debtReceivableId))
         && existsAfter(parentPath(debtReceivableId))
@@ -190,9 +274,24 @@ service cloud.firestore {
 
     match /transactions/{documentId} {
       allow get, list: if readsOwnDocument();
-      allow create: if createsOwnDocument();
-      allow update: if updatesOwnDocument();
-      allow delete: if deletesOwnDocument();
+      allow create: if createsOwnDocument()
+        && (
+          (!isLinkedTransaction(request.resource.data) && !isInitialDebtReceivableTransaction(request.resource.data))
+          || hasReciprocalLinkedPayment(documentId)
+          || hasReciprocalInitialDebtReceivableTransaction(documentId)
+        );
+      allow update: if updatesOwnDocument()
+        && (
+          (!isLinkedTransaction(resource.data) && !isLinkedTransaction(request.resource.data)
+            && !isInitialDebtReceivableTransaction(resource.data) && !isInitialDebtReceivableTransaction(request.resource.data))
+          || (isLinkedTransaction(resource.data)
+            && request.resource.data.debtReceivablePaymentId == resource.data.debtReceivablePaymentId
+            && hasReciprocalLinkedPayment(documentId))
+          || (isInitialDebtReceivableTransaction(resource.data)
+            && request.resource.data.debtReceivableId == resource.data.debtReceivableId
+            && hasReciprocalInitialDebtReceivableTransaction(documentId))
+        );
+      allow delete: if deletesOwnDocument() && !isLinkedTransaction(resource.data) && !isInitialDebtReceivableTransaction(resource.data);
     }
 
     match /categories/{documentId} {
@@ -320,6 +419,7 @@ service cloud.firestore {
         && getAfter(paymentPath(paymentId)).data.createdAt == request.time
         && getAfter(paymentPath(paymentId)).data.updatedAt == request.time
         && finalParentIsOwnedAndActive(request.resource.data.debtReceivableId)
+        && hasValidLinkedTransaction(request.resource.data.transactionId, paymentId, request.resource.data.debtReceivableId, false)
         && hasReciprocalParentMutation(request.resource.data.debtReceivableId, paymentId);
       allow update: if readsOwnDocument()
         && hasValidPaymentSchema(request.resource.data)
@@ -327,7 +427,6 @@ service cloud.firestore {
         && request.resource.data.ownerUid == resource.data.ownerUid
         && request.resource.data.debtReceivableId == resource.data.debtReceivableId
         && request.resource.data.createdAt == resource.data.createdAt
-        && (!request.resource.data.keys().hasAny(["transactionId"]) || request.resource.data.transactionId == null)
         && request.resource.data.updatedAt == request.time
         && (
           (
@@ -343,6 +442,15 @@ service cloud.firestore {
             && request.resource.data.paymentDate == resource.data.paymentDate
             && request.resource.data.note == resource.data.note
           )
+        )
+        && (
+          hasValidLinkedTransaction(
+            request.resource.data.transactionId,
+            paymentId,
+            request.resource.data.debtReceivableId,
+            request.resource.data.isDeleted
+          )
+          || canDeletePaymentWithoutLinkedTransaction(request.resource.data.transactionId)
         )
         && hasReciprocalParentMutation(request.resource.data.debtReceivableId, paymentId);
       allow delete: if false;

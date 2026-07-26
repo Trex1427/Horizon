@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { Alert, Box, Button, Card, CardActions, CardContent, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from "@mui/material";
+import PaymentsOutlined from "@mui/icons-material/PaymentsOutlined";
 import DebtReceivableForm from "../components/DebtReceivableForm.jsx";
 import DebtReceivablePaymentsDialog from "../components/DebtReceivablePaymentsDialog.jsx";
 import { PilotageEmptyState, PilotageHeader, PilotagePageShell, PilotageSection, PilotageSummary, PILOTAGE_COLORS } from "../components/PilotagePageLayout.jsx";
 import { useDebtsReceivables } from "../hooks/useDebtsReceivables.js";
 import { useThirdParties } from "../hooks/useThirdParties.js";
+import { useCategories } from "../hooks/useCategories.js";
 import { calculateDebtsReceivablesSummary } from "../services/debtsReceivablesModel.js";
 
 const currency = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
@@ -14,9 +16,10 @@ function formatDate(value) {
   return new Intl.DateTimeFormat("fr-FR").format(new Date(`${value}T00:00:00`));
 }
 
-export default function DettesCreances() {
+export default function DettesCreances({ accounts = [], defaultAccount = null, accountsLoading = false, accountsError = "" }) {
   const { items, loading, error, create, update, remove } = useDebtsReceivables();
   const { thirdParties, addThirdParty } = useThirdParties({ includeInactive: true });
+  const { categories } = useCategories();
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -45,6 +48,15 @@ export default function DettesCreances() {
     return "Tiers à renseigner";
   }
 
+  function openEditForm(item) {
+    setEditing(item);
+    setFormOpen(true);
+  }
+
+  function handleCardDoubleClick(event, item) {
+    if (event.target.closest("button, a, input, textarea, select, [role='button']")) return;
+    openEditForm(item);
+  }
   async function confirmDelete() {
     const result = await remove(deleting.id);
     if (result.success) setDeleting(null);
@@ -66,7 +78,7 @@ export default function DettesCreances() {
         {!loading && items.length === 0 ? <PilotageEmptyState>Aucune dette ni créance ouverte. Ajoutez votre premier élément pour commencer.</PilotageEmptyState> : null}
         <Stack spacing={1}>
           {items.map((item) => (
-            <Card key={item.id} variant="outlined">
+            <Card key={item.id} variant="outlined" onDoubleClick={(event) => handleCardDoubleClick(event, item)}>
               <CardContent>
                 <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={1}>
                   <Box>
@@ -79,24 +91,42 @@ export default function DettesCreances() {
                   <Typography variant="h6" sx={{ fontVariantNumeric: "tabular-nums" }}>{formatCurrency(Number(item.amount))}</Typography>
                 </Stack>
               </CardContent>
-              <CardActions>
-                <Button onClick={() => { setPaymentsTarget(item); }}>Gérer paiements</Button>
-                <Button onClick={() => { setEditing(item); setFormOpen(true); }}>Modifier</Button>
+              <CardActions
+                sx={{
+                  alignItems: "stretch",
+                  flexDirection: { xs: "column", sm: "row" },
+                  gap: 1,
+                  px: 2,
+                  pb: 2,
+                  "& > :not(style) ~ :not(style)": { ml: 0 },
+                }}
+              >
+                <Button
+                  variant="contained"
+                  startIcon={<PaymentsOutlined />}
+                  aria-label={`Gerer les paiements de ${item.label}`}
+                  onClick={() => setPaymentsTarget(item)}
+                  sx={{ width: { xs: "100%", sm: "auto" } }}
+                >
+                  Paiements
+                </Button>
+                <Button onClick={() => openEditForm(item)}>Modifier</Button>
                 <Button color="error" onClick={() => { setDeleteError(""); setDeleting(item); }}>Supprimer</Button>
               </CardActions>
             </Card>
           ))}
         </Stack>
       </PilotageSection>
-      <DebtReceivableForm key={`${editing?.id || "new"}-${formOpen}`} open={formOpen} initialItem={editing} thirdParties={thirdParties}
+      <DebtReceivableForm key={`${editing?.id || "new"}-${formOpen}`} open={formOpen} initialItem={editing} thirdParties={thirdParties} categories={categories} accounts={accounts} defaultAccount={defaultAccount}
         onRequestCreateThirdParty={addThirdParty} onClose={() => { setFormOpen(false); setEditing(null); }}
         onSubmit={(payload) => editing ? update(editing.id, payload) : create(payload)} />
       <Dialog open={Boolean(deleting)} onClose={() => setDeleting(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Supprimer cet élément ?</DialogTitle>
-        <DialogContent><Typography>Cette suppression est logique et n’affectera ni transaction ni budget.</Typography>{deleteError ? <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert> : null}</DialogContent>
+        <DialogContent><Typography>Supprimez d abord les paiements actifs. La creance et sa transaction initiale seront ensuite supprimees logiquement.</Typography>{deleteError ? <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert> : null}</DialogContent>
         <DialogActions><Button onClick={() => setDeleting(null)}>Annuler</Button><Button color="error" variant="contained" onClick={confirmDelete}>Supprimer</Button></DialogActions>
       </Dialog>
-      <DebtReceivablePaymentsDialog open={Boolean(paymentsTarget)} debtReceivable={paymentsTarget}
+      <DebtReceivablePaymentsDialog key={paymentsTarget?.id || "payments-closed"} open={Boolean(paymentsTarget)} debtReceivable={paymentsTarget}
+        accounts={accounts} defaultAccount={defaultAccount} accountsLoading={accountsLoading} accountsError={accountsError}
         onClose={() => setPaymentsTarget(null)} />
     </PilotagePageShell>
   );
