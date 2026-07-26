@@ -1,5 +1,15 @@
 const TYPES = new Set(["debt", "receivable"]);
 
+function toCents(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round(amount * 100);
+}
+
+function fromCents(value) {
+  return Number.isFinite(value) ? value / 100 : 0;
+}
+
 export function isValidDateString(value) {
   if (!value) return true;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -32,7 +42,6 @@ export function buildDebtReceivablePayload(values = {}, now = new Date()) {
     thirdPartyId: String(values.thirdPartyId || "").trim(),
     dueDate: values.dueDate || null,
     notes: String(values.notes || "").trim() || null,
-    status: "open",
     updatedAt: now,
   };
 }
@@ -42,6 +51,7 @@ export function buildDebtReceivableCreatePayload(values = {}, now = new Date()) 
     ...buildDebtReceivablePayload(values, now),
     createdAt: now,
     isDeleted: false,
+    paymentsRevision: 0,
   };
 }
 
@@ -51,8 +61,29 @@ function safeAmount(value) {
 }
 
 export function calculateDebtsReceivablesSummary(items = []) {
-  const active = items.filter((item) => item?.isDeleted !== true && item?.status === "open");
+  const active = items.filter((item) => item?.isDeleted !== true && item?.functionalStatus !== "paid");
   const debts = active.reduce((sum, item) => sum + (item.type === "debt" ? safeAmount(item.amount) : 0), 0);
   const receivables = active.reduce((sum, item) => sum + (item.type === "receivable" ? safeAmount(item.amount) : 0), 0);
   return { debts, receivables, net: receivables - debts };
+}
+
+function computeFunctionalStatus(totalCents, paidCents) {
+  if (paidCents <= 0) return "unpaid";
+  if (paidCents >= totalCents) return "paid";
+  return "partial";
+}
+
+export function enrichDebtReceivableWithPayments(item, payments = []) {
+  const safeItem = item || {};
+  const activePayments = (payments || []).filter((payment) => payment?.isDeleted !== true);
+  const totalCents = Math.max(0, toCents(safeItem.amount));
+  const paidCents = Math.min(totalCents, activePayments.reduce((sum, payment) => sum + Math.max(0, toCents(payment.amount)), 0));
+  const remainingCents = Math.max(totalCents - paidCents, 0);
+
+  return {
+    ...safeItem,
+    paidAmount: fromCents(paidCents),
+    remainingAmount: fromCents(remainingCents),
+    functionalStatus: computeFunctionalStatus(totalCents, paidCents),
+  };
 }

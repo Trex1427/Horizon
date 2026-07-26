@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import process from "node:process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -12,7 +13,7 @@ test("navigation exposes and renders Dettes et créances without global loading"
 });
 test("page presents summaries, CRUD actions, empty state and confirmation", async () => {
   const page = await readFile(resolve(process.cwd(), "src/pages/DettesCreances.jsx"), "utf8");
-  for (const label of ["Dettes ouvertes", "Créances ouvertes", "Solde net indicatif", "Modifier", "Supprimer", "Aucune dette ni créance ouverte"]) {
+  for (const label of ["Dettes ouvertes", "Créances ouvertes", "Solde net indicatif", "Gérer paiements", "Modifier", "Supprimer", "Aucune dette ni créance ouverte", "Payé:", "Restant:"]) {
     assert.ok(page.includes(label), `missing ${label}`);
   }
   assert.ok(page.includes("Tiers:"), "missing third-party display");

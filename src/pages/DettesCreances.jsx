@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Alert, Box, Button, Card, CardActions, CardContent, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from "@mui/material";
 import DebtReceivableForm from "../components/DebtReceivableForm.jsx";
+import DebtReceivablePaymentsDialog from "../components/DebtReceivablePaymentsDialog.jsx";
 import { PilotageEmptyState, PilotageHeader, PilotagePageShell, PilotageSection, PilotageSummary, PILOTAGE_COLORS } from "../components/PilotagePageLayout.jsx";
 import { useDebtsReceivables } from "../hooks/useDebtsReceivables.js";
 import { useThirdParties } from "../hooks/useThirdParties.js";
@@ -19,6 +20,7 @@ export default function DettesCreances() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const [paymentsTarget, setPaymentsTarget] = useState(null);
   const [deleteError, setDeleteError] = useState("");
   const summary = useMemo(() => calculateDebtsReceivablesSummary(items), [items]);
   const thirdPartyMap = useMemo(
@@ -71,11 +73,17 @@ export default function DettesCreances() {
                     <Typography variant="overline" color={item.type === "debt" ? "error" : "success.main"}>{item.type === "debt" ? "Dette" : "Créance"}</Typography>
                     <Typography variant="h6">{item.label}</Typography>
                     <Typography color="text.secondary">{getThirdPartyDisplay(item)}{item.dueDate ? ` · Échéance ${formatDate(item.dueDate)}` : ""}</Typography>
+                    <Typography color="text.secondary">Payé: {formatCurrency(Number(item.paidAmount || 0))} · Restant: {formatCurrency(Number(item.remainingAmount || 0))}</Typography>
+                    <Typography color="text.secondary">Statut: {item.functionalStatus === "paid" ? "Soldé" : item.functionalStatus === "partial" ? "Partiellement payé" : "Non payé"}</Typography>
                   </Box>
                   <Typography variant="h6" sx={{ fontVariantNumeric: "tabular-nums" }}>{formatCurrency(Number(item.amount))}</Typography>
                 </Stack>
               </CardContent>
-              <CardActions><Button onClick={() => { setEditing(item); setFormOpen(true); }}>Modifier</Button><Button color="error" onClick={() => { setDeleteError(""); setDeleting(item); }}>Supprimer</Button></CardActions>
+              <CardActions>
+                <Button onClick={() => { setPaymentsTarget(item); }}>Gérer paiements</Button>
+                <Button onClick={() => { setEditing(item); setFormOpen(true); }}>Modifier</Button>
+                <Button color="error" onClick={() => { setDeleteError(""); setDeleting(item); }}>Supprimer</Button>
+              </CardActions>
             </Card>
           ))}
         </Stack>
@@ -88,6 +96,8 @@ export default function DettesCreances() {
         <DialogContent><Typography>Cette suppression est logique et n’affectera ni transaction ni budget.</Typography>{deleteError ? <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert> : null}</DialogContent>
         <DialogActions><Button onClick={() => setDeleting(null)}>Annuler</Button><Button color="error" variant="contained" onClick={confirmDelete}>Supprimer</Button></DialogActions>
       </Dialog>
+      <DebtReceivablePaymentsDialog open={Boolean(paymentsTarget)} debtReceivable={paymentsTarget}
+        onClose={() => setPaymentsTarget(null)} />
     </PilotagePageShell>
   );
 }

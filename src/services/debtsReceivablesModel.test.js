@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildDebtReceivableCreatePayload, buildDebtReceivablePayload, calculateDebtsReceivablesSummary, validateDebtReceivable } from "./debtsReceivablesModel.js";
+import {
+  buildDebtReceivableCreatePayload,
+  buildDebtReceivablePayload,
+  calculateDebtsReceivablesSummary,
+  enrichDebtReceivableWithPayments,
+  validateDebtReceivable,
+} from "./debtsReceivablesModel.js";
 
 const valid = { type: "debt", label: " Prêt ", amount: "500.25", thirdPartyId: "tp-bank", dueDate: "2026-09-30", notes: " Note " };
 const now = new Date("2026-07-25T10:00:00Z");
@@ -9,13 +15,13 @@ test("creates the minimal normalized model", () => {
   const payload = buildDebtReceivableCreatePayload(valid, now);
   assert.deepEqual(payload, {
     type: "debt", label: "Prêt", amount: 500.25, thirdPartyId: "tp-bank", dueDate: "2026-09-30",
-    notes: "Note", status: "open", updatedAt: now, createdAt: now, isDeleted: false,
+    notes: "Note", updatedAt: now, createdAt: now, isDeleted: false, paymentsRevision: 0,
   });
 });
 
-test("update payload cannot carry ownerUid, status or deletion fields", () => {
+test("update payload cannot carry ownerUid or deletion fields", () => {
   const payload = buildDebtReceivablePayload({ ...valid, ownerUid: "attacker", status: "closed", isDeleted: true }, now);
-  assert.equal(payload.status, "open");
+  assert.equal("status" in payload, false);
   assert.equal("ownerUid" in payload, false);
   assert.equal("isDeleted" in payload, false);
 });
@@ -46,8 +52,8 @@ test("legacy counterparty-only documents remain readable for compatibility", () 
     amount: 300,
     counterparty: "Ancienne contrepartie",
     dueDate: null,
-    status: "open",
     isDeleted: false,
+    functionalStatus: "unpaid",
   };
 
   const summary = calculateDebtsReceivablesSummary([legacyItem]);
@@ -56,20 +62,35 @@ test("legacy counterparty-only documents remain readable for compatibility", () 
 
 test("summary handles decimals, large values, deleted data and returns to zero", () => {
   assert.deepEqual(calculateDebtsReceivablesSummary([
-    { type: "debt", amount: 500.25, status: "open", isDeleted: false },
-    { type: "receivable", amount: 800.75, status: "open", isDeleted: false },
-    { type: "debt", amount: 999, status: "open", isDeleted: true },
-    { type: "receivable", amount: Infinity, status: "open", isDeleted: false },
-    { type: "receivable", amount: 1_000_000_000, status: "closed", isDeleted: false },
+    { type: "debt", amount: 500.25, functionalStatus: "unpaid", isDeleted: false },
+    { type: "receivable", amount: 800.75, functionalStatus: "partial", isDeleted: false },
+    { type: "debt", amount: 999, functionalStatus: "unpaid", isDeleted: true },
+    { type: "receivable", amount: Infinity, functionalStatus: "unpaid", isDeleted: false },
+    { type: "receivable", amount: 1_000_000_000, functionalStatus: "paid", isDeleted: false },
   ]), { debts: 500.25, receivables: 800.75, net: 300.5 });
   assert.deepEqual(calculateDebtsReceivablesSummary([]), { debts: 0, receivables: 0, net: 0 });
 });
 
 test("recette arithmetic follows 500/800 then 600/800", () => {
   assert.equal(calculateDebtsReceivablesSummary([
-    { type: "debt", amount: 500, status: "open" }, { type: "receivable", amount: 800, status: "open" },
+    { type: "debt", amount: 500, functionalStatus: "unpaid" }, { type: "receivable", amount: 800, functionalStatus: "unpaid" },
   ]).net, 300);
   assert.equal(calculateDebtsReceivablesSummary([
-    { type: "debt", amount: 600, status: "open" }, { type: "receivable", amount: 800, status: "open" },
+    { type: "debt", amount: 600, functionalStatus: "partial" }, { type: "receivable", amount: 800, functionalStatus: "unpaid" },
   ]).net, 200);
+});
+
+test("computed amounts and functional status are derived from active payments only", () => {
+  const enriched = enrichDebtReceivableWithPayments(
+    { id: "d1", amount: 100 },
+    [
+      { amount: 20, isDeleted: false },
+      { amount: 30.5, isDeleted: false },
+      { amount: 10, isDeleted: true },
+    ],
+  );
+
+  assert.equal(enriched.paidAmount, 50.5);
+  assert.equal(enriched.remainingAmount, 49.5);
+  assert.equal(enriched.functionalStatus, "partial");
 });

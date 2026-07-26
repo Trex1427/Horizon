@@ -129,7 +129,6 @@ const protectedCollections = [
   "transactionDrafts",
   "opportunities",
   "transfers",
-  "debtsReceivables",
 ];
 
 for (const collectionName of protectedCollections) {
