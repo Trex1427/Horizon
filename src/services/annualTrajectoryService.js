@@ -1,5 +1,8 @@
 import {
+  buildBudgetFixedExpenseReservationMap,
+  isTransactionMatchingBudgetCategory,
   matchesExpectedTransaction,
+  selectNonOverlappingBudgetsForForecast,
   toDateValue,
 } from "./financeCalculations.js";
 import { getRecurringIncomeApplicableAmount } from "../utils/recurringIncomeAmount.js";
@@ -222,7 +225,7 @@ function findExpectedMatch(transactions, item, options) {
   });
 }
 
-function sumForecastOccurrences({
+function listForecastOccurrences({
   items,
   transactions,
   includedAccountIds,
@@ -232,22 +235,14 @@ function sumForecastOccurrences({
   referenceDate,
   type,
 }) {
-  return (items || []).reduce((sum, item) => {
-    if (!isAccountIncluded(item?.accountId, includedAccountIds, fallbackAccountId)) {
-      return sum;
-    }
-
-    if (!shouldIncludeForecastOccurrence(item, monthStart, monthEnd, referenceDate)) {
-      return sum;
-    }
+  return (items || []).reduce((occurrences, item) => {
+    if (!isAccountIncluded(item?.accountId, includedAccountIds, fallbackAccountId)) return occurrences;
+    if (!shouldIncludeForecastOccurrence(item, monthStart, monthEnd, referenceDate)) return occurrences;
 
     const amount = type === "revenu"
       ? toAmount(getRecurringIncomeApplicableAmount(item, monthEnd))
       : getFixedExpenseAmount(item, monthEnd);
-
-    if (amount <= 0) {
-      return sum;
-    }
+    if (amount <= 0) return occurrences;
 
     const alreadyRealized = findExpectedMatch(transactions, item, {
       expectedType: type,
@@ -255,52 +250,47 @@ function sumForecastOccurrences({
       monthStart,
       monthEnd,
     });
-
-    return alreadyRealized ? sum : sum + amount;
-  }, 0);
+    if (!alreadyRealized) occurrences.push({ ...item, amount, montant: amount });
+    return occurrences;
+  }, []);
 }
 
-function sumRemainingBudgets({ budgets, transactions, includedAccountIds, fallbackAccountId, monthStart, monthEnd, referenceDate }) {
+function sumForecastOccurrences(options) {
+  return listForecastOccurrences(options)
+    .reduce((sum, occurrence) => sum + toAmount(occurrence.amount), 0);
+}
+
+function sumRemainingBudgets({ budgets, transactions, fixedExpenseOccurrences = [], includedAccountIds, fallbackAccountId, monthStart, monthEnd, referenceDate }) {
   if (monthEnd < referenceDate) {
     return 0;
   }
 
-  return (budgets || []).reduce((sum, budget) => {
-    if (!isAccountIncluded(budget?.accountId, includedAccountIds, fallbackAccountId)) {
-      return sum;
-    }
+  const applicableBudgets = selectNonOverlappingBudgetsForForecast(
+    (budgets || [])
+      .filter((budget) => isAccountIncluded(budget?.accountId, includedAccountIds, fallbackAccountId))
+      .filter((budget) => isBudgetApplicableInMonth(budget, monthStart, monthEnd))
+  );
+  const fixedExpenseReservations = buildBudgetFixedExpenseReservationMap(
+    applicableBudgets,
+    fixedExpenseOccurrences
+  );
 
-    if (!isBudgetApplicableInMonth(budget, monthStart, monthEnd)) {
-      return sum;
-    }
-
+  return applicableBudgets.reduce((sum, budget) => {
     const { start, end } = getBudgetRangeIntersection(budget, monthStart, monthEnd);
     const spent = transactions.reduce((spentSum, transaction) => {
-      if (!isExpenseTransactionType(transaction?.type)) {
-        return spentSum;
-      }
-
-      if (!isAccountIncluded(transaction?.accountId, includedAccountIds, fallbackAccountId)) {
-        return spentSum;
-      }
+      if (!isExpenseTransactionType(transaction?.type)) return spentSum;
+      if (!isAccountIncluded(transaction?.accountId, includedAccountIds, fallbackAccountId)) return spentSum;
 
       const date = toValidDate(transaction?.date || transaction?.createdAt || transaction?.timestamp);
-      if (!date || date < start || date > end || date > referenceDate) {
-        return spentSum;
-      }
+      if (!date || date < start || date > end || date > referenceDate) return spentSum;
 
-      const transactionCategoryId = String(transaction?.categoryId || "");
-      const budgetCategoryId = String(budget?.categoryId || "");
-      const transactionCategoryName = String(transaction?.categoryName || transaction?.categorie || transaction?.category || "").trim().toLowerCase();
-      const budgetCategoryName = String(budget?.categoryName || budget?.category || "").trim().toLowerCase();
-      const matchesCategory = budgetCategoryId
-        ? transactionCategoryId === budgetCategoryId || (!transactionCategoryId && transactionCategoryName === budgetCategoryName)
-        : Boolean(budgetCategoryName && transactionCategoryName === budgetCategoryName);
-
-      return matchesCategory ? spentSum + toAmount(transaction?.montant ?? transaction?.amount) : spentSum;
+      return isTransactionMatchingBudgetCategory(budget, transaction)
+        ? spentSum + toAmount(transaction?.montant ?? transaction?.amount)
+        : spentSum;
     }, 0);
 
-    return sum + Math.max(0, toAmount(budget?.amount) - spent);
+    const reservedFixedExpenses = fixedExpenseReservations.get(budget) || 0;
+    return sum + Math.max(0, toAmount(budget?.amount) - spent - reservedFixedExpenses);
   }, 0);
 }
 
@@ -493,7 +483,7 @@ export function calculateAnnualTrajectory({
       referenceDate: safeReferenceDate,
       type: "revenu",
     });
-    const expectedFixedExpenses = sumForecastOccurrences({
+    const fixedExpenseOccurrences = listForecastOccurrences({
       items: fixedExpenses,
       transactions: safeTransactions,
       includedAccountIds,
@@ -503,9 +493,12 @@ export function calculateAnnualTrajectory({
       referenceDate: safeReferenceDate,
       type: "depense",
     });
+    const expectedFixedExpenses = fixedExpenseOccurrences
+      .reduce((sum, occurrence) => sum + toAmount(occurrence.amount), 0);
     const remainingBudgets = sumRemainingBudgets({
       budgets,
       transactions: safeTransactions,
+      fixedExpenseOccurrences,
       includedAccountIds,
       fallbackAccountId,
       monthStart,

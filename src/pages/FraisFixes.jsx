@@ -1,8 +1,9 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Box, CircularProgress, Stack, useMediaQuery } from "@mui/material";
 import { useFixedExpenses } from "../hooks/useFixedExpenses";
 import { useAccounts } from "../hooks/useAccounts";
 import { useCategories } from "../hooks/useCategories";
+import { useSubcategories } from "../hooks/useSubcategories";
 import { FixedExpenseCard } from "../components/FixedExpenseCard";
 import { FixedExpenseForm } from "../components/FixedExpenseForm";
 import {
@@ -31,6 +32,7 @@ export default function FraisFixes() {
     useFixedExpenses();
   const { accounts } = useAccounts();
   const { categories } = useCategories();
+  const { subcategories } = useSubcategories();
   const [formOpen, setFormOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [searchText, setSearchText] = useState("");
@@ -48,6 +50,7 @@ export default function FraisFixes() {
       item.name,
       item.categoryName,
       item.category,
+      item.subcategoryName,
       accountMap.get(item.accountId),
     ].filter(Boolean).join(" ")).includes(needle));
   }, [accountMap, fixedExpenses, searchText]);
@@ -145,6 +148,7 @@ export default function FraisFixes() {
         isLoading={false}
         accounts={accounts}
         categories={categories}
+        subcategories={subcategories}
       />
     </PilotagePageShell>
   );

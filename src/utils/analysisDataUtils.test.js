@@ -624,3 +624,94 @@ test("groupRecurringIncomeBySource does not mutate source rows", () => {
 
   assert.equal(JSON.stringify(sourceRows), before);
 });
+
+test("linked fixed expense uses the real transaction amount exactly once and falls back after deletion", () => {
+  const current = getPeriodRange("currentMonth", referenceDate);
+  const previous = getPreviousPeriodRange("currentMonth", referenceDate);
+  const fixedExpense = {
+    id: "fixed-edf",
+    isActive: true,
+    name: "EDF",
+    categoryId: "energy",
+    categoryName: "Energie",
+    accountId: "acc-1",
+    frequency: "monthly",
+    initialAmount: 40,
+    startDate: "2026-01-01",
+  };
+  const linkedTransaction = {
+    id: "tx-edf",
+    type: "depense",
+    montant: 57.25,
+    date: "2026-07-10",
+    categoryId: "energy",
+    categoryName: "Energie",
+    accountId: "acc-1",
+    fixedExpenseId: "fixed-edf",
+  };
+
+  const paid = buildAnalysisSnapshot({
+    transactions: [linkedTransaction],
+    fixedExpenses: [fixedExpense],
+    range: current,
+    previousRange: previous,
+  });
+  assert.equal(paid.fixedExpenses.total, 57.25);
+  assert.equal(paid.variableExpenses.total, 0);
+  assert.equal(paid.totals.expenses, 57.25);
+
+  const modified = buildAnalysisSnapshot({
+    transactions: [{ ...linkedTransaction, montant: 61 }],
+    fixedExpenses: [fixedExpense],
+    range: current,
+    previousRange: previous,
+  });
+  assert.equal(modified.totals.expenses, 61);
+
+  const afterDeletion = buildAnalysisSnapshot({
+    transactions: [],
+    fixedExpenses: [fixedExpense],
+    range: current,
+    previousRange: previous,
+  });
+  assert.equal(afterDeletion.fixedExpenses.total, 40);
+  assert.equal(afterDeletion.variableExpenses.total, 0);
+});
+test("analysis keeps same-category fixed expenses distinct when subcategories conflict", () => {
+  const current = getPeriodRange("currentMonth", referenceDate);
+  const previous = getPreviousPeriodRange("currentMonth", referenceDate);
+  const fixedExpense = {
+    id: "fixed-electricity",
+    isActive: true,
+    name: "Electricite",
+    categoryId: "housing",
+    categoryName: "Logement",
+    subcategoryId: "electricity",
+    accountId: "acc-1",
+    frequency: "monthly",
+    initialAmount: 120,
+    startDate: "2026-01-01",
+  };
+  const waterTransaction = {
+    id: "tx-water",
+    type: "depense",
+    montant: 120,
+    date: "2026-07-10",
+    categoryId: "housing",
+    categoryName: "Logement",
+    subcategoryId: "water",
+    accountId: "acc-1",
+  };
+
+  const snapshot = buildAnalysisSnapshot({
+    transactions: [waterTransaction],
+    fixedExpenses: [fixedExpense],
+    range: current,
+    previousRange: previous,
+  });
+
+  assert.equal(snapshot.fixedExpenses.total, 120);
+  assert.equal(snapshot.variableExpenses.total, 120);
+  assert.equal(snapshot.fixedExpenses.matchedTransactionsCount, 0);
+  assert.equal(snapshot.totals.expenses, 240);
+});

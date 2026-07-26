@@ -619,3 +619,57 @@ test("negative alert helper handles loading or error-like missing trajectory dat
   assert.equal(findFirstProjectedNegativeMonth(null), null);
   assert.equal(findFirstProjectedNegativeMonth([]), null);
 });
+
+test("future fixed expenses reserve matching budgets across months without double counting", () => {
+  const result = calculateAnnualTrajectory({
+    accounts: [currentAccount, savingsAccount],
+    fixedExpenses: [{
+      id: "fixed-energy",
+      accountId: "account-current",
+      categoryId: "energy",
+      categoryName: "Energie",
+      startDate: "2026-08-01",
+      frequency: "monthly",
+      initialAmount: 40,
+      isActive: true,
+    }],
+    budgets: [{
+      id: "budget-energy",
+      accountId: "account-current",
+      categoryId: "energy",
+      categoryName: "Energie",
+      amount: 100,
+      typeBudget: "depense",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      isActive: true,
+    }],
+    year: 2026,
+    referenceDate: new Date(2026, 6, 15),
+  });
+
+  assert.equal(month(result, "2026-08").expectedFixedExpenses, 40);
+  assert.equal(month(result, "2026-08").remainingBudgets, 60);
+  assert.equal(month(result, "2026-08").monthlyExpenses, 100);
+  assert.equal(month(result, "2026-09").monthlyExpenses, 100);
+});
+test("annual trajectory keeps subcategory reservations isolated by account for every month", () => {
+  const result = calculateAnnualTrajectory({
+    accounts: [currentAccount, savingsAccount],
+    fixedExpenses: [
+      { id: "main-electricity", categoryId: "housing", subcategoryId: "electricity", accountId: "account-current", startDate: "2026-08-01", frequency: "monthly", initialAmount: 120, isActive: true },
+      { id: "savings-electricity", categoryId: "housing", subcategoryId: "electricity", accountId: "account-savings", startDate: "2026-08-01", frequency: "monthly", initialAmount: 30, isActive: true },
+    ],
+    budgets: [
+      { id: "main-electricity-budget", categoryId: "housing", subcategoryId: "electricity", accountId: "account-current", amount: 150, typeBudget: "depense", startDate: "2026-01-01", isActive: true },
+      { id: "savings-electricity-budget", categoryId: "housing", subcategoryId: "electricity", accountId: "account-savings", amount: 50, typeBudget: "depense", startDate: "2026-01-01", isActive: true },
+    ],
+    year: 2026,
+    referenceDate: new Date(2026, 6, 15),
+  });
+
+  assert.equal(month(result, "2026-08").expectedFixedExpenses, 150);
+  assert.equal(month(result, "2026-08").remainingBudgets, 50);
+  assert.equal(month(result, "2026-08").monthlyExpenses, 200);
+  assert.equal(month(result, "2026-09").monthlyExpenses, 200);
+});

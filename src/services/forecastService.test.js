@@ -71,3 +71,150 @@ test("linked fixed-expense occurrence substitutes forecast even when actual amou
 
   assert.equal(forecast.expectedFixedExpenses, 0);
 });
+
+test("a pending fixed expense reserves its category budget instead of being added twice", () => {
+  const fixedExpense = {
+    id: "fixed-edf",
+    name: "EDF",
+    categoryId: "energy",
+    categoryName: "Energie",
+    accountId: "account-current",
+    initialAmount: 40,
+    frequency: "monthly",
+    startDate: "2026-01-01",
+    isActive: true,
+  };
+  const budget = {
+    id: "budget-energy",
+    categoryId: "energy",
+    categoryName: "Energie",
+    accountId: "account-current",
+    amount: 100,
+    typeBudget: "depense",
+    startDate: "2026-01-01",
+    endDate: "2026-12-31",
+    isActive: true,
+  };
+
+  const forecast = calculateMonthlyForecast({
+    fixedExpenses: [fixedExpense],
+    budgets: [budget],
+    referenceDate: new Date(2026, 7, 14),
+  });
+
+  assert.equal(forecast.expectedFixedExpenses, 40);
+  assert.equal(forecast.remainingBudgets, 60);
+  assert.equal(forecast.forecastEndOfMonth, -100);
+});
+
+test("a linked imported or manual transaction consumes the budget without duplicating the fixed expense", () => {
+  const forecast = calculateMonthlyForecast({
+    accounts: [{ id: "account-current", initialBalance: 1000 }],
+    transactions: [{
+      id: "tx-edf",
+      accountId: "account-current",
+      categoryId: "energy",
+      categoryName: "Energie",
+      date: "2026-08-10",
+      montant: 57,
+      type: "depense",
+      fixedExpenseId: "fixed-edf",
+      isFixedExpense: true,
+    }],
+    fixedExpenses: [{
+      id: "fixed-edf",
+      accountId: "account-current",
+      categoryId: "energy",
+      categoryName: "Energie",
+      initialAmount: 40,
+      frequency: "monthly",
+      startDate: "2026-01-01",
+      isActive: true,
+    }],
+    budgets: [{
+      categoryId: "energy",
+      categoryName: "Energie",
+      accountId: "account-current",
+      amount: 100,
+      typeBudget: "depense",
+      startDate: "2026-01-01",
+      endDate: "2026-12-31",
+      isActive: true,
+    }],
+    referenceDate: new Date(2026, 7, 14),
+  });
+
+  assert.equal(forecast.currentBalance, 943);
+  assert.equal(forecast.expectedFixedExpenses, 0);
+  assert.equal(forecast.remainingBudgets, 43);
+  assert.equal(forecast.forecastEndOfMonth, 900);
+});
+test("subcategory budgets reserve electricity without reducing rent or insurance envelopes", () => {
+  const forecast = calculateMonthlyForecast({
+    fixedExpenses: [{
+      id: "fixed-electricity",
+      categoryId: "housing",
+      categoryName: "Logement",
+      subcategoryId: "electricity",
+      subcategoryName: "Electricite",
+      accountId: "main",
+      initialAmount: 120,
+      frequency: "monthly",
+      startDate: "2026-01-01",
+      isActive: true,
+    }],
+    budgets: [
+      { categoryId: "housing", subcategoryId: "rent", accountId: "main", amount: 700, typeBudget: "depense", startDate: "2026-01-01", isActive: true },
+      { categoryId: "housing", subcategoryId: "electricity", accountId: "main", amount: 150, typeBudget: "depense", startDate: "2026-01-01", isActive: true },
+      { categoryId: "housing", subcategoryId: "insurance", accountId: "main", amount: 150, typeBudget: "depense", startDate: "2026-01-01", isActive: true },
+    ],
+    referenceDate: new Date(2026, 7, 14),
+  });
+
+  assert.equal(forecast.expectedFixedExpenses, 120);
+  assert.equal(forecast.remainingBudgets, 880);
+  assert.equal(forecast.forecastEndOfMonth, -1000);
+});
+
+test("several fixed expenses reserve only their matching subcategories", () => {
+  const commonFixedExpense = {
+    categoryId: "housing",
+    categoryName: "Logement",
+    accountId: "main",
+    frequency: "monthly",
+    startDate: "2026-01-01",
+    isActive: true,
+  };
+  const forecast = calculateMonthlyForecast({
+    fixedExpenses: [
+      { ...commonFixedExpense, id: "electricity", subcategoryId: "electricity", initialAmount: 120 },
+      { ...commonFixedExpense, id: "insurance", subcategoryId: "insurance", initialAmount: 50 },
+    ],
+    budgets: [
+      { categoryId: "housing", subcategoryId: "rent", accountId: "main", amount: 700, typeBudget: "depense", startDate: "2026-01-01", isActive: true },
+      { categoryId: "housing", subcategoryId: "electricity", accountId: "main", amount: 150, typeBudget: "depense", startDate: "2026-01-01", isActive: true },
+      { categoryId: "housing", subcategoryId: "insurance", accountId: "main", amount: 150, typeBudget: "depense", startDate: "2026-01-01", isActive: true },
+    ],
+    referenceDate: new Date(2026, 7, 14),
+  });
+
+  assert.equal(forecast.expectedFixedExpenses, 170);
+  assert.equal(forecast.remainingBudgets, 830);
+  assert.equal(forecast.forecastEndOfMonth, -1000);
+});
+test("global and detailed budgets coexist without doubling the category total", () => {
+  const common = { categoryId: "housing", accountId: "main", typeBudget: "depense", startDate: "2026-01-01", endDate: "2026-12-31", isActive: true };
+  const forecast = calculateMonthlyForecast({
+    fixedExpenses: [{ ...common, id: "fixed-electricity", subcategoryId: "electricity", initialAmount: 120, frequency: "monthly" }],
+    budgets: [
+      { ...common, id: "global", amount: 1000 },
+      { ...common, id: "rent", subcategoryId: "rent", amount: 700 },
+      { ...common, id: "electricity", subcategoryId: "electricity", amount: 150 },
+      { ...common, id: "insurance", subcategoryId: "insurance", amount: 150 },
+    ],
+    referenceDate: new Date(2026, 7, 14),
+  });
+  assert.equal(forecast.expectedFixedExpenses, 120);
+  assert.equal(forecast.remainingBudgets, 880);
+  assert.equal(forecast.forecastEndOfMonth, -1000);
+});

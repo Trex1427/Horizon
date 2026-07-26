@@ -107,3 +107,32 @@ test("France Travail creation keeps 1100 as a numeric amount after serialization
   assert.equal(payload.initialAmount, 1100);
   assert.equal(reloaded.initialAmount, 1100);
 });
+
+test("buildFixedExpensePayload persists a compatible optional subcategory", () => {
+  const payload = buildFixedExpensePayload({
+    name: "EDF",
+    categoryId: "dep-1",
+    subcategoryId: "electricity",
+    accountId: "acc-1",
+    initialAmount: "120",
+    startDate: "2026-07-01",
+  }, categories, null, [
+    { id: "electricity", name: "Électricité", categoryId: "dep-1", isActive: true },
+  ]);
+
+  assert.equal(payload.subcategoryId, "electricity");
+  assert.equal(payload.subcategoryName, "Électricité");
+});
+
+test("buildFixedExpensePayload keeps legacy category-only fixed expenses compatible", () => {
+  const payload = buildFixedExpensePayload({
+    name: "Loyer",
+    categoryId: "dep-1",
+    accountId: "acc-1",
+    initialAmount: "700",
+    startDate: "2026-07-01",
+  }, categories);
+
+  assert.equal(payload.subcategoryId, null);
+  assert.equal(payload.subcategoryName, null);
+});

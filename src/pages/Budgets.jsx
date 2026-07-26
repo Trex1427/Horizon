@@ -1,11 +1,13 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Box, CircularProgress, Stack, useMediaQuery } from "@mui/material";
 import { useBudgets } from "../hooks/useBudgets";
 import { useCategories } from "../hooks/useCategories";
+import { useSubcategories } from "../hooks/useSubcategories";
 import { useTransactionsContext } from "../context/TransactionsContext";
 import { BudgetCard } from "../components/BudgetCard";
 import { BudgetForm } from "../components/BudgetForm";
 import { calculateBudgetMetrics } from "../services/budgetsService";
+import { selectNonOverlappingBudgetsForForecast } from "../services/financeCalculations";
 import { buildBudgetComparisonData } from "../utils/chartDataUtils";
 import BudgetComparisonChart from "../components/charts/BudgetComparisonChart";
 import { getSafeCategoryLabel } from "../utils/displayTextUtils";
@@ -29,6 +31,7 @@ export default function Budgets() {
   const enableDesktopDoubleClickEdit = useMediaQuery("(min-width:900px)");
   const { budgets, loading, error, addBudget, updateBudget, deleteBudget } = useBudgets();
   const { categories } = useCategories();
+  const { subcategories } = useSubcategories();
   const { transactions } = useTransactionsContext();
   const [formOpen, setFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
@@ -40,7 +43,7 @@ export default function Budgets() {
       return {
         id: budget.id,
         budget,
-        name: getSafeCategoryLabel(budget.categoryName || budget.name, "Sans catégorie"),
+        name: [getSafeCategoryLabel(budget.categoryName || budget.name, "Sans catégorie"), budget.subcategoryName].filter(Boolean).join(" · "),
         plannedAmount: Number(metrics.plannedAmount || 0),
         spentAmount: Number(metrics.spentAmount || 0),
         remainingAmount: Number(metrics.remainingAmount || 0),
@@ -67,14 +70,20 @@ export default function Budgets() {
       row.name.toLowerCase().includes(query)
       || String(row.budget?.name || "").toLowerCase().includes(query)
       || String(row.budget?.categoryName || "").toLowerCase().includes(query)
+      || String(row.budget?.subcategoryName || "").toLowerCase().includes(query)
     ));
   }, [budgetRows, searchText]);
 
-  const summary = useMemo(() => budgetRows.reduce((acc, row) => ({
-    planned: acc.planned + row.plannedAmount,
-    spent: acc.spent + row.spentAmount,
-    remaining: acc.remaining + row.remainingAmount,
-  }), { planned: 0, spent: 0, remaining: 0 }), [budgetRows]);
+  const summary = useMemo(() => {
+    const selectedBudgets = new Set(selectNonOverlappingBudgetsForForecast(budgets));
+    return budgetRows
+      .filter((row) => selectedBudgets.has(row.budget))
+      .reduce((acc, row) => ({
+        planned: acc.planned + row.plannedAmount,
+        spent: acc.spent + row.spentAmount,
+        remaining: acc.remaining + row.remainingAmount,
+      }), { planned: 0, spent: 0, remaining: 0 });
+  }, [budgetRows, budgets]);
 
   const handleSubmit = async (payload) => {
     if (editingBudget) {
@@ -164,6 +173,7 @@ export default function Budgets() {
         initialBudget={editingBudget}
         isLoading={false}
         categories={categories}
+        subcategories={subcategories}
       />
     </PilotagePageShell>
   );

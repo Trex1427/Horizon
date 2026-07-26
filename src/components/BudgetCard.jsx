@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Box,
   Button,
@@ -51,12 +51,16 @@ export function BudgetCard({ budget, onEdit, onDelete, transactions = [], enable
     return "Période non définie";
   }, [budget.endDate, budget.startDate]);
 
+  const budgetScopeLabel = [
+    getSafeCategoryLabel(budget.categoryName || budget.name, "Catégorie non définie"),
+    budget.subcategoryName,
+  ].filter(Boolean).join(" · ");
   const subtitle = `${budget.name || "Budget"} • ${periodLabel}`;
 
   return (
     <>
       <CompactFinanceCard
-        title={getSafeCategoryLabel(budget.categoryName || budget.name, "Catégorie non définie")}
+        title={budgetScopeLabel}
         subtitle={subtitle}
         amount={`${Number(metrics.plannedAmount || 0).toFixed(2)} €`}
         amountColor={metrics.color}
@@ -83,7 +87,7 @@ export function BudgetCard({ budget, onEdit, onDelete, transactions = [], enable
           variant="determinate"
           value={Math.min(metrics.consumedPercent, 100)}
           color={metrics.color === "error.main" ? "error" : metrics.color === "warning.main" ? "warning" : "success"}
-          aria-label={`Progression du budget ${getSafeCategoryLabel(budget.categoryName || budget.name, "Catégorie non définie")}`}
+          aria-label={`Progression du budget ${budgetScopeLabel}`}
           sx={PILOTAGE_PROGRESS_SX}
         />
       </Box>

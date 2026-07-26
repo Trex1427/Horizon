@@ -1,3 +1,4 @@
+import { getBudgetPeriodIdentity } from "./budgetModel.js";
 function toNumber(value) {
   return Number(value) || 0;
 }
@@ -85,25 +86,102 @@ export function matchesBudgetPeriod(budget, transaction, options = {}) {
   return isDateInRange(transactionDate, startDate, endDate);
 }
 
+function areBudgetAndItemAccountsCompatible(budget, item) {
+  const budgetAccountId = String(budget?.accountId || "").trim();
+  const itemAccountId = String(item?.accountId || "").trim();
+  return !budgetAccountId || !itemAccountId || budgetAccountId === itemAccountId;
+}
+
 export function isTransactionMatchingBudgetCategory(budget, transaction) {
   const transactionCategoryId = transaction?.categoryId || "";
   const budgetCategoryId = budget?.categoryId || "";
   const transactionCategoryName = normalizeCategoryName(getTransactionCategoryName(transaction));
   const budgetCategoryName = normalizeCategoryName(budget?.categoryName || "");
+  const matchesCategory = budgetCategoryId
+    ? (transactionCategoryId
+      ? transactionCategoryId === budgetCategoryId
+      : Boolean(transactionCategoryName && budgetCategoryName && transactionCategoryName === budgetCategoryName))
+    : Boolean(transactionCategoryName && budgetCategoryName && transactionCategoryName === budgetCategoryName);
 
-  // Priority 1: exact ID match when both records expose a categoryId.
-  // Fallback: legacy normalized name comparison when IDs are missing.
-  if (budgetCategoryId) {
-    if (transactionCategoryId) {
-      return transactionCategoryId === budgetCategoryId;
-    }
+  if (!matchesCategory) return false;
 
-    return Boolean(transactionCategoryName && budgetCategoryName && transactionCategoryName === budgetCategoryName);
-  }
-
-  return Boolean(transactionCategoryName && budgetCategoryName && transactionCategoryName === budgetCategoryName);
+  const budgetSubcategoryId = String(budget?.subcategoryId || "").trim();
+  return !budgetSubcategoryId || String(transaction?.subcategoryId || "").trim() === budgetSubcategoryId;
 }
 
+export function calculateBudgetReservedFixedExpenseAmount(budget, fixedExpenseOccurrences = []) {
+  return (fixedExpenseOccurrences || [])
+    .filter((occurrence) => areBudgetAndItemAccountsCompatible(budget, occurrence)
+      && isTransactionMatchingBudgetCategory(budget, occurrence))
+    .reduce((sum, occurrence) => sum + toNumber(occurrence?.amount ?? occurrence?.montant), 0);
+}
+
+function pickMostSpecificBudget(candidates = [], occurrence = {}) {
+  const occurrenceAccountId = String(occurrence?.accountId || "").trim();
+  return candidates.find((budget) => occurrenceAccountId
+    && String(budget?.accountId || "").trim() === occurrenceAccountId) || candidates[0] || null;
+}
+
+export function selectNonOverlappingBudgetsForForecast(budgets = []) {
+  const groups = new Map();
+
+  (budgets || []).forEach((budget, index) => {
+    const categoryIdentity = String(budget?.categoryId || "").trim()
+      || normalizeCategoryName(budget?.categoryName || budget?.category || "")
+      || `__budget_${budget?.id || index}`;
+    const key = [
+      String(budget?.accountId || "").trim(),
+      categoryIdentity,
+      getBudgetPeriodIdentity(budget),
+      String(budget?.typeBudget || "depense").trim(),
+    ].join("|");
+    const group = groups.get(key) || [];
+    group.push(budget);
+    groups.set(key, group);
+  });
+
+  return Array.from(groups.values()).flatMap((group) => {
+    const categoryBudgets = group.filter((budget) => !String(budget?.subcategoryId || "").trim());
+    if (categoryBudgets.length > 0) {
+      return [categoryBudgets[0]];
+    }
+
+    const seenSubcategories = new Set();
+    return group.filter((budget) => {
+      const subcategoryId = String(budget?.subcategoryId || "").trim();
+      if (seenSubcategories.has(subcategoryId)) return false;
+      seenSubcategories.add(subcategoryId);
+      return true;
+    });
+  });
+}
+
+export function buildBudgetFixedExpenseReservationMap(budgets = [], fixedExpenseOccurrences = []) {
+  const reservationMap = new Map((budgets || []).map((budget) => [budget, 0]));
+
+  (fixedExpenseOccurrences || []).forEach((occurrence) => {
+    const compatibleBudgets = (budgets || []).filter((budget) => (
+      areBudgetAndItemAccountsCompatible(budget, occurrence)
+      && isTransactionMatchingBudgetCategory({ ...budget, subcategoryId: "" }, occurrence)
+    ));
+    const occurrenceSubcategoryId = String(occurrence?.subcategoryId || "").trim();
+    const exactSubcategoryBudgets = occurrenceSubcategoryId
+      ? compatibleBudgets.filter((budget) => String(budget?.subcategoryId || "").trim() === occurrenceSubcategoryId)
+      : [];
+    const categoryBudgets = compatibleBudgets.filter((budget) => !String(budget?.subcategoryId || "").trim());
+    const targetBudget = pickMostSpecificBudget(
+      exactSubcategoryBudgets.length > 0 ? exactSubcategoryBudgets : categoryBudgets,
+      occurrence
+    );
+
+    if (targetBudget) {
+      reservationMap.set(targetBudget, toNumber(reservationMap.get(targetBudget))
+        + toNumber(occurrence?.amount ?? occurrence?.montant));
+    }
+  });
+
+  return reservationMap;
+}
 export function calculateBudgetSpentAmount(budget, transactions = [], options = {}) {
   return (transactions || [])
     .filter((transaction) => {
@@ -246,6 +324,12 @@ export function matchesExpectedTransaction(transaction, expectedItem, options = 
         return false;
       }
     }
+  }
+
+  const expectedSubcategoryId = String(expectedItem?.subcategoryId || "").trim();
+  const transactionSubcategoryId = String(transaction?.subcategoryId || "").trim();
+  if (expectedSubcategoryId && expectedSubcategoryId !== transactionSubcategoryId) {
+    return false;
   }
 
   const expectedAmountValue = Number(expectedAmount);
