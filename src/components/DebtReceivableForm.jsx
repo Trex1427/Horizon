@@ -1,23 +1,29 @@
 import { useMemo, useRef, useState } from "react";
 import { Alert, Box, Divider, MenuItem, Stack, TextField } from "@mui/material";
 import EntityDialog from "./EntityDialog.jsx";
+import AccountSelector from "./AccountSelector.jsx";
 import { validateDebtReceivable } from "../services/debtsReceivablesModel.js";
 import { CREATE_THIRD_PARTY_VALUE } from "../constants/transactionReferenceCreateValues.js";
 import { THIRD_PARTY_TYPE_OPTIONS } from "../constants/referenceCatalog.js";
 
-const emptyForm = { type: "debt", label: "", amount: "", thirdPartyId: "", dueDate: "", notes: "" };
+const today = new Date().toISOString().slice(0, 10);
+const emptyForm = { type: "debt", label: "", amount: "", thirdPartyId: "", categoryId: "", initialCategoryId: "", initialAccountId: "", initialDate: today, dueDate: "", notes: "" };
 
 export default function DebtReceivableForm({
   open,
   initialItem,
   thirdParties = [],
+  categories = [],
+  accounts = [],
+  defaultAccount = null,
   onRequestCreateThirdParty,
   onClose,
   onSubmit,
 }) {
   const [form, setForm] = useState(() => initialItem ? {
     type: initialItem.type || "debt", label: initialItem.label || "", amount: String(initialItem.amount ?? ""),
-    thirdPartyId: initialItem.thirdPartyId || "", dueDate: initialItem.dueDate || "", notes: initialItem.notes || "",
+    thirdPartyId: initialItem.thirdPartyId || "", categoryId: initialItem.categoryId || "",
+    initialCategoryId: initialItem.initialCategoryId || "", initialAccountId: initialItem.initialAccountId || defaultAccount?.id || "", initialDate: initialItem.initialDate || today, dueDate: initialItem.dueDate || "", notes: initialItem.notes || "",
   } : emptyForm);
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState("");
@@ -33,6 +39,14 @@ export default function DebtReceivableForm({
     [thirdParties],
   );
 
+  const compatibleCategories = useMemo(() => {
+    const expectedType = form.type === "receivable" ? "revenu" : "depense";
+    return (categories || []).filter((category) => category?.isActive !== false && (!category.type || category.type === expectedType));
+  }, [categories, form.type]);
+  const initialExpenseCategories = useMemo(
+    () => (categories || []).filter((category) => category?.isActive !== false && (!category.type || category.type === "depense")),
+    [categories],
+  );
   const formThirdPartyOptions = useMemo(() => {
     if (!form.thirdPartyId || activeThirdParties.some((thirdParty) => thirdParty.id === form.thirdPartyId)) {
       return activeThirdParties;
@@ -63,7 +77,7 @@ export default function DebtReceivableForm({
       return;
     }
 
-    setForm((current) => ({ ...current, [name]: value }));
+    setForm((current) => ({ ...current, [name]: value, ...(name === "type" ? { categoryId: "", initialCategoryId: "", initialAccountId: value === "receivable" ? (defaultAccount?.id || "") : "" } : {}) }));
     setErrors((current) => ({ ...current, [name]: null }));
   }
 
@@ -149,7 +163,21 @@ export default function DebtReceivableForm({
             + Créer un nouveau tiers
           </MenuItem>
         </TextField>
-        <TextField label="Date d’échéance (facultative)" name="dueDate" type="date" InputLabelProps={{ shrink: true }} value={form.dueDate} onChange={change} error={Boolean(errors.dueDate)} helperText={errors.dueDate} />
+        <TextField label={form.type === "receivable" ? "Catégorie des remboursements" : "Catégorie des paiements"} name="categoryId" select value={form.categoryId || ""} onChange={change} error={Boolean(errors.categoryId)} helperText={errors.categoryId || "La catégorie est obligatoire."}>
+          <MenuItem value="">Sélectionner</MenuItem>
+          {compatibleCategories.map((category) => <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>)}
+        </TextField>
+        {form.type === "receivable" ? (
+          <>
+            <TextField label="Catégorie de la sortie initiale" name="initialCategoryId" select value={form.initialCategoryId || ""} onChange={change} error={Boolean(errors.initialCategoryId)} helperText={errors.initialCategoryId}>
+              <MenuItem value="">Sélectionner</MenuItem>
+              {initialExpenseCategories.map((category) => <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>)}
+            </TextField>
+            <AccountSelector value={form.initialAccountId || defaultAccount?.id || ""} accounts={accounts} onChange={(event) => change({ target: { name: "initialAccountId", value: event.target.value } })} />
+            {errors.initialAccountId ? <Alert severity="error">{errors.initialAccountId}</Alert> : null}
+            <TextField label="Date de la sortie initiale" name="initialDate" type="date" InputLabelProps={{ shrink: true }} value={form.initialDate || ""} onChange={change} error={Boolean(errors.initialDate)} helperText={errors.initialDate} />
+          </>
+        ) : null}        <TextField label="Date d’échéance (facultative)" name="dueDate" type="date" InputLabelProps={{ shrink: true }} value={form.dueDate} onChange={change} error={Boolean(errors.dueDate)} helperText={errors.dueDate} />
         <TextField label="Notes (facultatives)" name="notes" multiline minRows={3} value={form.notes} onChange={change} />
       </Stack>
 

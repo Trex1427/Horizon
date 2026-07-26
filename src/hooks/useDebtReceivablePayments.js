@@ -29,24 +29,25 @@ export function useDebtReceivablePayments(debtReceivableId) {
     );
   }, [safeDebtReceivableId]);
 
-  const run = useCallback(async (operation) => {
+  const run = useCallback(async (operation, operationName) => {
     try {
       setError(null);
       const result = await operation();
       return { success: true, id: result?.id };
     } catch (err) {
+      console.error("[debt-receivable-payment]", { operation: operationName, debtReceivableId: safeDebtReceivableId }, err);
       const message = err?.message || "L'operation de paiement a echoue.";
       setError(message);
       return { success: false, error: message };
     }
-  }, []);
+  }, [safeDebtReceivableId]);
 
   return {
     payments,
     loading,
     error,
-    create: useCallback((payload) => run(() => createDebtReceivablePayment(safeDebtReceivableId, payload)), [safeDebtReceivableId, run]),
-    update: useCallback((paymentId, payload) => run(() => updateDebtReceivablePayment(paymentId, payload)), [run]),
-    remove: useCallback((paymentId) => run(() => deleteDebtReceivablePayment(paymentId)), [run]),
+    create: useCallback((payload) => run(() => createDebtReceivablePayment(safeDebtReceivableId, payload), "create"), [safeDebtReceivableId, run]),
+    update: useCallback((paymentId, payload) => run(() => updateDebtReceivablePayment(paymentId, payload), "update"), [run]),
+    remove: useCallback((paymentId) => run(() => deleteDebtReceivablePayment(paymentId), "delete"), [run]),
   };
 }

@@ -4,17 +4,18 @@ import {
   buildDebtReceivableCreatePayload,
   buildDebtReceivablePayload,
   calculateDebtsReceivablesSummary,
+  calculateReceivableCashImpact,
   enrichDebtReceivableWithPayments,
   validateDebtReceivable,
 } from "./debtsReceivablesModel.js";
 
-const valid = { type: "debt", label: " Prêt ", amount: "500.25", thirdPartyId: "tp-bank", dueDate: "2026-09-30", notes: " Note " };
+const valid = { type: "debt", label: " Prêt ", amount: "500.25", thirdPartyId: "tp-bank", categoryId: "cat-debt", initialCategoryId: null, initialAccountId: null, initialDate: null, dueDate: "2026-09-30", notes: " Note " };
 const now = new Date("2026-07-25T10:00:00Z");
 
 test("creates the minimal normalized model", () => {
   const payload = buildDebtReceivableCreatePayload(valid, now);
   assert.deepEqual(payload, {
-    type: "debt", label: "Prêt", amount: 500.25, thirdPartyId: "tp-bank", dueDate: "2026-09-30",
+    type: "debt", label: "Prêt", amount: 500.25, thirdPartyId: "tp-bank", categoryId: "cat-debt", initialCategoryId: null, initialAccountId: null, initialDate: null, dueDate: "2026-09-30",
     notes: "Note", updatedAt: now, createdAt: now, isDeleted: false, paymentsRevision: 0,
   });
 });
@@ -28,8 +29,8 @@ test("update payload cannot carry ownerUid or deletion fields", () => {
 
 test("validations reject required fields, zero, negative, non-finite and invalid dates", () => {
   for (const amount of [0, -1, "bad", Infinity]) assert.ok(validateDebtReceivable({ ...valid, amount }).amount);
-  const errors = validateDebtReceivable({ type: "", label: " ", amount: 1, thirdPartyId: "", dueDate: "2026-02-31" });
-  assert.deepEqual(Object.keys(errors).sort(), ["dueDate", "label", "thirdPartyId", "type"]);
+  const errors = validateDebtReceivable({ type: "", label: " ", amount: 1, thirdPartyId: "", categoryId: "", dueDate: "2026-02-31" });
+  assert.deepEqual(Object.keys(errors).sort(), ["categoryId", "dueDate", "label", "thirdPartyId", "type"]);
 });
 
 test("new documents no longer require counterparty text", () => {
@@ -37,7 +38,7 @@ test("new documents no longer require counterparty text", () => {
     type: "receivable",
     label: "Remboursement",
     amount: 120,
-    thirdPartyId: "tp-1",
+    thirdPartyId: "tp-1", categoryId: "cat-1",
     counterparty: "",
     dueDate: null,
   });
@@ -93,4 +94,19 @@ test("computed amounts and functional status are derived from active payments on
   assert.equal(enriched.paidAmount, 50.5);
   assert.equal(enriched.remainingAmount, 49.5);
   assert.equal(enriched.functionalStatus, "partial");
+});
+test("receivable initial outflow and repayments produce the expected net cash impact", () => {
+  const payload = buildDebtReceivableCreatePayload({
+    type: "receivable", label: "Julie", amount: 900, thirdPartyId: "tp-julie",
+    categoryId: "cat-refund", initialCategoryId: "cat-loan", initialAccountId: "acc-bank",
+    initialDate: "2026-07-26", dueDate: null,
+  }, now);
+  assert.equal(payload.amount, 900);
+  assert.equal(payload.initialCategoryId, "cat-loan");
+  assert.equal(payload.initialAccountId, "acc-bank");
+  assert.equal(calculateReceivableCashImpact(900, [{ amount: 200, isDeleted: false }]), -700);
+  const remaining = enrichDebtReceivableWithPayments({ amount: 900 }, [{ amount: 400, isDeleted: false }]);
+  assert.equal(remaining.paidAmount, 400);
+  assert.equal(remaining.remainingAmount, 500);
+  assert.equal(calculateReceivableCashImpact(900, [{ amount: 200, isDeleted: true }]), -900);
 });
