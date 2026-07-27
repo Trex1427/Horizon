@@ -15,6 +15,39 @@ export const WORK_PROJECT_STATUS_LABELS = Object.freeze({
 });
 
 const STATUS_ORDER = new Map(WORK_PROJECT_STATUSES.map((status, index) => [status, index]));
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+function normalizeMoney(value) {
+  if (value === "" || value === null || value === undefined) throw new Error("Les dépenses prévisionnelles sont obligatoires.");
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) throw new Error("Les dépenses prévisionnelles doivent être un nombre.");
+  if (amount < 0) throw new Error("Les dépenses prévisionnelles ne peuvent pas être négatives.");
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
+}
+function normalizeOptionalDate(value, label) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+  if (!DATE_PATTERN.test(normalized)) throw new Error(`${label} est invalide.`);
+  const [year, month, day] = normalized.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) throw new Error(`${label} est invalide.`);
+  return normalized;
+}
+export function calculatePlannedMargin(plannedRevenue, plannedExpenses) {
+  const revenue = Number(plannedRevenue);
+  if (!Number.isFinite(revenue)) throw new Error("La recette prévisionnelle est invalide.");
+  return Math.round((revenue - normalizeMoney(plannedExpenses) + Number.EPSILON) * 100) / 100;
+}
+export function normalizeWorkProjectUpdate(project, payload = {}) {
+  const name = String(payload.name || "").trim();
+  if (!name) throw new Error("Le nom du dossier est obligatoire.");
+  const status = String(payload.status || "");
+  if (!WORK_PROJECT_STATUSES.includes(status)) throw new Error("Le statut du dossier est invalide.");
+  const plannedExpenses = normalizeMoney(payload.plannedExpenses);
+  const startDate = normalizeOptionalDate(payload.startDate, "La date de début");
+  const endDate = normalizeOptionalDate(payload.endDate, "La date de fin");
+  if (startDate && endDate && endDate < startDate) throw new Error("La date de fin ne peut pas être antérieure à la date de début.");
+  return { name, status, plannedExpenses, plannedMargin: calculatePlannedMargin(project?.plannedRevenue, plannedExpenses), startDate, endDate, description: String(payload.description || "").trim(), notes: String(payload.notes || "").trim() };
+}
 
 function timestampValue(value) {
   if (typeof value?.toMillis === "function") return value.toMillis();
@@ -51,6 +84,8 @@ export function buildWorkProjectPayload(quote, { ownerUid, thirdPartyName = "", 
     plannedMargin: plannedRevenue,
     startDate: null,
     endDate: null,
+    description: "",
+    notes: "",
     createdAt: now,
     updatedAt: now,
     deletedAt: null,

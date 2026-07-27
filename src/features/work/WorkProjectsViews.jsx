@@ -1,47 +1,31 @@
-import { Alert, Box, Card, CardContent, Chip, CircularProgress, Grid, Stack, Typography } from "@mui/material";
-import { calculateWorkProjectMetrics, WORK_PROJECT_STATUS_LABELS } from "./workProjectModel.js";
-
+import { useRef, useState } from "react";
+import { Alert, Box, Button, Card, CardActions, CardContent, Chip, CircularProgress, Grid, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import ArrowBack from "@mui/icons-material/ArrowBack";
+import Edit from "@mui/icons-material/Edit";
+import { calculatePlannedMargin, calculateWorkProjectMetrics, WORK_PROJECT_STATUSES, WORK_PROJECT_STATUS_LABELS } from "./workProjectModel.js";
 const currency = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
-
-function StatePanel({ children }) {
-  return <Card variant="outlined"><CardContent><Typography color="text.secondary">{children}</Typography></CardContent></Card>;
-}
-
+function StatePanel({ children }) { return <Card variant="outlined"><CardContent><Typography color="text.secondary">{children}</Typography></CardContent></Card>; }
+function formatTimestamp(value) { const date=typeof value?.toDate === "function" ? value.toDate() : value instanceof Date ? value : new Date(value || ""); return Number.isNaN(date.getTime()) ? "Non disponible" : new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(date); }
 export function WorkDashboard({ projects, loading, error }) {
   if (loading) return <CircularProgress aria-label="Chargement du tableau de bord" />;
   if (error) return <Alert severity="error">{error}</Alert>;
-  const metrics = calculateWorkProjectMetrics(projects);
-  const cards = [
-    ["Dossiers actifs", metrics.active],
-    ["Dossiers en cours", metrics.inProgress],
-    ["Dossiers terminés", metrics.completed],
-    ["Chiffre d’affaires prévu", currency.format(metrics.plannedRevenue)],
-  ];
-  return <Grid container spacing={2}>{cards.map(([label, value]) =>
-    <Grid key={label} size={{ xs: 12, sm: 6, md: 3 }}><Card variant="outlined"><CardContent>
-      <Typography color="text.secondary" variant="body2">{label}</Typography>
-      <Typography variant="h5" fontWeight={700}>{value}</Typography>
-    </CardContent></Card></Grid>)}</Grid>;
+  const metrics=calculateWorkProjectMetrics(projects); const cards=[["Dossiers actifs",metrics.active],["Dossiers en cours",metrics.inProgress],["Dossiers terminés",metrics.completed],["Chiffre d’affaires prévu",currency.format(metrics.plannedRevenue)]];
+  return <Grid container spacing={2}>{cards.map(([label,value])=><Grid key={label} size={{xs:12,sm:6,md:3}}><Card variant="outlined"><CardContent><Typography color="text.secondary" variant="body2">{label}</Typography><Typography variant="h5" fontWeight={700}>{value}</Typography></CardContent></Card></Grid>)}</Grid>;
 }
-
-export function WorkProjectsSection({ projects, loading, error, activityMap, thirdPartyMap, selectedProjectId }) {
+export function WorkProjectsSection({ projects, loading, error, activityMap, thirdPartyMap, quoteMap, selectedProjectId, onOpen, onBack, onSave }) {
   if (loading) return <CircularProgress aria-label="Chargement des dossiers" />;
   if (error) return <Alert severity="error">{error}</Alert>;
+  const selected=projects.find((entry)=>entry.id===selectedProjectId);
+  if (selected) return <WorkProjectDetail key={selected.id} project={selected} activity={activityMap.get(selected.professionalActivityId)} thirdParty={thirdPartyMap.get(selected.thirdPartyId)} quote={quoteMap.get(selected.quoteId)} onBack={onBack} onSave={onSave}/>;
   if (!projects.length) return <StatePanel>Aucun dossier. Acceptez un devis puis créez son dossier.</StatePanel>;
-  return <Stack spacing={1.5}>{projects.map((project) =>
-    <Card key={project.id} variant="outlined" sx={project.id === selectedProjectId ? { borderColor: "primary.main", borderWidth: 2 } : undefined}>
-      <CardContent><Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" gap={1}>
-        <Box>
-          <Typography fontWeight={700}>{project.name}</Typography>
-          <Typography variant="body2">{thirdPartyMap.get(project.thirdPartyId)?.name || "Client indisponible"}</Typography>
-          <Typography variant="body2" color="text.secondary">
-            {activityMap.get(project.professionalActivityId)?.name || "Activité indisponible"} · {currency.format(Number(project.plannedRevenue || 0))}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Début : {project.startDate || "Non défini"} · Fin : {project.endDate || "Non définie"}
-          </Typography>
-        </Box>
-        <Chip size="small" label={WORK_PROJECT_STATUS_LABELS[project.status] || project.status} />
-      </Stack></CardContent>
-    </Card>)}</Stack>;
+  return <Stack spacing={1.5}>{projects.map((project)=><Card key={project.id} variant="outlined" role="button" tabIndex={0} onClick={()=>onOpen(project.id)} onKeyDown={(e)=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();onOpen(project.id);}}} sx={{cursor:"pointer","&:hover":{borderColor:"primary.main"}}}><CardContent><Stack direction={{xs:"column",sm:"row"}} justifyContent="space-between" gap={1}><Box><Typography fontWeight={700}>{project.name}</Typography><Typography variant="body2">{thirdPartyMap.get(project.thirdPartyId)?.name||"Client indisponible"}</Typography><Typography variant="body2" color="text.secondary">{activityMap.get(project.professionalActivityId)?.name||"Activité indisponible"} · {currency.format(Number(project.plannedRevenue||0))}</Typography></Box><Chip size="small" label={WORK_PROJECT_STATUS_LABELS[project.status]||project.status}/></Stack></CardContent><CardActions><Button onClick={(e)=>{e.stopPropagation();onOpen(project.id);}}>Ouvrir</Button></CardActions></Card>)}</Stack>;
+}
+function WorkProjectDetail({ project, activity, thirdParty, quote, onBack, onSave }) {
+  const initial=()=>({name:project.name||"",status:project.status||"planned",plannedExpenses:String(project.plannedExpenses??0),startDate:project.startDate||"",endDate:project.endDate||"",description:project.description||"",notes:project.notes||""});
+  const [editing,setEditing]=useState(false),[form,setForm]=useState(initial),[message,setMessage]=useState(""),[saving,setSaving]=useState(false); const savingRef=useRef(false);
+
+  const margin=(()=>{try{return calculatePlannedMargin(project.plannedRevenue,form.plannedExpenses);}catch{return Number(project.plannedMargin||0);}})();
+  const save=async()=>{if(savingRef.current)return;savingRef.current=true;setSaving(true);setMessage("");try{const result=await onSave(project.id,form);if(result.success){setEditing(false);setMessage("Dossier enregistré.");}else setMessage(result.error);}finally{savingRef.current=false;setSaving(false);}};
+  const field=(key,label,props={})=><TextField {...props} label={label} value={form[key]} disabled={!editing||saving} onChange={(e)=>setForm({...form,[key]:e.target.value})}/>;
+  return <Stack spacing={2}><Button startIcon={<ArrowBack/>} onClick={onBack} sx={{alignSelf:"flex-start"}}>Retour aux dossiers</Button>{message&&<Alert severity={editing?"error":"success"} onClose={()=>setMessage("")}>{message}</Alert>}<Stack direction={{xs:"column",sm:"row"}} justifyContent="space-between" gap={1}><Box><Typography variant="h5" fontWeight={700}>{project.name}</Typography><Typography color="text.secondary">{thirdParty?.name||"Client indisponible"}</Typography></Box><Chip label={WORK_PROJECT_STATUS_LABELS[project.status]||project.status}/></Stack><Grid container spacing={2}><Grid size={{xs:12,md:7}}><Card variant="outlined"><CardContent><Stack spacing={2}>{field("name","Nom du dossier",{required:true})}{field("status","Statut",{select:true,children:WORK_PROJECT_STATUSES.map((status)=><MenuItem key={status} value={status}>{WORK_PROJECT_STATUS_LABELS[status]}</MenuItem>)})}<Stack direction={{xs:"column",sm:"row"}} spacing={2}>{field("startDate","Date de début",{type:"date",InputLabelProps:{shrink:true},fullWidth:true})}{field("endDate","Date de fin",{type:"date",InputLabelProps:{shrink:true},fullWidth:true})}</Stack>{field("description","Description",{multiline:true,minRows:3})}{field("notes","Observations",{multiline:true,minRows:3})}</Stack></CardContent></Card></Grid><Grid size={{xs:12,md:5}}><Stack spacing={2}><Card variant="outlined"><CardContent><Typography variant="h6" gutterBottom>Résumé financier</Typography><Typography>Recette prévisionnelle : {currency.format(Number(project.plannedRevenue||0))}</Typography>{field("plannedExpenses","Dépenses prévisionnelles",{type:"number",inputProps:{min:0,step:"0.01"},fullWidth:true,sx:{my:2}})}<Typography fontWeight={700}>Marge prévisionnelle : {currency.format(margin)}</Typography></CardContent></Card><Card variant="outlined"><CardContent><Typography variant="h6" gutterBottom>Origine</Typography><Typography>Activité : {activity?.name||"Indisponible"}</Typography><Typography>Devis : {quote?.quoteNumber||project.quoteId}</Typography><Typography>Créé le : {formatTimestamp(project.createdAt)}</Typography><Typography>Mis à jour le : {formatTimestamp(project.updatedAt)}</Typography></CardContent></Card></Stack></Grid></Grid><Stack direction="row" spacing={1}>{!editing?<Button variant="contained" startIcon={<Edit/>} onClick={()=>{setMessage("");setEditing(true);}}>Modifier</Button>:<><Button variant="contained" disabled={saving} onClick={save}>{saving?<CircularProgress size={20}/>:"Enregistrer"}</Button><Button disabled={saving} onClick={()=>{setForm(initial());setMessage("");setEditing(false);}}>Annuler</Button></>}</Stack></Stack>;
 }

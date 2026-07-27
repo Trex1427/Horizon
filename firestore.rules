@@ -460,7 +460,7 @@ service cloud.firestore {
       return data.keys().hasOnly([
           "ownerUid", "quoteId", "professionalActivityId", "thirdPartyId", "name",
           "status", "plannedRevenue", "plannedExpenses", "plannedMargin",
-          "startDate", "endDate", "createdAt", "updatedAt", "deletedAt"
+          "startDate", "endDate", "description", "notes", "createdAt", "updatedAt", "deletedAt"
         ])
         && data.ownerUid == request.auth.uid
         && data.quoteId is string
@@ -470,7 +470,11 @@ service cloud.firestore {
         && data.status in ["planned", "in_progress", "on_hold", "completed", "cancelled"]
         && data.plannedRevenue is number
         && data.plannedExpenses is number
-        && data.plannedMargin is number;
+        && data.plannedMargin is number
+        && data.plannedExpenses >= 0
+        && data.plannedMargin == data.plannedRevenue - data.plannedExpenses
+        && (!data.keys().hasAny(["description"]) || data.description is string)
+        && (!data.keys().hasAny(["notes"]) || data.notes is string);
     }
 
     function hasValidWorkProjectReferences(documentId, data) {
@@ -499,7 +503,12 @@ service cloud.firestore {
       allow update: if updatesOwnDocument()
         && hasValidWorkProjectSchema(request.resource.data)
         && hasValidWorkProjectReferences(documentId, request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["name", "status", "plannedExpenses", "plannedMargin", "startDate", "endDate", "description", "notes", "updatedAt"])
+        && request.resource.data.updatedAt == request.time
         && request.resource.data.quoteId == resource.data.quoteId
+        && request.resource.data.thirdPartyId == resource.data.thirdPartyId
+        && request.resource.data.professionalActivityId == resource.data.professionalActivityId
+        && request.resource.data.plannedRevenue == resource.data.plannedRevenue
         && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if false;
     }
