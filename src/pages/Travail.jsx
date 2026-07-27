@@ -165,6 +165,7 @@ export default function Travail() {
   const activityMap = useMemo(() => new Map(activitiesApi.professionalActivities.map((entry) => [entry.id, entry])), [activitiesApi.professionalActivities]);
   const thirdPartyMap = useMemo(() => new Map(thirdParties.map((entry) => [entry.id, entry])), [thirdParties]);
   const documentMap = useMemo(() => new Map(quotesApi.documents.map((entry) => [entry.id, entry])), [quotesApi.documents]);
+  const quoteMap = useMemo(() => new Map(quotesApi.quotes.map((entry) => [entry.id, entry])), [quotesApi.quotes]);
   const projectByQuoteId = useMemo(() => new Map(projectsApi.projects.map((entry) => [entry.quoteId, entry])), [projectsApi.projects]);
   const filteredQuotes = quotesApi.quotes.filter((quote) => {
     const text = `${quote.quoteNumber || ""} ${thirdPartyMap.get(quote.thirdPartyId)?.name || ""}`.toLowerCase();
@@ -228,7 +229,7 @@ export default function Travail() {
     {notice && <Alert severity="info" onClose={() => setNotice("")} sx={{ mb: 2 }}>{notice}</Alert>}
     {section === "dashboard" && <WorkDashboard projects={projectsApi.projects} loading={projectsApi.loading} error={projectsApi.error} />}
     {section === "sites" && <WorkProjectsSection projects={projectsApi.projects} loading={projectsApi.loading} error={projectsApi.error}
-      activityMap={activityMap} thirdPartyMap={thirdPartyMap} selectedProjectId={selectedProjectId} />}
+      activityMap={activityMap} thirdPartyMap={thirdPartyMap} quoteMap={quoteMap} selectedProjectId={selectedProjectId} onOpen={openProject} onBack={() => setSelectedProjectId("")} onSave={projectsApi.editProject} />}
     {section === "invoices" && <WaitingPanel>La gestion des factures sera disponible dans un prochain sprint.</WaitingPanel>}
     {section === "settings" && <WaitingPanel>Les paramètres du module Travail seront ajoutés progressivement.</WaitingPanel>}
     {section === "activities" && <ActivitiesSection activitiesApi={activitiesApi} />}

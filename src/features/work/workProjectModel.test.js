@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildWorkProjectPayload,
+  calculatePlannedMargin,
   calculateWorkProjectMetrics,
+  normalizeWorkProjectUpdate,
   sortWorkProjects,
   WORK_PROJECT_STATUS_LABELS,
 } from "./workProjectModel.js";
@@ -30,6 +32,8 @@ test("an accepted quote creates the exact initial dossier payload", () => {
     plannedMargin: 1250.5,
     startDate: null,
     endDate: null,
+    description: "",
+    notes: "",
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
@@ -63,4 +67,14 @@ test("dashboard metrics exclude cancelled revenue and completed dossiers from ac
     { status: "cancelled", plannedRevenue: 500 },
     { status: "planned", plannedRevenue: 999, deletedAt: new Date() },
   ]), { active: 3, inProgress: 1, completed: 1, plannedRevenue: 1000 });
+});
+
+test("dossier updates normalize fields and calculate the margin", () => {
+  assert.deepEqual(normalizeWorkProjectUpdate({ plannedRevenue: 1250.5 }, { name: " Dossier ", status: "in_progress", plannedExpenses: "250.255", startDate: "2026-08-01", endDate: "2026-08-31" }), { name: "Dossier", status: "in_progress", plannedExpenses: 250.26, plannedMargin: 1000.24, startDate: "2026-08-01", endDate: "2026-08-31", description: "", notes: "" });
+  assert.equal(calculatePlannedMargin(100, 0), 100);
+});
+test("dossier updates reject negative expenses and reversed dates", () => {
+  const valid = { name: "Dossier", status: "planned", plannedExpenses: 0 };
+  assert.throws(() => normalizeWorkProjectUpdate({ plannedRevenue: 100 }, { ...valid, plannedExpenses: -1 }), /négatives/);
+  assert.throws(() => normalizeWorkProjectUpdate({ plannedRevenue: 100 }, { ...valid, startDate: "2026-08-02", endDate: "2026-08-01" }), /antérieure/);
 });
