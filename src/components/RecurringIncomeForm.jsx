@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+/* eslint-disable react-hooks/set-state-in-effect -- dialog state is reset from the selected Firestore entity */
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   Button,
@@ -56,6 +57,9 @@ export function RecurringIncomeForm({
   const [formData, setFormData] = useState(defaultForm);
   const [variations, setVariations] = useState([]);
   const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const submittingRef = useRef(false);
 
   const incomeCategories = useMemo(() => getIncomeCategoryOptions(categories), [categories]);
 
@@ -91,6 +95,7 @@ export function RecurringIncomeForm({
       setVariations([]);
     }
     setErrors({});
+    setSubmitError("");
   }, [initialIncome, open, incomeCategories]);
 
   const handleChange = (event) => {
@@ -123,16 +128,28 @@ export function RecurringIncomeForm({
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    if (submittingRef.current || isLoading || !validate()) return;
 
     const payload = buildRecurringIncomePayload({ ...formData, variations }, incomeCategories, initialIncome);
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSubmitError("");
 
-    const result = await onSubmit(payload);
-    if (result.success) {
-      setFormData({ ...defaultForm });
-      setVariations([]);
-      setErrors({});
-      onClose();
+    try {
+      const result = await onSubmit(payload);
+      if (result?.success) {
+        setFormData({ ...defaultForm });
+        setVariations([]);
+        setErrors({});
+        onClose();
+        return;
+      }
+      setSubmitError(result?.error || "Le revenu récurrent n’a pas pu être enregistré.");
+    } catch (error) {
+      setSubmitError(error?.message || "Le revenu récurrent n’a pas pu être enregistré.");
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -142,7 +159,8 @@ export function RecurringIncomeForm({
       title={initialIncome ? "Modifier un revenu récurrent" : "Ajouter un revenu récurrent"}
       onClose={onClose}
       onSubmit={handleSubmit}
-      submitting={isLoading}
+      submitting={submitting || isLoading}
+      errorMessage={submitError}
       submitLabel={initialIncome ? "Enregistrer" : "Créer"}
       maxWidth="md"
     >

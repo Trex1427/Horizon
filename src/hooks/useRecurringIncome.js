@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect -- listener lifecycle owns loading state */
 import { useCallback, useEffect, useState } from "react";
 import {
   createRecurringIncome,
@@ -6,7 +7,7 @@ import {
   updateRecurringIncome,
 } from "../services/recurringIncomeService";
 
-export function useRecurringIncome() {
+export function useRecurringIncomeStore() {
   const [recurringIncome, setRecurringIncome] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -75,3 +76,5 @@ export function useRecurringIncome() {
     deleteRecurringIncome: deleteRecurringIncomeData,
   };
 }
+
+export { useRecurringIncomeContext as useRecurringIncome } from "../context/RecurringIncomeContext";

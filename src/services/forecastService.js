@@ -2,6 +2,7 @@ import {
   buildBudgetFixedExpenseReservationMap,
   calculateBudgetSpentAmount,
   calculateCurrentAccountsBalance,
+  findMatchedExpectedItemIds,
   isDateInRange,
   matchesExpectedTransaction,
   selectNonOverlappingBudgetsForForecast,
@@ -140,23 +141,23 @@ export function calculateMonthlyForecast({
 
   const currentBalance = calculateCurrentAccountsBalance(accounts, transactions, transfers);
 
-  const expectedRecurringIncome = (recurringIncome || [])
+  const dueRecurringIncome = (recurringIncome || [])
     .filter((income) => isRecurringItemDueThisMonth(income, monthBounds))
-    .reduce((sum, income) => {
-      const amount = getRecurringIncomeApplicableAmount(income, monthBounds.end);
-      if (amount <= 0) return sum;
-
-      const alreadyRealized = (transactions || []).some((transaction) =>
-        matchesExpectedTransaction(transaction, income, {
-          expectedType: "revenu",
-          expectedAmount: amount,
-          monthStart: monthBounds.start,
-          monthEnd: monthBounds.end,
-        })
-      );
-
-      return alreadyRealized ? sum : sum + amount;
-    }, 0);
+    .map((income) => ({ ...income, expectedAmount: getRecurringIncomeApplicableAmount(income, monthBounds.end) }))
+    .filter((income) => income.expectedAmount > 0);
+  const matchedRecurringIncomeIds = findMatchedExpectedItemIds(
+    dueRecurringIncome,
+    transactions || [],
+    (income) => ({
+      expectedType: "revenu",
+      expectedAmount: income.expectedAmount,
+      monthStart: monthBounds.start,
+      monthEnd: monthBounds.end,
+    })
+  );
+  const expectedRecurringIncome = dueRecurringIncome.reduce((sum, income) => (
+    matchedRecurringIncomeIds.has(String(income.id)) ? sum : sum + income.expectedAmount
+  ), 0);
 
   const pendingFixedExpenseOccurrences = (fixedExpenses || [])
     .filter((fixedExpense) => isRecurringItemDueThisMonth(fixedExpense, monthBounds))

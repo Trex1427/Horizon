@@ -1,5 +1,6 @@
 ﻿import { useMemo, useState } from "react";
 import {
+  Alert,
   Box,
   Button,
   Dialog,
@@ -32,10 +33,25 @@ function getCategoryIcon(categoryMeta) {
 export function RecurringIncomeCard({ recurringIncome, onEdit, onDelete, accounts = [], categoryMeta = null, enableDoubleClickEdit = false }) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const handleDelete = async () => {
-    await onDelete(recurringIncome.id);
-    setDeleteConfirmOpen(false);
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const result = await onDelete(recurringIncome.id);
+      if (result?.success) {
+        setDeleteConfirmOpen(false);
+        return;
+      }
+      setDeleteError(result?.error || "Le revenu récurrent n’a pas pu être supprimé.");
+    } catch (error) {
+      setDeleteError(error?.message || "Le revenu récurrent n’a pas pu être supprimé.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleOpenMenu = (event) => {
@@ -141,11 +157,12 @@ export function RecurringIncomeCard({ recurringIncome, onEdit, onDelete, account
           <Typography>
             Cette action le marquera comme inactif sans supprimer la donnée immédiatement.
           </Typography>
+          {deleteError ? <Alert severity="error" sx={{ mt: 2 }}>{deleteError}</Alert> : null}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteConfirmOpen(false)}>Annuler</Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
-            Supprimer
+          <Button onClick={() => setDeleteConfirmOpen(false)} disabled={deleting}>Annuler</Button>
+          <Button onClick={handleDelete} color="error" variant="contained" disabled={deleting}>
+            {deleting ? "Suppression..." : "Supprimer"}
           </Button>
         </DialogActions>
       </Dialog>
