@@ -97,6 +97,7 @@ export default function TransactionBulkEditDialog({
   onRequestCreateAccount,
   onClose,
   onApply,
+  submitting = false,
 }) {
   const [draft, setDraft] = useState({
     categoryId: "",
@@ -186,7 +187,7 @@ export default function TransactionBulkEditDialog({
   }, [draft.categoryId, subcategories]);
 
   const incompatibleSubcategoryCount = useMemo(() => {
-    if (!draft.categoryId || draft.subcategoryId || !selectedTransactions.length) {
+    if (!draft.categoryId || draft.categoryId === UNCATEGORIZED_VALUE || draft.subcategoryId || !selectedTransactions.length) {
       return 0;
     }
 
@@ -305,8 +306,15 @@ export default function TransactionBulkEditDialog({
   }
 
   function buildDraftPatch() {
+    const canonicalCategoryName = selectedCategory?.name || "";
+    const targetsUncategorized = draft.categoryId === UNCATEGORIZED_VALUE;
     return buildBulkTransactionPatch({
-      ...(draft.categoryId ? { categoryId: draft.categoryId === UNCATEGORIZED_VALUE ? "" : draft.categoryId } : {}),
+      ...(draft.categoryId ? {
+        categoryId: targetsUncategorized ? "" : draft.categoryId,
+        categoryName: targetsUncategorized ? "" : canonicalCategoryName,
+        categorie: targetsUncategorized ? "" : canonicalCategoryName,
+        ...(targetsUncategorized ? { subcategoryId: null, subcategoryName: null } : {}),
+      } : {}),
       ...(draft.subcategoryId === CLEAR_VALUE
         ? { subcategoryId: null }
         : draft.subcategoryId
@@ -333,6 +341,7 @@ export default function TransactionBulkEditDialog({
   }
 
   function validateAgainstSelection(patch) {
+    const clearsCategory = draft.categoryId === UNCATEGORIZED_VALUE;
     for (const transaction of selectedTransactions) {
       const result = resolveBulkTransactionPatchForTransaction(transaction, patch, {
         categoryMap: new Map(categories.map((category) => [category.id, category])),
@@ -342,7 +351,7 @@ export default function TransactionBulkEditDialog({
         projectMap: new Map(projects.map((project) => [project.id, project])),
         accountMap: new Map(accounts.map((account) => [account.id, account])),
       }, {
-        clearIncompatibleSubcategories: draft.clearIncompatibleSubcategories,
+        clearIncompatibleSubcategories: clearsCategory || draft.clearIncompatibleSubcategories,
       });
 
       if (!result.ok) {
@@ -360,6 +369,11 @@ export default function TransactionBulkEditDialog({
       return;
     }
 
+    if (isClassificationMode && classificationImpact?.hasSelectedCategory && classificationImpact.willChangeCount === 0) {
+      setLocalError("Aucune modification nécessaire : toutes les transactions sélectionnées ont déjà cette catégorie.");
+      return;
+    }
+
     const validationMessage = validateAgainstSelection(patch);
     if (validationMessage) {
       setLocalError(validationMessage);
@@ -371,15 +385,20 @@ export default function TransactionBulkEditDialog({
   }
 
   async function handleConfirmApply() {
-    if (!pendingPatch) {
+    if (!pendingPatch || submitting) {
       return;
     }
 
-    await onApply?.(pendingPatch, {
-      clearIncompatibleSubcategories: draft.clearIncompatibleSubcategories,
+    const outcome = await onApply?.(pendingPatch, {
+      clearIncompatibleSubcategories: draft.categoryId === UNCATEGORIZED_VALUE || draft.clearIncompatibleSubcategories,
       mode,
       categoryName: selectedCategoryLabel,
     });
+    if (outcome?.success) {
+      setConfirmOpen(false);
+      return;
+    }
+    setLocalError(outcome?.error || "La catégorisation n’a pas pu être appliquée.");
     setConfirmOpen(false);
   }
 
@@ -596,7 +615,7 @@ export default function TransactionBulkEditDialog({
                       {classificationImpact.willChangeCount} transactions seront réellement modifiées
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {classificationImpact.alreadyInTargetCount} transactions sont déjà dans cette catégorie
+                      {classificationImpact.alreadyInTargetCount} des transactions sélectionnées ont déjà cette catégorie
                     </Typography>
                   </Stack>
                 ) : (
@@ -621,10 +640,10 @@ export default function TransactionBulkEditDialog({
             alignItems: { xs: "stretch", sm: "center" },
           }}
         >
-          <Button onClick={onClose} fullWidth>
+          <Button onClick={onClose} fullWidth disabled={submitting}>
             Annuler
           </Button>
-          <Button variant="contained" onClick={handleRequestApply} fullWidth disabled={applyDisabled}>
+          <Button variant="contained" onClick={handleRequestApply} fullWidth disabled={applyDisabled || submitting}>
             {isClassificationMode ? `Classer ${selectedTransactionsLabel}` : "Appliquer"}
           </Button>
         </DialogActions>
@@ -651,9 +670,9 @@ export default function TransactionBulkEditDialog({
           </>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmOpen(false)}>Annuler</Button>
-          <Button variant="contained" onClick={handleConfirmApply}>
-            {isClassificationMode ? "Confirmer le classement" : "Appliquer"}
+          <Button onClick={() => setConfirmOpen(false)} disabled={submitting}>Annuler</Button>
+          <Button variant="contained" onClick={handleConfirmApply} disabled={submitting}>
+            {submitting ? "Enregistrement..." : isClassificationMode ? "Confirmer le classement" : "Appliquer"}
           </Button>
         </DialogActions>
       </Dialog>

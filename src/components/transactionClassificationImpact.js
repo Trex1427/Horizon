@@ -33,10 +33,10 @@ function isAlreadyInUncategorizedTarget(transaction = {}) {
   const normalizedCategoryId = normalizeId(transaction?.categoryId);
 
   if (hasCategoryIdField && !normalizedCategoryId) {
-    return true;
+    return !normalizeId(transaction?.subcategoryId);
   }
 
-  return isUncategorizedName(getTransactionCategoryName(transaction));
+  return isUncategorizedName(getTransactionCategoryName(transaction)) && !normalizeId(transaction?.subcategoryId);
 }
 
 export function buildClassificationImpactSummary({

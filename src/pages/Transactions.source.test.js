@@ -4,14 +4,23 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const transactionsPath = resolve(process.cwd(), "src/pages/Transactions.jsx");
+const transactionsServicePath = resolve(process.cwd(), "src/services/transactionsService.js");
 
 test("Transactions bulk selection and update wiring stays scoped to selected displayed items", async () => {
   const content = await readFile(transactionsPath, "utf8");
 
   assert.equal(content.includes("setSelectedTransactionIds(displayedTransactions.map((transaction) => transaction.id));"), true);
-  assert.equal(content.includes("transactionIds: selectedTransactionIds"), true);
+  assert.equal(content.includes("transactionIds: visibleSelectedTransactionIds"), true);
+  assert.equal(content.includes("bulkDeleteTransactions({ transactionIds: visibleSelectedTransactionIds })"), true);
+  assert.equal(content.includes("resolveVisibleSelectedTransactionIds(selectedTransactionIds, displayedTransactions)"), true);
   assert.equal(content.includes("setSelectedTransactionIds(result.failedIds);"), true);
   assert.equal(content.includes("openBulkEditDialog(\"advanced\")"), true);
+});
+
+test("Transactions source remains isolated by ownerUid", async () => {
+  const content = await readFile(transactionsServicePath, "utf8");
+  assert.equal(content.includes('where("ownerUid", "==", ownerUid)'), true);
+  assert.equal(content.includes("sanitizeUserPayload"), true);
 });
 
 test("Transactions opens existing quick-create dialogs from dropdown sentinels without storing sentinel values", async () => {
