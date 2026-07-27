@@ -14,7 +14,7 @@ test("App wires cockpit card actions through existing local navigation state", a
   assert.equal(content.includes("function openAnalysisMonth(monthKey, referenceDate)"), true);
   assert.equal(content.includes("onOpenTransactions={() => openTransactionsWithContext(null)}"), true);
   assert.equal(content.includes("onOpenAnalysisMonth={openAnalysisMonth}"), true);
-  assert.equal(content.includes("onOpenOpportunities={() => setPage(PAGES.OPPORTUNITES)}"), true);
+  assert.equal(content.includes("onOpenOpportunities={() => navigateToPage(PAGES.OPPORTUNITES)}"), true);
   assert.equal(content.includes("navigationContext={analysisNavigationContext}"), true);
 });
 

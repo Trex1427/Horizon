@@ -60,10 +60,12 @@ test("Pilotage cards use the shared progress style and accessible progress label
 
 test("Previsions is reachable from the existing navigation without business logic changes", async () => {
   const app = await readFile(files.app, "utf8");
+  const navigation = await readFile(new URL("../navigation/appNavigation.js", import.meta.url), "utf8");
   const previsions = await readFile(files.previsions, "utf8");
 
   assert.equal(app.includes("import Previsions from \"./pages/Previsions\";"), true);
-  assert.equal(app.includes("PREVISIONS: \"PREVISIONS\""), true);
+  assert.equal(navigation.includes("PREVISIONS: \"PREVISIONS\""), true);
+  assert.equal(navigation.includes("PAGES.PREVISIONS"), true);
   assert.equal(app.includes("{page === PAGES.PREVISIONS && <Previsions />}"), true);
   assert.equal(previsions.includes("useForecast()"), true);
   assert.equal(previsions.includes("PilotageHeader"), true);

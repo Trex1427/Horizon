@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Transactions from "./pages/Transactions";
 import Objectifs from "./pages/Objectifs";
 import FraisFixes from "./pages/FraisFixes";
@@ -12,6 +12,7 @@ import Categories from "./pages/Categories";
 import Referentiels from "./pages/Referentiels";
 import Parametres from "./pages/Parametres";
 import ImportHistory from "./pages/ImportHistory";
+import Travail from "./pages/Travail";
 import { TransactionsProvider, useTransactionsContext } from "./context/TransactionsContext";
 import { RecurringIncomeProvider } from "./context/RecurringIncomeContext";
 import { AuthGate } from "./auth/AuthGate";
@@ -30,6 +31,14 @@ import { createCashBalanceAdjustment } from "./services/cashBalanceAdjustmentSer
 import { CASH_ACCOUNT_NAME, CASH_ACCOUNT_TYPE } from "./constants/cashBalanceConstants";
 import { hasCashAccountHistory } from "./utils/cashBalanceAdjustment";
 import { selectAccountsForBalanceDisplay } from "./utils/accountBalanceDisplay";
+import {
+  buildPageUrl,
+  getPageFromLocation,
+  MOBILE_PRIMARY_PAGES,
+  MOBILE_SECONDARY_PAGES,
+  PAGE_ORDER,
+  PAGES,
+} from "./navigation/appNavigation";
 
 import {
   AppBar,
@@ -62,50 +71,9 @@ import Add from "@mui/icons-material/Add";
 import Category from "@mui/icons-material/Category";
 import UploadFile from "@mui/icons-material/UploadFile";
 import Logout from "@mui/icons-material/Logout";
-
-const PAGES = {
-  HOME: "HOME",
-  TRANSACTIONS: "TRANSACTIONS",
-  OBJECTIFS: "OBJECTIFS",
-  FRAIS_FIXES: "FRAIS_FIXES",
-  REVENUS_RECURRENTS: "REVENUS_RECURRENTS",
-  OPPORTUNITES: "OPPORTUNITES",
-  DETTES_CREANCES: "DETTES_CREANCES",
-  BUDGETS: "BUDGETS",
-  PREVISIONS: "PREVISIONS",
-  CATEGORIES: "CATEGORIES",
-  REFERENTIELS: "REFERENTIELS",
-  ANALYSE: "ANALYSE",
-  PARAMETRES: "PARAMETRES",
-  IMPORT_HISTORY: "IMPORT_HISTORY",
-};
-
-const PAGE_ORDER = [
-  PAGES.HOME,
-  PAGES.TRANSACTIONS,
-  PAGES.OBJECTIFS,
-  PAGES.FRAIS_FIXES,
-  PAGES.REVENUS_RECURRENTS,
-  PAGES.OPPORTUNITES,
-  PAGES.DETTES_CREANCES,
-  PAGES.BUDGETS,
-  PAGES.PREVISIONS,
-  PAGES.ANALYSE,
-  PAGES.CATEGORIES,
-  PAGES.REFERENTIELS,
-  PAGES.IMPORT_HISTORY,
-  PAGES.PARAMETRES,
-];
-
-const MOBILE_PRIMARY_PAGES = [PAGES.HOME, PAGES.TRANSACTIONS, PAGES.BUDGETS];
+import Work from "@mui/icons-material/Work";
 
 const MORE_MENU_PAGES = [
-  {
-    key: "COMPTES",
-    label: "Comptes",
-    icon: <AccountBalance />,
-    page: PAGES.HOME,
-  },
   {
     key: PAGES.CATEGORIES,
     label: "Catégories",
@@ -129,6 +97,12 @@ const MORE_MENU_PAGES = [
     label: "Revenus récurrents",
     icon: <ReceiptLong />,
     page: PAGES.REVENUS_RECURRENTS,
+  },
+  {
+    key: PAGES.TRAVAIL,
+    label: "Travail",
+    icon: <Work />,
+    page: PAGES.TRAVAIL,
   },
   {
     key: PAGES.OPPORTUNITES,
@@ -188,12 +162,34 @@ const MORE_MENU_PAGES = [
 
 function AppContent() {
   const { logout, showLocalDiagnostic, uid, user } = useAuth();
-  const [page, setPage] = useState(PAGES.HOME);
+  const [page, setPage] = useState(() => getPageFromLocation(typeof window === "undefined" ? null : window.location));
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
   const [receiptImportRequestId, setReceiptImportRequestId] = useState(0);
   const [bankImportRequestId, setBankImportRequestId] = useState(0);
   const [transactionsNavigationContext, setTransactionsNavigationContext] = useState(null);
   const [analysisNavigationContext, setAnalysisNavigationContext] = useState(null);
+  const navigateToPage = useCallback((nextPage, { replace = false } = {}) => {
+    if (!PAGE_ORDER.includes(nextPage)) return;
+    setPage(nextPage);
+    if (typeof window === "undefined") return;
+    const nextUrl = buildPageUrl(nextPage, window.location);
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (nextUrl === currentUrl) return;
+    window.history[replace ? "replaceState" : "pushState"]({ page: nextPage }, "", nextUrl);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const initialPage = getPageFromLocation(window.location);
+    const canonicalUrl = buildPageUrl(initialPage, window.location);
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    if (canonicalUrl !== currentUrl) {
+      window.history.replaceState({ page: initialPage }, "", canonicalUrl);
+    }
+    const handlePopState = () => setPage(getPageFromLocation(window.location));
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
   const { transactions, loading, error: transactionsError } = useTransactionsContext();
   const { accounts, defaultAccount, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
   const { fixedExpenses, loading: fixedExpensesLoading, error: fixedExpensesError } = useFixedExpenses();
@@ -220,7 +216,9 @@ function AppContent() {
   const dashboardError = transactionsError || accountsError || fixedExpensesError || recurringIncomeError || opportunitiesError || budgetsError || transfersError || null;
   const isMobilePortrait = useMediaQuery("(max-width:600px) and (orientation: portrait)");
 
-  const mobileBottomNavValue = MOBILE_PRIMARY_PAGES.includes(page) ? page : false;
+  const mobileBottomNavValue = MOBILE_PRIMARY_PAGES.includes(page)
+    ? page
+    : MOBILE_SECONDARY_PAGES.includes(page) ? "MORE" : false;
   const navSurfaceSx = {
     background: "linear-gradient(180deg, rgba(255,255,255,0.95) 0%, rgba(249,250,245,0.98) 100%)",
     borderTop: "1px solid",
@@ -240,7 +238,7 @@ function AppContent() {
       return;
     }
 
-    setPage(value);
+    navigateToPage(value);
   }
 
   function openTransactionsWithContext(context = null) {
@@ -249,7 +247,7 @@ function AppContent() {
       requestId: Date.now(),
       source: "analysis",
     } : null);
-    setPage(PAGES.TRANSACTIONS);
+    navigateToPage(PAGES.TRANSACTIONS);
   }
 
   function openAnalysisWithContext(context = null) {
@@ -258,7 +256,7 @@ function AppContent() {
       requestId: Date.now(),
       source: "cockpit",
     } : null);
-    setPage(PAGES.ANALYSE);
+    navigateToPage(PAGES.ANALYSE);
   }
 
   function openAnalysisMonth(monthKey, referenceDate) {
@@ -270,7 +268,7 @@ function AppContent() {
   }
 
   return (
-    <Box sx={{ minHeight: "100dvh", pb: isMobilePortrait ? 11 : 10 }}>
+    <Box sx={{ minHeight: "100dvh", overflowX: "hidden", pb: isMobilePortrait ? "calc(72px + env(safe-area-inset-bottom, 0px))" : 10 }}>
       <AppBar
         position="sticky"
         elevation={0}
@@ -323,7 +321,7 @@ function AppContent() {
             <Box sx={{ display: "flex", gap: 1 }}>
               <Tooltip title="Paramètres">
                 <IconButton
-                  onClick={() => setPage(PAGES.PARAMETRES)}
+                  onClick={() => navigateToPage(PAGES.PARAMETRES)}
                   sx={{
                     color: "#f3f5e9",
                     border: "1px solid rgba(243, 245, 233, 0.4)",
@@ -397,7 +395,7 @@ function AppContent() {
                 }}
                 onOpenTransactions={() => openTransactionsWithContext(null)}
                 onOpenAnalysisMonth={openAnalysisMonth}
-                onOpenOpportunities={() => setPage(PAGES.OPPORTUNITES)}
+                onOpenOpportunities={() => navigateToPage(PAGES.OPPORTUNITES)}
               />
             )}
           </>
@@ -417,6 +415,8 @@ function AppContent() {
         {page === PAGES.FRAIS_FIXES && <FraisFixes />}
 
         {page === PAGES.REVENUS_RECURRENTS && <RevenusRecurrents />}
+
+        {page === PAGES.TRAVAIL && <Travail />}
 
         {page === PAGES.OPPORTUNITES && <Opportunites />}
 
@@ -487,6 +487,8 @@ function AppContent() {
               width: "100%",
               display: "grid !important",
               gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+              minHeight: "calc(56px + env(safe-area-inset-bottom, 0px))",
+              pb: "env(safe-area-inset-bottom, 0px)",
               zIndex: 1200,
               ...navSurfaceSx,
               "& .MuiBottomNavigationAction-root": {
@@ -501,11 +503,11 @@ function AppContent() {
               },
             }}
           >
-            <BottomNavigationAction value={PAGES.HOME} label="Accueil" icon={<Home />} />
-            <BottomNavigationAction value={PAGES.TRANSACTIONS} label="Transactions" icon={<ReceiptLong />} />
-            <BottomNavigationAction value={PAGES.BUDGETS} label="Budgets" icon={<PieChart />} />
-            <BottomNavigationAction value="MORE" label="Plus" icon={<MoreHoriz />} />
-            <BottomNavigationAction value="ADD" label="Ajouter" icon={<Add />} />
+            <BottomNavigationAction value={PAGES.HOME} label="Résumé" icon={<Home />} aria-label="Ouvrir le résumé mensuel" />
+            <BottomNavigationAction value={PAGES.TRANSACTIONS} label="Transactions" icon={<ReceiptLong />} aria-label="Ouvrir les transactions" />
+            <BottomNavigationAction value={PAGES.BUDGETS} label="Budgets" icon={<PieChart />} aria-label="Ouvrir les budgets" />
+            <BottomNavigationAction value="MORE" label="Plus" icon={<MoreHoriz />} aria-label="Ouvrir les autres sections" />
+            <BottomNavigationAction value="ADD" label="Ajouter" icon={<Add />} aria-label="Ajouter une transaction" />
           </BottomNavigation>
 
           <Drawer
@@ -518,10 +520,11 @@ function AppContent() {
                 borderTopRightRadius: 16,
                 border: "1px solid rgba(20, 41, 43, 0.14)",
                 background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(247,249,242,0.98) 100%)",
+                maxHeight: "min(82dvh, 720px)",
               },
             }}
           >
-            <Box sx={{ px: 1, pb: 2, pt: 1 }} role="presentation">
+            <Box sx={{ px: 1, pb: "calc(16px + env(safe-area-inset-bottom, 0px))", pt: 1 }} role="navigation" aria-label="Autres sections">
               <Typography variant="subtitle2" color="text.secondary" sx={{ px: 1, py: 1 }}>
                 Autres sections
               </Typography>
@@ -529,6 +532,7 @@ function AppContent() {
                 {MORE_MENU_PAGES.map((item) => (
                   <ListItemButton
                     key={item.key}
+                    selected={item.page === page && !["SCANNER", "BANK_IMPORT"].includes(item.key)}
                     onClick={() => {
                       if (item.key === "SCANNER") {
                         openTransactionsWithContext(null);
@@ -544,7 +548,7 @@ function AppContent() {
                         return;
                       }
 
-                      setPage(item.page);
+                      navigateToPage(item.page);
                       setMoreDrawerOpen(false);
                     }}
                   >
@@ -568,7 +572,7 @@ function AppContent() {
       ) : (
         <BottomNavigation
           value={PAGE_ORDER.indexOf(page)}
-          onChange={(event, value) => setPage(PAGE_ORDER[value])}
+          onChange={(event, value) => navigateToPage(PAGE_ORDER[value])}
           showLabels
           sx={{
             position: "fixed",
@@ -589,6 +593,7 @@ function AppContent() {
           <BottomNavigationAction label="Objectifs" icon={<EmojiEvents />} />
           <BottomNavigationAction label="Frais fixes" icon={<PieChart />} />
           <BottomNavigationAction label="Revenus récurrents" icon={<ReceiptLong />} />
+          <BottomNavigationAction label="Travail" icon={<Work />} />
           <BottomNavigationAction label="Opportunités" icon={<ShowChart />} />
           <BottomNavigationAction label="Dettes et créances" icon={<AccountBalance />} />
           <BottomNavigationAction label="Budgets" icon={<PieChart />} />
