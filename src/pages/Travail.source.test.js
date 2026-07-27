@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 const root = process.cwd();
 test("Travail exposes all V1 sections and mobile card quote list", async () => {
   const source = await readFile(resolve(root, "src/pages/Travail.jsx"), "utf8");
-  for (const label of ["Tableau de bord", "Devis", "Chantiers", "Factures", "Activités professionnelles", "Paramètres"]) assert.equal(source.includes(label), true, label);
+  for (const label of ["Tableau de bord", "Devis", "Dossiers", "Factures", "Activités professionnelles", "Paramètres"]) assert.equal(source.includes(label), true, label);
   assert.equal(source.includes("Importer un devis Tiiime"), true);
   assert.equal(source.includes("<Card variant=\"outlined\" key={quote.id}>"), true);
   assert.equal(source.includes("<table"), false);
@@ -17,7 +17,7 @@ test("shared quote form supports manual/imported drafts, filters, PDF and accept
   const source = await readFile(resolve(root, "src/pages/Travail.jsx"), "utf8");
   for (const label of ["Activité professionnelle", "Tiers", "Numéro du devis", "Date", "Montant", "Statut"]) assert.equal(source.includes(label), true, label);
   assert.equal(source.includes("matchThirdParties"), true);
-  assert.equal(source.includes("La création du chantier sera disponible dans le prochain sprint."), true);
+  assert.equal(source.includes("La création du dossier sera disponible dans le prochain sprint."), true);
   assert.equal(source.includes("archiveQuote"), true);
   assert.equal(source.includes("openWorkQuoteDocument"), true);
 });

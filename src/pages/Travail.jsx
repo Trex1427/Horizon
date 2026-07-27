@@ -17,7 +17,7 @@ import { matchThirdParties } from "../features/work/workModels.js";
 import { openWorkQuoteDocument } from "../services/workQuotesService.js";
 
 const SECTIONS = [
-  ["dashboard", "Tableau de bord"], ["quotes", "Devis"], ["sites", "Chantiers"],
+  ["dashboard", "Tableau de bord"], ["quotes", "Devis"], ["sites", "Dossiers"],
   ["invoices", "Factures"], ["activities", "Activités professionnelles"], ["settings", "Paramètres"],
 ];
 const EMPTY_QUOTE = {
@@ -182,7 +182,7 @@ export default function Travail() {
   const saveQuote = async (form) => {
     const result = form.id ? await quotesApi.editQuote(form.id, form) : await quotesApi.addQuote(form, pdfFile);
     if (result.success) {
-      if (form.status === "accepted") setNotice("La création du chantier sera disponible dans le prochain sprint.");
+      if (form.status === "accepted") setNotice("La création du dossier sera disponible dans le prochain sprint.");
       setDialog(null); setPdfFile(null); setExtraction(null);
     }
     return result;
@@ -198,7 +198,7 @@ export default function Travail() {
     </Tabs>
     {notice && <Alert severity="info" onClose={() => setNotice("")} sx={{ mb: 2 }}>{notice}</Alert>}
     {section === "dashboard" && <WaitingPanel>Les indicateurs professionnels seront ajoutés progressivement.</WaitingPanel>}
-    {section === "sites" && <WaitingPanel>La gestion des chantiers sera disponible dans un prochain sprint.</WaitingPanel>}
+    {section === "sites" && <WaitingPanel>La gestion des dossiers sera disponible dans un prochain sprint.</WaitingPanel>}
     {section === "invoices" && <WaitingPanel>La gestion des factures sera disponible dans un prochain sprint.</WaitingPanel>}
     {section === "settings" && <WaitingPanel>Les paramètres du module Travail seront ajoutés progressivement.</WaitingPanel>}
     {section === "activities" && <ActivitiesSection activitiesApi={activitiesApi} />}
