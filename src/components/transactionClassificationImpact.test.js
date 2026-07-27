@@ -86,6 +86,32 @@ test("buildClassificationImpactSummary keeps uncategorized behavior", () => {
   assert.equal(summary.alreadyInTargetCount + summary.willChangeCount, summary.selectedCount);
 });
 
+test("uncategorized transaction with orphan subcategory still requires cleanup", () => {
+  const summary = buildClassificationImpactSummary({
+    selectedTransactions: [{ id: "t1", categoryId: "", categoryName: "", subcategoryId: "sub-orphan" }],
+    categories,
+    selectedCategoryId: "__UNCATEGORIZED__",
+    selectedCategoryLabel: "Sans catégorie",
+    uncategorizedValue: "__UNCATEGORIZED__",
+  });
+
+  assert.equal(summary.alreadyInTargetCount, 0);
+  assert.equal(summary.willChangeCount, 1);
+});
+
+test("already uncategorized transaction reports no modification necessary", () => {
+  const summary = buildClassificationImpactSummary({
+    selectedTransactions: [{ id: "t1", categoryId: "", categoryName: "", subcategoryId: null }],
+    categories,
+    selectedCategoryId: "__UNCATEGORIZED__",
+    selectedCategoryLabel: "Sans catégorie",
+    uncategorizedValue: "__UNCATEGORIZED__",
+  });
+
+  assert.equal(summary.alreadyInTargetCount, 1);
+  assert.equal(summary.willChangeCount, 0);
+});
+
 test("buildClassificationImpactSummary does not mutate source transactions", () => {
   const selectedTransactions = [
     { id: "t1", categoryId: "cat-food", categoryName: "Alimentation" },
@@ -101,4 +127,22 @@ test("buildClassificationImpactSummary does not mutate source transactions", () 
   });
 
   assert.deepEqual(selectedTransactions, originalSnapshot);
+});
+
+test("regression: partial selection in an existing category counts exactly the selected target", () => {
+  const allTransactionsInCategory = [
+    { id: "t1", categoryId: "cat-food", categoryName: "Alimentation" },
+    { id: "t2", categoryId: "cat-food", categoryName: "Alimentation" },
+    { id: "t3", categoryId: "cat-food", categoryName: "Alimentation" },
+  ];
+  const summary = buildClassificationImpactSummary({
+    selectedTransactions: [allTransactionsInCategory[1]],
+    categories,
+    selectedCategoryId: "cat-food",
+    selectedCategoryLabel: "Alimentation",
+  });
+
+  assert.equal(summary.selectedCount, 1);
+  assert.equal(summary.alreadyInTargetCount, 1);
+  assert.equal(summary.willChangeCount, 0);
 });

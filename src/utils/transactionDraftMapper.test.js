@@ -77,6 +77,31 @@ test("buildTransactionPayload keeps explicit reference ids and names", () => {
   assert.equal(payload.projectName, "Chantier Monod");
 });
 
+test("individual edit removes category and subcategory without changing transaction fields", () => {
+  const payload = buildTransactionPayload({
+    date: "2026-07-11",
+    montant: "125",
+    categorie: "",
+    categoryName: "",
+    categoryId: "",
+    subcategoryId: "",
+    subcategoryName: "",
+    description: "Libellé conservé",
+    type: "depense",
+    accountId: "acc-1",
+  });
+
+  assert.equal(payload.categoryId, null);
+  assert.equal(payload.categoryName, "");
+  assert.equal(payload.categorie, "");
+  assert.equal(payload.subcategoryId, null);
+  assert.equal(payload.subcategoryName, null);
+  assert.equal(payload.date, "2026-07-11");
+  assert.equal(payload.montant, 125);
+  assert.equal(payload.description, "Libellé conservé");
+  assert.equal(validateTransactionForm(payload), "");
+});
+
 test("buildTransactionPayload strips quick-create sentinels from optional references", () => {
   const payload = buildTransactionPayload({
     date: "2026-07-11",
@@ -132,7 +157,7 @@ test("validateTransactionForm rejects create sentinels in required fields", () =
     categoryId: "cat-food",
   });
 
-  assert.equal(categoryError.includes("categorie est obligatoire"), true);
+  assert.equal(categoryError.includes("categorie selectionnee est invalide"), true);
   assert.equal(accountError.includes("compte source est obligatoire"), true);
 });
 

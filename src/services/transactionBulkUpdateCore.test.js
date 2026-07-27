@@ -46,6 +46,56 @@ test("buildBulkTransactionPatch can produce a category-only classification patch
   });
 });
 
+test("classification patch keeps canonical id and denormalized category names only", () => {
+  const normalizedPatch = buildBulkTransactionPatch({
+    categoryId: "cat-food",
+    categoryName: "Alimentation",
+    categorie: "Alimentation",
+    montant: 999,
+    date: "2030-01-01",
+    description: "must stay untouched",
+  });
+
+  assert.deepEqual(normalizedPatch, {
+    categoryId: "cat-food",
+    categoryName: "Alimentation",
+    categorie: "Alimentation",
+  });
+});
+
+test("uncategorized patch uses empty existing category fields without artificial id", () => {
+  assert.deepEqual(buildBulkTransactionPatch({ categoryId: "", categoryName: "", categorie: "" }), {
+    categoryId: "",
+    categoryName: "",
+    categorie: "",
+  });
+});
+
+test("uncategorized classification clears an existing subcategory when explicitly requested", () => {
+  const result = resolveBulkTransactionPatchForTransaction(
+    { id: "tx-1", categoryId: "cat-food", subcategoryId: "sub-groceries" },
+    { categoryId: "", categoryName: "", categorie: "" },
+    { subcategoryMap: new Map([["sub-groceries", { id: "sub-groceries", categoryId: "cat-food", isActive: true }]]) },
+    { clearIncompatibleSubcategories: true }
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.patch.categoryId, "");
+  assert.equal(result.patch.subcategoryId, null);
+  assert.equal(result.patch.subcategoryName, null);
+});
+
+test("uncategorized classification requires confirmation before clearing a subcategory", () => {
+  const result = resolveBulkTransactionPatchForTransaction(
+    { id: "tx-1", categoryId: "cat-food", subcategoryId: "sub-groceries" },
+    { categoryId: "", categoryName: "", categorie: "" },
+    { subcategoryMap: new Map([["sub-groceries", { id: "sub-groceries", categoryId: "cat-food", isActive: true }]]) }
+  );
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /incompatible/i);
+});
+
 test("buildBulkTransactionPatch keeps explicit empty categoryId for uncategorized classification", () => {
   const sourcePatch = {
     categoryId: "",

@@ -127,6 +127,7 @@ export default function TransactionFormFields({
         fullWidth
         size="small"
       >
+        <MenuItem value="">Sans catégorie</MenuItem>
         {categoryOptions.map((category) => (
           <MenuItem key={`${category.id || "legacy"}-${category.name}`} value={category.id || category.name}>
             {getSafeCategoryLabel(category.name)}

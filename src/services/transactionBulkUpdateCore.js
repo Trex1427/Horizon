@@ -1,6 +1,9 @@
 const BULK_TRANSACTION_PATCH_FIELDS = new Set([
   "categoryId",
+  "categoryName",
+  "categorie",
   "subcategoryId",
+  "subcategoryName",
   "activityId",
   "thirdPartyId",
   "projectId",
@@ -8,7 +11,7 @@ const BULK_TRANSACTION_PATCH_FIELDS = new Set([
   "type",
 ]);
 
-const OPTIONAL_REFERENCE_FIELDS = new Set(["subcategoryId", "activityId", "thirdPartyId", "projectId"]);
+const OPTIONAL_REFERENCE_FIELDS = new Set(["subcategoryId", "subcategoryName", "activityId", "thirdPartyId", "projectId"]);
 
 function normalizeId(value) {
   return String(value || "").trim();
@@ -59,9 +62,9 @@ export function buildBulkTransactionPatch(patch = {}) {
       return accumulator;
     }
 
-    if (key === "categoryId") {
+    if (["categoryId", "categoryName", "categorie"].includes(key)) {
       if (value !== undefined) {
-        accumulator.categoryId = normalizeId(value);
+        accumulator[key] = normalizeId(value);
       }
       return accumulator;
     }
@@ -111,6 +114,7 @@ export function validateBulkTransactionPatchForTransaction(transaction = {}, pat
 export function resolveBulkTransactionPatchForTransaction(transaction = {}, patch = {}, catalogs = {}, options = {}) {
   const effectiveType = patch.type || transaction.type || "";
   const clearIncompatibleSubcategories = Boolean(options.clearIncompatibleSubcategories);
+  const hasCategoryPatch = Object.prototype.hasOwnProperty.call(patch, "categoryId");
 
   if (effectiveType && !["depense", "revenu"].includes(effectiveType)) {
     return { ok: false, error: "Type de transaction invalide" };
@@ -138,7 +142,7 @@ export function resolveBulkTransactionPatchForTransaction(transaction = {}, patc
     }
   }
 
-  const effectiveCategoryId = patch.categoryId || transaction.categoryId || "";
+  const effectiveCategoryId = hasCategoryPatch ? patch.categoryId : transaction.categoryId || "";
   const currentSubcategory = getReferenceById(catalogs?.subcategoryMap, transaction.subcategoryId || "");
   const requestedSubcategory = patch.subcategoryId ? getReferenceById(catalogs?.subcategoryMap, patch.subcategoryId) : null;
 
@@ -156,11 +160,11 @@ export function resolveBulkTransactionPatchForTransaction(transaction = {}, patc
     }
   }
 
-  if (!patch.subcategoryId && patch.categoryId && currentSubcategory) {
+  if (!patch.subcategoryId && hasCategoryPatch && currentSubcategory) {
     const currentCompatibleCategoryId = normalizeId(currentSubcategory.categoryId);
     const nextCategoryId = normalizeId(patch.categoryId);
 
-    if (currentCompatibleCategoryId && nextCategoryId && currentCompatibleCategoryId !== nextCategoryId) {
+    if (currentCompatibleCategoryId && currentCompatibleCategoryId !== nextCategoryId) {
       if (!clearIncompatibleSubcategories) {
         return { ok: false, error: "Sous-categorie incompatible avec la nouvelle categorie" };
       }
@@ -201,11 +205,11 @@ export function resolveBulkTransactionPatchForTransaction(transaction = {}, patc
   }
 
   const resolvedPatch = { ...patch };
-  if (!patch.subcategoryId && patch.categoryId && currentSubcategory && clearIncompatibleSubcategories) {
+  if (!patch.subcategoryId && hasCategoryPatch && currentSubcategory && clearIncompatibleSubcategories) {
     const currentCompatibleCategoryId = normalizeId(currentSubcategory.categoryId);
     const nextCategoryId = normalizeId(patch.categoryId);
 
-    if (currentCompatibleCategoryId && nextCategoryId && currentCompatibleCategoryId !== nextCategoryId) {
+    if (currentCompatibleCategoryId && currentCompatibleCategoryId !== nextCategoryId) {
       resolvedPatch.subcategoryId = null;
       resolvedPatch.subcategoryName = null;
     }

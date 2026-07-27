@@ -60,12 +60,8 @@ export function validateTransactionForm(form) {
     return "Le montant doit etre superieur a 0 ❌";
   }
 
-  if (["depense", "revenu"].includes(form.type)) {
-    const categoryValue = String(form.categoryName || form.categorie || "").trim();
-    const hasCategory = Boolean(categoryValue) && !isCreateReferenceValue(categoryValue) && !isCreateReferenceValue(form.categoryId);
-    if (!hasCategory) {
-      return "La categorie est obligatoire ❌";
-    }
+  if (isCreateReferenceValue(form.categoryName || form.categorie) || isCreateReferenceValue(form.categoryId)) {
+    return "La categorie selectionnee est invalide ❌";
   }
 
   if (!form.accountId || isCreateReferenceValue(form.accountId)) {

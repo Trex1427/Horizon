@@ -82,6 +82,10 @@ import { getSafeCategoryLabel, isTechnicalCategoryDisplayValue } from "../utils/
 import { validateTransactionReferencesForSave } from "../utils/transactionReferencesValidation";
 import { resolveTransactionCategoryMeta } from "../utils/transactionCategoryDisplay";
 import {
+  resolveVisibleSelectedTransactionIds,
+  resolveVisibleSelectedTransactions,
+} from "../utils/transactionSelection";
+import {
   applyFixedExpenseToTransactionForm,
   buildQuickFixedExpensePayload,
   findMatchingFixedExpenseForTransaction,
@@ -823,22 +827,20 @@ export default function Transactions({
     })
   ), [displayedTransactions]);
 
-  const transactionsById = useMemo(
-    () => new Map(transactions.map((transaction) => [transaction.id, transaction])),
-    [transactions]
-  );
-
   const displayedTransactionIdSet = useMemo(
     () => new Set(displayedTransactions.map((transaction) => transaction.id)),
     [displayedTransactions]
   );
 
-  const selectedTransactions = useMemo(
-    () => selectedTransactionIds.map((transactionId) => transactionsById.get(transactionId)).filter(Boolean),
-    [selectedTransactionIds, transactionsById]
+  const visibleSelectedTransactionIds = useMemo(
+    () => resolveVisibleSelectedTransactionIds(selectedTransactionIds, displayedTransactions),
+    [displayedTransactions, selectedTransactionIds]
   );
-
-  const selectedTransactionsCount = selectedTransactionIds.length;
+  const selectedTransactions = useMemo(
+    () => resolveVisibleSelectedTransactions(visibleSelectedTransactionIds, displayedTransactions),
+    [displayedTransactions, visibleSelectedTransactionIds]
+  );
+  const selectedTransactionsCount = visibleSelectedTransactionIds.length;
 
   const trendData = useMemo(
     () => buildIncomeExpenseTrendData(filteredTransactions, trendPeriod),
@@ -1566,8 +1568,9 @@ export default function Transactions({
   }
 
   async function handleBulkUpdate(patch, options = {}) {
-    if (!selectedTransactionIds.length) {
-      return;
+    if (!visibleSelectedTransactionIds.length) {
+      setMessage("Aucune transaction affichée n’est sélectionnée.");
+      return { success: false, error: "Aucune transaction affichée n’est sélectionnée." };
     }
 
     try {
@@ -1576,7 +1579,7 @@ export default function Transactions({
       setBulkOperationLoading(true);
 
       const result = await bulkUpdateTransactions({
-        transactionIds: selectedTransactionIds,
+        transactionIds: visibleSelectedTransactionIds,
         patch,
         transactions,
         catalogs: {
@@ -1600,7 +1603,7 @@ export default function Transactions({
         }
         exitSelectionMode();
         setBulkEditDialogOpen(false);
-        return;
+        return { success: true, result };
       }
 
       if (result.updatedCount > 0 && result.failedCount > 0) {
@@ -1611,29 +1614,31 @@ export default function Transactions({
         }
         setSelectedTransactionIds(result.failedIds);
         setSelectionMode(result.failedIds.length > 0);
-        return;
+        return { success: false, error: "Certaines transactions n’ont pas pu être modifiées.", result };
       }
 
       setMessage(isClassificationMode ? "Aucune transaction n'a pu etre classee ❌" : "Aucune transaction n'a pu etre mise a jour ❌");
       setSelectedTransactionIds(result.failedIds);
       setSelectionMode(result.failedIds.length > 0);
+      return { success: false, error: "Aucune transaction n’a pu être modifiée.", result };
     } catch (bulkError) {
       console.error(bulkError);
       setMessage("Erreur lors de la mise a jour de masse ❌");
+      return { success: false, error: bulkError?.message || "Erreur lors de la mise à jour de masse." };
     } finally {
       setBulkOperationLoading(false);
-      setBulkEditDialogOpen(false);
     }
   }
 
   async function handleBulkDeleteConfirm() {
-    if (!selectedTransactionIds.length) {
+    if (!visibleSelectedTransactionIds.length) {
+      setMessage("Aucune transaction affichée n’est sélectionnée.");
       return;
     }
 
     try {
       setBulkOperationLoading(true);
-      const result = await bulkDeleteTransactions({ transactionIds: selectedTransactionIds });
+      const result = await bulkDeleteTransactions({ transactionIds: visibleSelectedTransactionIds });
 
       if (result.updatedCount > 0 && result.failedCount === 0) {
         setMessage(`${result.updatedCount} transaction(s) supprimée(s) ✅`);
@@ -3289,6 +3294,7 @@ export default function Transactions({
           setBulkEditMode("advanced");
         }}
         onApply={handleBulkUpdate}
+        submitting={bulkOperationLoading}
       />
 
       <SimilarClassificationDialog

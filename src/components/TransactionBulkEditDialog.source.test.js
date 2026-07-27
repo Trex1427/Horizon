@@ -27,7 +27,7 @@ test("TransactionBulkEditDialog exposes dedicated classification mode", async ()
   assert.equal(content.includes('Nouvelle catégorie'), true);
   assert.equal(content.includes("Sélectionnez une catégorie pour afficher l'impact."), true);
   assert.equal(content.includes('transactions seront réellement modifiées'), true);
-  assert.equal(content.includes('transactions sont déjà dans cette catégorie'), true);
+  assert.equal(content.includes('des transactions sélectionnées ont déjà cette catégorie'), true);
   assert.equal(content.includes('classificationImpact.categoryDistribution.map'), true);
   assert.equal(content.includes('<Divider />'), true);
   assert.equal(content.includes('PaperProps'), true);
@@ -43,8 +43,12 @@ test("TransactionBulkEditDialog exposes dedicated classification mode", async ()
   assert.equal(content.includes('UNCATEGORIZED_VALUE'), true);
   assert.equal(content.includes('Confirmer le classement'), true);
   assert.equal(content.includes('Selectionne au moins un champ a modifier.'), true);
-  assert.equal(content.includes('draft.categoryId === UNCATEGORIZED_VALUE ? "" : draft.categoryId'), true);
-  assert.equal(content.includes('categoryName: selectedCategoryLabel'), true);
+  assert.equal(content.includes('targetsUncategorized ? "" : draft.categoryId'), true);
+  assert.equal(content.includes('categoryName: targetsUncategorized ? "" : canonicalCategoryName'), true);
+  assert.equal(content.includes('Aucune modification nécessaire'), true);
+  assert.equal(content.includes('targetsUncategorized ? { subcategoryId: null, subcategoryName: null }'), true);
+  assert.equal(content.includes('draft.categoryId === UNCATEGORIZED_VALUE || draft.clearIncompatibleSubcategories'), true);
+  assert.equal(content.includes('disabled={submitting}'), true);
   assert.equal(content.includes('!isClassificationMode && ('), false);
   assert.equal(content.includes('label="Sous-catégorie"'), true);
   assert.equal(content.includes('label="Activité"'), true);

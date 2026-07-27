@@ -15,6 +15,7 @@ test("TransactionFormFields renders quick-create actions inside all transaction 
   assert.equal(content.includes('value={CREATE_PROJECT_VALUE}'), true);
   assert.equal(content.includes('createOptionValue={CREATE_ACCOUNT_VALUE}'), true);
   assert.equal(content.includes('+ Créer une nouvelle catégorie'), true);
+  assert.equal(content.includes('<MenuItem value="">Sans catégorie</MenuItem>'), true);
   assert.equal(content.includes('+ Créer un nouveau tiers'), true);
   assert.equal(content.includes('+ Créer une nouvelle sous-catégorie'), true);
   assert.equal(content.includes('+ Créer une nouvelle activité'), true);
