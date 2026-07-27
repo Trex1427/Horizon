@@ -99,12 +99,33 @@ export function sortWorkProjects(projects = []) {
   });
 }
 
-export function calculateWorkProjectMetrics(projects = []) {
+
+export function sortWorkProjectTransactions(transactions = []) {
+  return [...transactions].sort((left, right) => String(right.date || "").localeCompare(String(left.date || "")));
+}
+
+export function calculateWorkProjectActuals(project, transactions = []) {
+  const actualExpenses = transactions
+    .filter((transaction) => transaction.workProjectId === project?.id && transaction.type === "depense" && transaction.isDeleted !== true)
+    .reduce((total, transaction) => total + Math.abs(Number(transaction.montant || 0)), 0);
+  const roundedExpenses = Math.round((actualExpenses + Number.EPSILON) * 100) / 100;
+  return {
+    actualExpenses: roundedExpenses,
+    actualMargin: Math.round((Number(project?.plannedRevenue || 0) - roundedExpenses + Number.EPSILON) * 100) / 100,
+  };
+}
+export function calculateWorkProjectMetrics(projects = [], transactions = []) {
   const current = projects.filter((project) => !project.deletedAt);
+  const actuals = current.filter((project) => project.status !== "cancelled").reduce((summary, project) => {
+    const values = calculateWorkProjectActuals(project, transactions);
+    return { actualExpenses: summary.actualExpenses + values.actualExpenses, actualMargin: summary.actualMargin + values.actualMargin };
+  }, { actualExpenses: 0, actualMargin: 0 });
   return {
     active: current.filter((project) => !["completed", "cancelled"].includes(project.status)).length,
     inProgress: current.filter((project) => project.status === "in_progress").length,
     completed: current.filter((project) => project.status === "completed").length,
+    actualExpenses: actuals.actualExpenses,
+    actualMargin: actuals.actualMargin,
     plannedRevenue: current
       .filter((project) => project.status !== "cancelled")
       .reduce((total, project) => total + Number(project.plannedRevenue || 0), 0),

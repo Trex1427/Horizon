@@ -7,11 +7,12 @@ const BULK_TRANSACTION_PATCH_FIELDS = new Set([
   "activityId",
   "thirdPartyId",
   "projectId",
+  "workProjectId",
   "accountId",
   "type",
 ]);
 
-const OPTIONAL_REFERENCE_FIELDS = new Set(["subcategoryId", "subcategoryName", "activityId", "thirdPartyId", "projectId"]);
+const OPTIONAL_REFERENCE_FIELDS = new Set(["subcategoryId", "subcategoryName", "activityId", "thirdPartyId", "projectId", "workProjectId"]);
 
 function normalizeId(value) {
   return String(value || "").trim();
@@ -204,7 +205,12 @@ export function resolveBulkTransactionPatchForTransaction(transaction = {}, patc
     }
   }
 
-  const resolvedPatch = { ...patch };
+
+  if (patch.workProjectId) {
+    const workProject = getReferenceById(catalogs?.workProjectMap, patch.workProjectId);
+    if (!workProject) return { ok: false, error: "Dossier inexistant" };
+    if (["completed", "cancelled"].includes(workProject.status)) return { ok: false, error: "Dossier inactif" };
+  }  const resolvedPatch = { ...patch };
   if (!patch.subcategoryId && hasCategoryPatch && currentSubcategory && clearIncompatibleSubcategories) {
     const currentCompatibleCategoryId = normalizeId(currentSubcategory.categoryId);
     const nextCategoryId = normalizeId(patch.categoryId);
@@ -240,6 +246,10 @@ export function summarizeBulkTransactionPatch(patch = {}, selectionCount = 0) {
 
   if (Object.prototype.hasOwnProperty.call(patch, "projectId")) {
     lines.push(`Projet : ${patch.projectId ? (patch.projectName || patch.projectId) : "Effacer"}`);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, "workProjectId")) {
+    lines.push(`Dossier : ${patch.workProjectId ? patch.workProjectId : "Effacer"}`);
   }
 
   if (Object.prototype.hasOwnProperty.call(patch, "accountId")) {

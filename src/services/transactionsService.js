@@ -23,6 +23,7 @@ function normalizeTransactionPayload(payload = {}) {
     thirdPartyName: safePayload.thirdPartyName || null,
     projectId: safePayload.projectId || null,
     projectName: safePayload.projectName || null,
+    workProjectId: safePayload.workProjectId || null,
     destinationAccountId: null,
   };
 }

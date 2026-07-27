@@ -1,4 +1,4 @@
-﻿import { Box, Divider, FormControlLabel, MenuItem, Switch, TextField } from "@mui/material";
+import { Box, Divider, FormControlLabel, MenuItem, Switch, TextField } from "@mui/material";
 import AccountSelector from "./AccountSelector";
 import { getSafeCategoryLabel } from "../utils/displayTextUtils";
 import {
@@ -20,8 +20,8 @@ export default function TransactionFormFields({
   subcategoryOptions = [],
   activities = [],
   thirdParties = [],
-  projects = [],
   prioritizedProjectOptions = [],
+  workProjects = [],
   subcategoryHelperText = "Facultatif",
   fixedExpenses = [],
 }) {
@@ -226,7 +226,22 @@ export default function TransactionFormFields({
         </MenuItem>
       </TextField>
 
-      <AccountSelector
+
+      <TextField
+        label="Dossier"
+        name="workProjectId"
+        select
+        value={form.workProjectId || ""}
+        onChange={onChange}
+        fullWidth
+        size="small"
+        helperText="Dossier Travail associé"
+      >
+        <MenuItem value="">Aucun</MenuItem>
+        {workProjects.map((workProject) => (
+          <MenuItem key={workProject.id} value={workProject.id}>{workProject.name}</MenuItem>
+        ))}
+      </TextField>      <AccountSelector
         value={form.accountId}
         onChange={onChange}
         accounts={accounts}

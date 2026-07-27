@@ -245,7 +245,7 @@ function AppContent() {
     setTransactionsNavigationContext(context ? {
       ...context,
       requestId: Date.now(),
-      source: "analysis",
+      source: context?.source || "analysis",
     } : null);
     navigateToPage(PAGES.TRANSACTIONS);
   }
@@ -416,7 +416,7 @@ function AppContent() {
 
         {page === PAGES.REVENUS_RECURRENTS && <RevenusRecurrents />}
 
-        {page === PAGES.TRAVAIL && <Travail />}
+        {page === PAGES.TRAVAIL && <Travail onOpenTransaction={(transactionId) => openTransactionsWithContext({ source: "analysis", transactionIds: [transactionId] })} />}
 
         {page === PAGES.OPPORTUNITES && <Opportunites />}
 

@@ -272,15 +272,29 @@ service cloud.firestore {
       allow delete: if deletesOwnDocument();
     }
 
+
+    function hasValidWorkProjectLink(data) {
+      return !data.keys().hasAny(["workProjectId"])
+        || data.workProjectId == null
+        || (
+          data.workProjectId is string
+          && data.workProjectId.size() > 0
+          && exists(/databases/$(database)/documents/workProjects/$(data.workProjectId))
+          && get(/databases/$(database)/documents/workProjects/$(data.workProjectId)).data.ownerUid == request.auth.uid
+        );
+    }
+
     match /transactions/{documentId} {
       allow get, list: if readsOwnDocument();
       allow create: if createsOwnDocument()
+        && hasValidWorkProjectLink(request.resource.data)
         && (
           (!isLinkedTransaction(request.resource.data) && !isInitialDebtReceivableTransaction(request.resource.data))
           || hasReciprocalLinkedPayment(documentId)
           || hasReciprocalInitialDebtReceivableTransaction(documentId)
         );
       allow update: if updatesOwnDocument()
+        && hasValidWorkProjectLink(request.resource.data)
         && (
           (!isLinkedTransaction(resource.data) && !isLinkedTransaction(request.resource.data)
             && !isInitialDebtReceivableTransaction(resource.data) && !isInitialDebtReceivableTransaction(request.resource.data))

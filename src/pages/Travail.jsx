@@ -12,6 +12,8 @@ import FolderOpen from "@mui/icons-material/FolderOpen";
 import UploadFile from "@mui/icons-material/UploadFile";
 import { useProfessionalActivities } from "../hooks/useProfessionalActivities.js";
 import { useWorkProjects } from "../hooks/useWorkProjects.js";
+import { useWorkProjectTransactions } from "../hooks/useWorkProjectTransactions.js";
+import { useAccounts } from "../hooks/useAccounts.js";
 import { useWorkQuotes } from "../hooks/useWorkQuotes.js";
 import { useThirdParties } from "../hooks/useThirdParties.js";
 import { parseTiiimeQuotePdf } from "../services/tiiimeQuoteParserService.js";
@@ -147,11 +149,13 @@ function ActivitiesSection({ activitiesApi }) {
   </>;
 }
 
-export default function Travail() {
+export default function Travail({ onOpenTransaction }) {
   const [section, setSection] = useState("dashboard");
   const activitiesApi = useProfessionalActivities();
   const quotesApi = useWorkQuotes();
   const projectsApi = useWorkProjects();
+  const linkedTransactionsApi = useWorkProjectTransactions();
+  const { accounts } = useAccounts();
   const { thirdParties, addThirdParty } = useThirdParties({ includeInactive: true });
   const [dialog, setDialog] = useState(null);
   const [pdfFile, setPdfFile] = useState(null);
@@ -165,6 +169,7 @@ export default function Travail() {
   const activityMap = useMemo(() => new Map(activitiesApi.professionalActivities.map((entry) => [entry.id, entry])), [activitiesApi.professionalActivities]);
   const thirdPartyMap = useMemo(() => new Map(thirdParties.map((entry) => [entry.id, entry])), [thirdParties]);
   const documentMap = useMemo(() => new Map(quotesApi.documents.map((entry) => [entry.id, entry])), [quotesApi.documents]);
+  const accountMap = useMemo(() => new Map(accounts.map((entry) => [entry.id, entry])), [accounts]);
   const quoteMap = useMemo(() => new Map(quotesApi.quotes.map((entry) => [entry.id, entry])), [quotesApi.quotes]);
   const projectByQuoteId = useMemo(() => new Map(projectsApi.projects.map((entry) => [entry.quoteId, entry])), [projectsApi.projects]);
   const filteredQuotes = quotesApi.quotes.filter((quote) => {
@@ -227,9 +232,9 @@ export default function Travail() {
       {SECTIONS.map(([value, label]) => <Tab key={value} value={value} label={label} />)}
     </Tabs>
     {notice && <Alert severity="info" onClose={() => setNotice("")} sx={{ mb: 2 }}>{notice}</Alert>}
-    {section === "dashboard" && <WorkDashboard projects={projectsApi.projects} loading={projectsApi.loading} error={projectsApi.error} />}
+    {section === "dashboard" && <WorkDashboard projects={projectsApi.projects} transactions={linkedTransactionsApi.transactions} loading={projectsApi.loading || linkedTransactionsApi.loading} error={projectsApi.error || linkedTransactionsApi.error} />}
     {section === "sites" && <WorkProjectsSection projects={projectsApi.projects} loading={projectsApi.loading} error={projectsApi.error}
-      activityMap={activityMap} thirdPartyMap={thirdPartyMap} quoteMap={quoteMap} selectedProjectId={selectedProjectId} onOpen={openProject} onBack={() => setSelectedProjectId("")} onSave={projectsApi.editProject} />}
+      activityMap={activityMap} thirdPartyMap={thirdPartyMap} quoteMap={quoteMap} accountMap={accountMap} transactions={linkedTransactionsApi.transactions} transactionsLoading={linkedTransactionsApi.loading} transactionsError={linkedTransactionsApi.error} selectedProjectId={selectedProjectId} onOpen={openProject} onBack={() => setSelectedProjectId("")} onSave={projectsApi.editProject} onOpenTransaction={onOpenTransaction} />}
     {section === "invoices" && <WaitingPanel>La gestion des factures sera disponible dans un prochain sprint.</WaitingPanel>}
     {section === "settings" && <WaitingPanel>Les paramètres du module Travail seront ajoutés progressivement.</WaitingPanel>}
     {section === "activities" && <ActivitiesSection activitiesApi={activitiesApi} />}

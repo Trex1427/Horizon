@@ -23,6 +23,7 @@ export default function TransactionEditorDialog({
   thirdParties = [],
   projects = [],
   prioritizedProjectOptions = [],
+  workProjects = [],
   fixedExpenses = [],
   helperText,
   scrollRestorePosition = null,
@@ -77,6 +78,7 @@ export default function TransactionEditorDialog({
           thirdParties={thirdParties}
           projects={projects}
           prioritizedProjectOptions={prioritizedProjectOptions}
+          workProjects={workProjects}
           fixedExpenses={fixedExpenses}
           subcategoryHelperText={helperText}
         />

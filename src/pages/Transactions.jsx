@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -32,6 +32,7 @@ import { useSubcategories } from "../hooks/useSubcategories";
 import { useActivities } from "../hooks/useActivities";
 import { useThirdParties } from "../hooks/useThirdParties";
 import { useProjects } from "../hooks/useProjects";
+import { useWorkProjects } from "../hooks/useWorkProjects.js";
 import { useFixedExpenses } from "../hooks/useFixedExpenses";
 import { getCategoryOptions } from "../constants/transactionCategories";
 import AccountSelector from "../components/AccountSelector";
@@ -158,6 +159,7 @@ function getInitialForm() {
     thirdPartyName: "",
     projectId: "",
     projectName: "",
+    workProjectId: "",
     destinationAccountId: "",
     isFixedExpense: false,
     fixedExpenseId: "",
@@ -335,6 +337,7 @@ export default function Transactions({
   const { activities = [], addActivity } = useActivities({ includeInactive: true });
   const { thirdParties = [], addThirdParty } = useThirdParties({ includeInactive: true });
   const { projects = [], addProject } = useProjects({ includeInactive: true });
+  const { projects: workProjects = [] } = useWorkProjects();
   const { fixedExpenses = [], addFixedExpense } = useFixedExpenses();
   const voiceParserCategories = useMemo(
     () => categories
@@ -454,6 +457,7 @@ export default function Transactions({
     () => thirdParties.filter((thirdParty) => thirdParty.isActive !== false),
     [thirdParties]
   );
+  const activeWorkProjects = useMemo(() => workProjects.filter((project) => !["completed", "cancelled"].includes(project.status)), [workProjects]);
   const activeProjects = useMemo(
     () => projects.filter((project) => project.isActive !== false),
     [projects]
@@ -1502,6 +1506,7 @@ export default function Transactions({
       thirdPartyName: transaction.thirdPartyName || thirdPartyMap.get(transaction.thirdPartyId || "")?.name || "",
       projectId: transaction.projectId || "",
       projectName: transaction.projectName || projectMap.get(transaction.projectId || "")?.name || "",
+      workProjectId: transaction.workProjectId || "",
       destinationAccountId: transaction.destinationAccountId || "",
       isFixedExpense: Boolean(matchingFixedExpense),
       fixedExpenseId: matchingFixedExpense?.id || "",
@@ -1588,6 +1593,7 @@ export default function Transactions({
           activityMap,
           thirdPartyMap,
           projectMap,
+          workProjectMap: new Map(workProjects.map((project) => [project.id, project])),
           accountMap: new Map(accounts.map((account) => [account.id, account])),
         },
         clearIncompatibleSubcategories: Boolean(options.clearIncompatibleSubcategories),
@@ -1831,6 +1837,7 @@ export default function Transactions({
           activityMap,
           thirdPartyMap,
           projectMap,
+          workProjectMap: new Map(workProjects.map((project) => [project.id, project])),
           accountMap: new Map(accounts.map((account) => [account.id, account])),
         },
       });
@@ -3249,6 +3256,7 @@ export default function Transactions({
         thirdParties={formThirdPartyOptions}
         projects={prioritizedProjectOptions}
         prioritizedProjectOptions={prioritizedProjectOptions}
+        workProjects={activeWorkProjects}
         fixedExpenses={fixedExpenses}
         helperText={form.categoryId ? "Facultatif" : "Choisir une categorie d'abord"}
         scrollRestorePosition={transactionEditorScrollRestorePosition}
@@ -3282,6 +3290,7 @@ export default function Transactions({
         activities={activeActivities}
         thirdParties={activeThirdParties}
         projects={activeProjects}
+        workProjects={activeWorkProjects}
         accounts={accounts}
         onRequestCreateCategory={openQuickCategoryFromBulk}
         onRequestCreateSubcategory={openQuickSubcategoryFromBulk}
