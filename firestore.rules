@@ -456,6 +456,27 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /professionalActivities/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if false;
+    }
+
+    match /workQuotes/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if false;
+    }
+
+    match /documents/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument();
+      allow update: if updatesOwnDocument();
+      allow delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
