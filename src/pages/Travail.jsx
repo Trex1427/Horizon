@@ -8,13 +8,16 @@ import Add from "@mui/icons-material/Add";
 import Archive from "@mui/icons-material/Archive";
 import Description from "@mui/icons-material/Description";
 import Edit from "@mui/icons-material/Edit";
+import FolderOpen from "@mui/icons-material/FolderOpen";
 import UploadFile from "@mui/icons-material/UploadFile";
 import { useProfessionalActivities } from "../hooks/useProfessionalActivities.js";
+import { useWorkProjects } from "../hooks/useWorkProjects.js";
 import { useWorkQuotes } from "../hooks/useWorkQuotes.js";
 import { useThirdParties } from "../hooks/useThirdParties.js";
 import { parseTiiimeQuotePdf } from "../services/tiiimeQuoteParserService.js";
 import { matchThirdParties } from "../features/work/workModels.js";
 import { openWorkQuoteDocument } from "../services/workQuotesService.js";
+import { WorkDashboard, WorkProjectsSection } from "../features/work/WorkProjectsViews.jsx";
 
 const SECTIONS = [
   ["dashboard", "Tableau de bord"], ["quotes", "Devis"], ["sites", "Dossiers"],
@@ -148,17 +151,21 @@ export default function Travail() {
   const [section, setSection] = useState("dashboard");
   const activitiesApi = useProfessionalActivities();
   const quotesApi = useWorkQuotes();
+  const projectsApi = useWorkProjects();
   const { thirdParties, addThirdParty } = useThirdParties({ includeInactive: true });
   const [dialog, setDialog] = useState(null);
   const [pdfFile, setPdfFile] = useState(null);
   const [extraction, setExtraction] = useState(null);
   const [importing, setImporting] = useState(false);
   const [notice, setNotice] = useState("");
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [creatingProjectId, setCreatingProjectId] = useState("");
   const [filters, setFilters] = useState({ status: "all", activity: "all", thirdParty: "all", search: "" });
   const importRef = useRef(null);
   const activityMap = useMemo(() => new Map(activitiesApi.professionalActivities.map((entry) => [entry.id, entry])), [activitiesApi.professionalActivities]);
   const thirdPartyMap = useMemo(() => new Map(thirdParties.map((entry) => [entry.id, entry])), [thirdParties]);
   const documentMap = useMemo(() => new Map(quotesApi.documents.map((entry) => [entry.id, entry])), [quotesApi.documents]);
+  const projectByQuoteId = useMemo(() => new Map(projectsApi.projects.map((entry) => [entry.quoteId, entry])), [projectsApi.projects]);
   const filteredQuotes = quotesApi.quotes.filter((quote) => {
     const text = `${quote.quoteNumber || ""} ${thirdPartyMap.get(quote.thirdPartyId)?.name || ""}`.toLowerCase();
     return (filters.status === "all" || quote.status === filters.status)
@@ -182,7 +189,6 @@ export default function Travail() {
   const saveQuote = async (form) => {
     const result = form.id ? await quotesApi.editQuote(form.id, form) : await quotesApi.addQuote(form, pdfFile);
     if (result.success) {
-      if (form.status === "accepted") setNotice("La création du dossier sera disponible dans le prochain sprint.");
       setDialog(null); setPdfFile(null); setExtraction(null);
     }
     return result;
@@ -191,14 +197,38 @@ export default function Travail() {
     try { window.open(await openWorkQuoteDocument(documentMap.get(quote.documentId)), "_blank", "noopener,noreferrer"); }
     catch (error) { setNotice(error?.message || "PDF inaccessible."); }
   };
+  const openProject = (projectId) => {
+    setSelectedProjectId(projectId);
+    setSection("sites");
+  };
+  const createProject = async (quote) => {
+    if (creatingProjectId) return;
+    const existing = projectByQuoteId.get(quote.id);
+    if (existing || quote.projectId) {
+      openProject(existing?.id || quote.projectId);
+      return;
+    }
+    setCreatingProjectId(quote.id);
+    const result = await projectsApi.createFromQuote(quote, {
+      thirdPartyName: thirdPartyMap.get(quote.thirdPartyId)?.name || "",
+    });
+    setCreatingProjectId("");
+    if (result.success) {
+      setNotice(result.value.created ? "Dossier créé." : "Ce devis possède déjà un dossier.");
+      openProject(result.value.id);
+    } else {
+      setNotice(result.error);
+    }
+  };
   return <Box sx={{ maxWidth: 1100, mx: "auto", px: { xs: 1, sm: 2 }, py: 2 }}>
     <Typography variant="h4" sx={{ mb: 1 }}>Travail</Typography>
     <Tabs value={section} onChange={(_, value) => setSection(value)} variant="scrollable" scrollButtons="auto" aria-label="Sections du module Travail" sx={{ mb: 2 }}>
       {SECTIONS.map(([value, label]) => <Tab key={value} value={value} label={label} />)}
     </Tabs>
     {notice && <Alert severity="info" onClose={() => setNotice("")} sx={{ mb: 2 }}>{notice}</Alert>}
-    {section === "dashboard" && <WaitingPanel>Les indicateurs professionnels seront ajoutés progressivement.</WaitingPanel>}
-    {section === "sites" && <WaitingPanel>La gestion des dossiers sera disponible dans un prochain sprint.</WaitingPanel>}
+    {section === "dashboard" && <WorkDashboard projects={projectsApi.projects} loading={projectsApi.loading} error={projectsApi.error} />}
+    {section === "sites" && <WorkProjectsSection projects={projectsApi.projects} loading={projectsApi.loading} error={projectsApi.error}
+      activityMap={activityMap} thirdPartyMap={thirdPartyMap} selectedProjectId={selectedProjectId} />}
     {section === "invoices" && <WaitingPanel>La gestion des factures sera disponible dans un prochain sprint.</WaitingPanel>}
     {section === "settings" && <WaitingPanel>Les paramètres du module Travail seront ajoutés progressivement.</WaitingPanel>}
     {section === "activities" && <ActivitiesSection activitiesApi={activitiesApi} />}
@@ -232,6 +262,10 @@ export default function Travail() {
         </Stack></CardContent>
         <CardActions><IconButton aria-label="Modifier le devis" onClick={() => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); }}><Edit /></IconButton>
           {quote.documentId && <Button onClick={() => openPdf(quote)} startIcon={<Description />}>PDF</Button>}
+          {quote.status === "accepted" && <Button onClick={() => createProject(quote)} startIcon={<FolderOpen />}
+            disabled={creatingProjectId === quote.id}>
+            {creatingProjectId === quote.id ? "Création…" : (projectByQuoteId.has(quote.id) || quote.projectId) ? "Ouvrir le dossier" : "Créer le dossier"}
+          </Button>}
           <Button color="error" onClick={() => quotesApi.archiveQuote(quote.id, quote.documentId)} startIcon={<Archive />}>Archiver</Button></CardActions>
       </Card>)}
       {!quotesApi.loading && !filteredQuotes.length && <WaitingPanel>Aucun devis ne correspond aux filtres.</WaitingPanel>}</Stack>

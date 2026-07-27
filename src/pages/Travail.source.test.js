@@ -13,11 +13,11 @@ test("Travail exposes all V1 sections and mobile card quote list", async () => {
   assert.equal(source.includes("<table"), false);
 });
 
-test("shared quote form supports manual/imported drafts, filters, PDF and accepted notice", async () => {
+test("shared quote form supports manual/imported drafts, filters, PDF and dossier creation", async () => {
   const source = await readFile(resolve(root, "src/pages/Travail.jsx"), "utf8");
   for (const label of ["Activité professionnelle", "Tiers", "Numéro du devis", "Date", "Montant", "Statut"]) assert.equal(source.includes(label), true, label);
   assert.equal(source.includes("matchThirdParties"), true);
-  assert.equal(source.includes("La création du dossier sera disponible dans le prochain sprint."), true);
+  assert.equal(source.includes("Créer le dossier"), true);
   assert.equal(source.includes("archiveQuote"), true);
   assert.equal(source.includes("openWorkQuoteDocument"), true);
 });
