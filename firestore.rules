@@ -456,6 +456,54 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function hasValidWorkProjectSchema(data) {
+      return data.keys().hasOnly([
+          "ownerUid", "quoteId", "professionalActivityId", "thirdPartyId", "name",
+          "status", "plannedRevenue", "plannedExpenses", "plannedMargin",
+          "startDate", "endDate", "createdAt", "updatedAt", "deletedAt"
+        ])
+        && data.ownerUid == request.auth.uid
+        && data.quoteId is string
+        && data.professionalActivityId is string
+        && data.thirdPartyId is string
+        && data.name is string
+        && data.status in ["planned", "in_progress", "on_hold", "completed", "cancelled"]
+        && data.plannedRevenue is number
+        && data.plannedExpenses is number
+        && data.plannedMargin is number;
+    }
+
+    function hasValidWorkProjectReferences(documentId, data) {
+      return data.quoteId == documentId
+        && existsAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId))
+        && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.status == "accepted"
+        && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.projectId == documentId
+        && exists(/databases/$(database)/documents/professionalActivities/$(data.professionalActivityId))
+        && get(/databases/$(database)/documents/professionalActivities/$(data.professionalActivityId)).data.ownerUid == request.auth.uid
+        && exists(/databases/$(database)/documents/thirdParties/$(data.thirdPartyId))
+        && get(/databases/$(database)/documents/thirdParties/$(data.thirdPartyId)).data.ownerUid == request.auth.uid;
+    }
+
+    match /workProjects/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument()
+        && hasValidWorkProjectSchema(request.resource.data)
+        && hasValidWorkProjectReferences(documentId, request.resource.data)
+        && request.resource.data.status == "planned"
+        && request.resource.data.plannedExpenses == 0
+        && request.resource.data.plannedMargin == request.resource.data.plannedRevenue
+        && request.resource.data.startDate == null
+        && request.resource.data.endDate == null
+        && request.resource.data.deletedAt == null;
+      allow update: if updatesOwnDocument()
+        && hasValidWorkProjectSchema(request.resource.data)
+        && hasValidWorkProjectReferences(documentId, request.resource.data)
+        && request.resource.data.quoteId == resource.data.quoteId
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if false;
+    }
+
     match /professionalActivities/{documentId} {
       allow get, list: if readsOwnDocument();
       allow create: if createsOwnDocument();

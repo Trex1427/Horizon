@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 
 test("Firestore rules isolate all Work collections by ownerUid", async () => {
   const rules = await readFile(resolve(process.cwd(), "firestore.rules"), "utf8");
-  for (const collection of ["professionalActivities", "workQuotes", "documents"]) {
+  for (const collection of ["professionalActivities", "workQuotes", "workProjects", "documents"]) {
     assert.equal(rules.includes(`match /${collection}/{documentId}`), true, collection);
   }
   assert.equal(rules.includes("allow get, list: if readsOwnDocument();"), true);
