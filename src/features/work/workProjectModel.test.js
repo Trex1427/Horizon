@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import {
   buildWorkProjectPayload,
   calculatePlannedMargin,
+  calculateWorkProjectActuals,
   calculateWorkProjectMetrics,
   normalizeWorkProjectUpdate,
+  sortWorkProjectTransactions,
   sortWorkProjects,
   WORK_PROJECT_STATUS_LABELS,
 } from "./workProjectModel.js";
@@ -66,7 +68,7 @@ test("dashboard metrics exclude cancelled revenue and completed dossiers from ac
     { status: "completed", plannedRevenue: 400 },
     { status: "cancelled", plannedRevenue: 500 },
     { status: "planned", plannedRevenue: 999, deletedAt: new Date() },
-  ]), { active: 3, inProgress: 1, completed: 1, plannedRevenue: 1000 });
+  ]), { active: 3, inProgress: 1, completed: 1, actualExpenses: 0, actualMargin: 1000, plannedRevenue: 1000 });
 });
 
 test("dossier updates normalize fields and calculate the margin", () => {
@@ -77,4 +79,15 @@ test("dossier updates reject negative expenses and reversed dates", () => {
   const valid = { name: "Dossier", status: "planned", plannedExpenses: 0 };
   assert.throws(() => normalizeWorkProjectUpdate({ plannedRevenue: 100 }, { ...valid, plannedExpenses: -1 }), /négatives/);
   assert.throws(() => normalizeWorkProjectUpdate({ plannedRevenue: 100 }, { ...valid, startDate: "2026-08-02", endDate: "2026-08-01" }), /antérieure/);
+});
+test("actual dossier expenses and margin are derived from linked expense transactions", () => {
+  const project = { id: "work-1", plannedRevenue: 1000 };
+  const transactions = [
+    { id: "a", workProjectId: "work-1", type: "depense", montant: 120.5, date: "2026-07-25" },
+    { id: "b", workProjectId: "work-1", type: "revenu", montant: 999, date: "2026-07-27" },
+    { id: "c", workProjectId: "work-2", type: "depense", montant: 50, date: "2026-07-26" },
+    { id: "d", workProjectId: "work-1", type: "depense", montant: 10, date: "2026-07-24", isDeleted: true },
+  ];
+  assert.deepEqual(calculateWorkProjectActuals(project, transactions), { actualExpenses: 120.5, actualMargin: 879.5 });
+  assert.deepEqual(sortWorkProjectTransactions(transactions).map(({ id }) => id), ["b", "c", "a", "d"]);
 });

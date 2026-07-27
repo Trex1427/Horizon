@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Divider,
@@ -88,6 +88,7 @@ export default function TransactionBulkEditDialog({
   activities = [],
   thirdParties = [],
   projects = [],
+  workProjects = [],
   accounts = [],
   onRequestCreateCategory,
   onRequestCreateSubcategory,
@@ -105,6 +106,7 @@ export default function TransactionBulkEditDialog({
     activityId: "",
     thirdPartyId: "",
     projectId: "",
+    workProjectId: "",
     accountId: "",
     type: "",
     clearIncompatibleSubcategories: false,
@@ -127,6 +129,7 @@ export default function TransactionBulkEditDialog({
       activityId: "",
       thirdPartyId: "",
       projectId: "",
+      workProjectId: "",
       accountId: "",
       type: "",
       clearIncompatibleSubcategories: false,
@@ -229,6 +232,8 @@ export default function TransactionBulkEditDialog({
         : draft.projectId
           ? { projectId: draft.projectId, projectName: projects.find((project) => project.id === draft.projectId)?.name || draft.projectId }
           : {}),
+      ...(draft.workProjectId === CLEAR_VALUE ? { workProjectId: null } : draft.workProjectId ? { workProjectId: draft.workProjectId } : {}),
+      ...(draft.workProjectId === CLEAR_VALUE ? { workProjectId: null } : draft.workProjectId ? { workProjectId: draft.workProjectId } : {}),
       ...(draft.accountId ? { accountId: draft.accountId, accountName: accounts.find((account) => account.id === draft.accountId)?.name || draft.accountId } : {}),
       ...(draft.type ? { type: draft.type } : {}),
     };
@@ -335,6 +340,8 @@ export default function TransactionBulkEditDialog({
         : draft.projectId
           ? { projectId: draft.projectId }
           : {}),
+      ...(draft.workProjectId === CLEAR_VALUE ? { workProjectId: null } : draft.workProjectId ? { workProjectId: draft.workProjectId } : {}),
+      ...(draft.workProjectId === CLEAR_VALUE ? { workProjectId: null } : draft.workProjectId ? { workProjectId: draft.workProjectId } : {}),
       ...(draft.accountId ? { accountId: draft.accountId } : {}),
       ...(draft.type ? { type: draft.type } : {}),
     });
@@ -349,6 +356,7 @@ export default function TransactionBulkEditDialog({
         activityMap: new Map(activities.map((activity) => [activity.id, activity])),
         thirdPartyMap: new Map(thirdParties.map((thirdParty) => [thirdParty.id, thirdParty])),
         projectMap: new Map(projects.map((project) => [project.id, project])),
+        workProjectMap: new Map(workProjects.map((project) => [project.id, project])),
         accountMap: new Map(accounts.map((account) => [account.id, account])),
       }, {
         clearIncompatibleSubcategories: clearsCategory || draft.clearIncompatibleSubcategories,
@@ -537,7 +545,12 @@ export default function TransactionBulkEditDialog({
               </MenuItem>
             </TextField>
 
-            <TextField label="Compte" name="accountId" select value={toSelectValue(draft.accountId)} onChange={handleChange} fullWidth size="small">
+
+            <TextField label="Dossier" name="workProjectId" select value={toSelectValue(draft.workProjectId)} onChange={handleChange} fullWidth size="small">
+              <MenuItem value="">Conserver</MenuItem>
+              <MenuItem value={CLEAR_VALUE}>Effacer</MenuItem>
+              {workProjects.map((project) => <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>)}
+            </TextField>            <TextField label="Compte" name="accountId" select value={toSelectValue(draft.accountId)} onChange={handleChange} fullWidth size="small">
               <MenuItem value="">Conserver</MenuItem>
               {accounts.map((account) => (
                 <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>

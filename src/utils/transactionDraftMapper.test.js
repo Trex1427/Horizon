@@ -45,6 +45,7 @@ test("buildTransactionPayload includes V4 optional reference fields as nullable"
   assert.equal(payload.projectId, null);
   assert.equal(payload.projectName, null);
   assert.equal(payload.destinationAccountId, null);
+  assert.equal(payload.workProjectId, null);
 });
 
 test("buildTransactionPayload keeps explicit reference ids and names", () => {
@@ -219,4 +220,10 @@ test("buildTransactionPayload preserves opportunity link metadata", () => {
   assert.equal(payload.opportunityId, "opp-1");
   assert.equal(payload.opportunityName, "Prime chantier");
   assert.equal(payload.opportunityNotes, "Solde facture");
+});
+
+test("buildTransactionPayload adds and removes a work dossier association", () => {
+  const base = { date: "2026-07-27", montant: "25", type: "depense", accountId: "acc-1" };
+  assert.equal(buildTransactionPayload({ ...base, workProjectId: "work-1" }).workProjectId, "work-1");
+  assert.equal(buildTransactionPayload({ ...base, workProjectId: "" }).workProjectId, null);
 });

@@ -77,5 +77,6 @@ export function normalizeTransactionRecord(transaction) {
     thirdPartyName: transaction.thirdPartyName ?? null,
     projectId: transaction.projectId ?? null,
     projectName: transaction.projectName ?? null,
+    workProjectId: transaction.workProjectId ?? null,
   };
 }
