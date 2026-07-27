@@ -80,13 +80,14 @@ function isMatchingFrequency(income, targetDate) {
 export function subscribeToRecurringIncome(onData, onError) {
   const ownerUid = requireCurrentUid(auth);
   return onSnapshot(
-    query(collection(db, RECURRING_INCOME_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
+    query(collection(db, RECURRING_INCOME_COLLECTION), where("ownerUid", "==", ownerUid)),
     (snapshot) => {
       const data = snapshot.docs
         .map((docSnapshot) => ({
           id: docSnapshot.id,
           ...docSnapshot.data(),
         }))
+        .filter((income) => income.isActive !== false)
         .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
 
       onData(data);

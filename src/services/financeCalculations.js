@@ -295,6 +295,11 @@ export function matchesExpectedTransaction(transaction, expectedItem, options = 
     return false;
   }
 
+  const explicitRecurringIncomeId = String(transaction?.recurringIncomeId || "").trim();
+  if (expectedType === "revenu" && explicitRecurringIncomeId) {
+    return Boolean(expectedItem?.id) && explicitRecurringIncomeId === String(expectedItem.id);
+  }
+
   const expectedAccountId = expectedItem?.accountId || "";
   if (expectedAccountId && transaction?.accountId !== expectedAccountId) {
     return false;
@@ -339,4 +344,36 @@ export function matchesExpectedTransaction(transaction, expectedItem, options = 
 
   const transactionAmount = toNumber(transaction?.montant ?? transaction?.amount);
   return Math.abs(transactionAmount - expectedAmountValue) <= amountTolerance;
+}
+
+export function findMatchedExpectedItemIds(expectedItems = [], transactions = [], getOptions = () => ({})) {
+  const matchedItemIds = new Set();
+  const usedTransactionIds = new Set();
+  const identifiedItems = expectedItems.filter((item) => item?.id);
+
+  identifiedItems.forEach((item) => {
+    const transaction = transactions.find((candidate) => {
+      if (!candidate?.id || usedTransactionIds.has(candidate.id)) return false;
+      if (String(candidate?.recurringIncomeId || "") !== String(item.id)) return false;
+      return matchesExpectedTransaction(candidate, item, getOptions(item));
+    });
+    if (transaction) {
+      matchedItemIds.add(String(item.id));
+      usedTransactionIds.add(transaction.id);
+    }
+  });
+
+  transactions.forEach((transaction) => {
+    if (!transaction?.id || usedTransactionIds.has(transaction.id) || transaction?.recurringIncomeId) return;
+    const candidates = identifiedItems.filter((item) => (
+      !matchedItemIds.has(String(item.id))
+      && matchesExpectedTransaction(transaction, item, getOptions(item))
+    ));
+    if (candidates.length === 1) {
+      matchedItemIds.add(String(candidates[0].id));
+      usedTransactionIds.add(transaction.id);
+    }
+  });
+
+  return matchedItemIds;
 }

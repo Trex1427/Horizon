@@ -375,17 +375,34 @@ function mapDueEntriesToTransactions(dueEntries = [], transactions = []) {
         && transactionDate >= entry.monthStart
         && transactionDate <= entry.monthEnd;
 
-      return isLinkedFixedExpenseOccurrence || matchesExpectedTransaction(transaction, {
-        accountId: entry.accountId,
-        categoryId: entry.categoryId,
-        categoryName: entry.categoryName,
-        subcategoryId: entry.subcategoryId,
+      const isLinkedRecurringIncomeOccurrence = entry.type === "revenu"
+        && Boolean(entry.sourceId)
+        && String(transaction?.recurringIncomeId || "") === String(entry.sourceId)
+        && isIncomeTransactionType(transaction?.type)
+        && transactionDate >= entry.monthStart
+        && transactionDate <= entry.monthEnd;
+
+      if (isLinkedFixedExpenseOccurrence || isLinkedRecurringIncomeOccurrence) {
+        return true;
+      }
+
+      if (transaction?.fixedExpenseId || transaction?.recurringIncomeId) {
+        return false;
+      }
+
+      const legacyCandidates = dueEntries.filter((candidate) => matchesExpectedTransaction(transaction, {
+        accountId: candidate.accountId,
+        categoryId: candidate.categoryId,
+        categoryName: candidate.categoryName,
+        subcategoryId: candidate.subcategoryId,
       }, {
-        expectedType: entry.type,
-        expectedAmount: entry.amount,
-        monthStart: entry.monthStart,
-        monthEnd: entry.monthEnd,
-      });
+        expectedType: candidate.type,
+        expectedAmount: candidate.amount,
+        monthStart: candidate.monthStart,
+        monthEnd: candidate.monthEnd,
+      }));
+
+      return legacyCandidates.length === 1 && legacyCandidates[0] === entry;
     });
 
     if (matchingTransaction?.id) {

@@ -13,6 +13,7 @@ import Referentiels from "./pages/Referentiels";
 import Parametres from "./pages/Parametres";
 import ImportHistory from "./pages/ImportHistory";
 import { TransactionsProvider, useTransactionsContext } from "./context/TransactionsContext";
+import { RecurringIncomeProvider } from "./context/RecurringIncomeContext";
 import { AuthGate } from "./auth/AuthGate";
 import { AuthProvider } from "./auth/AuthProvider";
 import { useAuth } from "./auth/useAuth";
@@ -608,7 +609,9 @@ export default function App() {
     <AuthProvider>
       <AuthGate>
         <TransactionsProvider>
-          <AppContent />
+          <RecurringIncomeProvider>
+            <AppContent />
+          </RecurringIncomeProvider>
         </TransactionsProvider>
       </AuthGate>
     </AuthProvider>

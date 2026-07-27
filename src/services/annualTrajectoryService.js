@@ -1,5 +1,6 @@
 import {
   buildBudgetFixedExpenseReservationMap,
+  findMatchedExpectedItemIds,
   isTransactionMatchingBudgetCategory,
   matchesExpectedTransaction,
   selectNonOverlappingBudgetsForForecast,
@@ -235,7 +236,7 @@ function listForecastOccurrences({
   referenceDate,
   type,
 }) {
-  return (items || []).reduce((occurrences, item) => {
+  const dueItems = (items || []).reduce((occurrences, item) => {
     if (!isAccountIncluded(item?.accountId, includedAccountIds, fallbackAccountId)) return occurrences;
     if (!shouldIncludeForecastOccurrence(item, monthStart, monthEnd, referenceDate)) return occurrences;
 
@@ -244,15 +245,26 @@ function listForecastOccurrences({
       : getFixedExpenseAmount(item, monthEnd);
     if (amount <= 0) return occurrences;
 
-    const alreadyRealized = findExpectedMatch(transactions, item, {
-      expectedType: type,
-      expectedAmount: amount,
-      monthStart,
-      monthEnd,
-    });
-    if (!alreadyRealized) occurrences.push({ ...item, amount, montant: amount });
+    occurrences.push({ ...item, amount, montant: amount });
     return occurrences;
   }, []);
+
+  if (type !== "revenu") {
+    return dueItems.filter((item) => !findExpectedMatch(transactions, item, {
+      expectedType: type,
+      expectedAmount: item.amount,
+      monthStart,
+      monthEnd,
+    }));
+  }
+
+  const matchedIds = findMatchedExpectedItemIds(dueItems, transactions, (item) => ({
+    expectedType: type,
+    expectedAmount: item.amount,
+    monthStart,
+    monthEnd,
+  }));
+  return dueItems.filter((item) => !matchedIds.has(String(item.id)));
 }
 
 function sumForecastOccurrences(options) {

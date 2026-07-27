@@ -169,7 +169,6 @@ export default function RevenusRecurrents() {
         onClose={handleClose}
         onSubmit={handleSubmit}
         initialIncome={editingIncome}
-        isLoading={false}
         accounts={accounts}
         categories={categories}
       />

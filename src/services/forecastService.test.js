@@ -48,6 +48,48 @@ test("inactive and intentionally zero recurring income do not change forecast", 
   assert.equal(forecast.expectedRecurringIncome, 0);
 });
 
+test("an explicitly linked real income replaces its forecast even when legacy fields differ", () => {
+  const forecast = calculateMonthlyForecast({
+    recurringIncome: [{ ...franceTravail, startDate: "2026-01-01" }],
+    transactions: [{
+      id: "real-income",
+      recurringIncomeId: franceTravail.id,
+      type: "revenu",
+      date: "2026-08-10",
+      montant: 1095,
+      categoryId: "different-category",
+    }],
+    referenceDate: new Date(2026, 7, 14),
+  });
+
+  assert.equal(forecast.expectedRecurringIncome, 0);
+});
+
+test("one legacy transaction cannot replace two ambiguous recurring incomes", () => {
+  const common = {
+    categoryId: "salary",
+    accountId: "main",
+    initialAmount: 1100,
+    startDate: "2026-01-01",
+    frequency: "mensuel",
+    isActive: true,
+  };
+  const forecast = calculateMonthlyForecast({
+    recurringIncome: [{ ...common, id: "salary-a" }, { ...common, id: "salary-b" }],
+    transactions: [{
+      id: "ambiguous-real-income",
+      type: "revenu",
+      date: "2026-08-10",
+      montant: 1100,
+      categoryId: "salary",
+      accountId: "main",
+    }],
+    referenceDate: new Date(2026, 7, 14),
+  });
+
+  assert.equal(forecast.expectedRecurringIncome, 2200);
+});
+
 test("linked fixed-expense occurrence substitutes forecast even when actual amount differs", () => {
   const fixedExpense = {
     id: "fixed-edf",
