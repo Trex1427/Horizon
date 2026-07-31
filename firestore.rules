@@ -284,17 +284,50 @@ service cloud.firestore {
         );
     }
 
+    function isWorkInvoicePaymentTransaction(documentId, data) {
+      return data.keys().hasAny(["workInvoiceId"]) && data.workInvoiceId is string
+        && documentId == "work-invoice-" + data.workInvoiceId && data.type == "revenu"
+        && existsAfter(/databases/$(database)/documents/workInvoices/$(data.workInvoiceId))
+        && getAfter(/databases/$(database)/documents/workInvoices/$(data.workInvoiceId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/workInvoices/$(data.workInvoiceId)).data.paymentTransactionId == documentId
+        && getAfter(/databases/$(database)/documents/workInvoices/$(data.workInvoiceId)).data.status in ["paid", "pending_payment"]
+        && data.montant == getAfter(/databases/$(database)/documents/workInvoices/$(data.workInvoiceId)).data.amountTTC
+        && data.thirdPartyId == getAfter(/databases/$(database)/documents/workInvoices/$(data.workInvoiceId)).data.thirdPartyId
+        && data.workProjectId == getAfter(/databases/$(database)/documents/workInvoices/$(data.workInvoiceId)).data.workProjectId;
+    }
+    function isWorkInvoicePaymentRemoval(documentId) {
+      return resource.data.keys().hasAny(["workInvoiceId"])
+        && resource.data.workInvoiceId is string
+        && documentId == "work-invoice-" + resource.data.workInvoiceId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["workInvoiceId", "isDeleted", "deletedAt", "deletedBy", "updatedAt"])
+        && !request.resource.data.keys().hasAny(["workInvoiceId"])
+        && request.resource.data.isDeleted == true
+        && request.resource.data.deletedAt is timestamp
+        && request.resource.data.deletedBy == request.auth.uid
+        && existsAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId))
+        && getAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId)).data.status == "pending_payment"
+        && !getAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId)).data.keys().hasAny(["paymentTransactionId"]);
+    }
     match /transactions/{documentId} {
       allow get, list: if readsOwnDocument();
       allow create: if createsOwnDocument()
         && hasValidWorkProjectLink(request.resource.data)
         && (
-          (!isLinkedTransaction(request.resource.data) && !isInitialDebtReceivableTransaction(request.resource.data))
+          (!isLinkedTransaction(request.resource.data) && !isInitialDebtReceivableTransaction(request.resource.data) && (!request.resource.data.keys().hasAny(["workInvoiceId"]) || isWorkInvoicePaymentTransaction(documentId, request.resource.data)))
           || hasReciprocalLinkedPayment(documentId)
           || hasReciprocalInitialDebtReceivableTransaction(documentId)
         );
       allow update: if updatesOwnDocument()
         && hasValidWorkProjectLink(request.resource.data)
+        && (
+          (!resource.data.keys().hasAny(["workInvoiceId"]) && !request.resource.data.keys().hasAny(["workInvoiceId"]))
+          || (request.resource.data.keys().hasAny(["workInvoiceId"]) && request.resource.data.workInvoiceId == resource.data.workInvoiceId && isWorkInvoicePaymentTransaction(documentId, request.resource.data))
+          || (resource.data.keys().hasAny(["isDeleted"]) && resource.data.isDeleted == true
+            && !resource.data.keys().hasAny(["workInvoiceId"]) && request.resource.data.isDeleted == false
+            && isWorkInvoicePaymentTransaction(documentId, request.resource.data))
+          || isWorkInvoicePaymentRemoval(documentId)
+        )
         && (
           (!isLinkedTransaction(resource.data) && !isLinkedTransaction(request.resource.data)
             && !isInitialDebtReceivableTransaction(resource.data) && !isInitialDebtReceivableTransaction(request.resource.data))
@@ -477,7 +510,7 @@ service cloud.firestore {
           "startDate", "endDate", "description", "notes", "createdAt", "updatedAt", "deletedAt"
         ])
         && data.ownerUid == request.auth.uid
-        && data.quoteId is string
+        && (data.quoteId == null || data.quoteId is string)
         && data.professionalActivityId is string
         && data.thirdPartyId is string
         && data.name is string
@@ -492,19 +525,25 @@ service cloud.firestore {
     }
 
     function hasValidWorkProjectReferences(documentId, data) {
-      return data.quoteId == documentId
-        && existsAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId))
-        && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.ownerUid == request.auth.uid
-        && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.status == "accepted"
-        && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.projectId == documentId
-        && exists(/databases/$(database)/documents/professionalActivities/$(data.professionalActivityId))
-        && get(/databases/$(database)/documents/professionalActivities/$(data.professionalActivityId)).data.ownerUid == request.auth.uid
+      return (data.quoteId == null || (
+          data.quoteId == documentId
+          && existsAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId))
+          && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.ownerUid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.status == "accepted"
+          && getAfter(/databases/$(database)/documents/workQuotes/$(data.quoteId)).data.projectId == documentId
+        ))
+        && ((exists(/databases/$(database)/documents/professionalActivities/$(data.professionalActivityId))
+            && get(/databases/$(database)/documents/professionalActivities/$(data.professionalActivityId)).data.ownerUid == request.auth.uid)
+          || (data.quoteId != null
+            && exists(/databases/$(database)/documents/activities/$(data.professionalActivityId))
+            && get(/databases/$(database)/documents/activities/$(data.professionalActivityId)).data.ownerUid == request.auth.uid))
         && exists(/databases/$(database)/documents/thirdParties/$(data.thirdPartyId))
         && get(/databases/$(database)/documents/thirdParties/$(data.thirdPartyId)).data.ownerUid == request.auth.uid;
     }
 
     match /workProjects/{documentId} {
-      allow get, list: if readsOwnDocument();
+      allow get: if isSignedIn() && (resource == null || readsOwnDocument());
+      allow list: if readsOwnDocument();
       allow create: if createsOwnDocument()
         && hasValidWorkProjectSchema(request.resource.data)
         && hasValidWorkProjectReferences(documentId, request.resource.data)
@@ -534,6 +573,71 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+
+    function validInvoiceProject(data) {
+      return data.workProjectId == null || (
+        data.workProjectId is string
+        && exists(/databases/$(database)/documents/workProjects/$(data.workProjectId))
+        && get(/databases/$(database)/documents/workProjects/$(data.workProjectId)).data.ownerUid == request.auth.uid
+        && get(/databases/$(database)/documents/workProjects/$(data.workProjectId)).data.thirdPartyId == data.thirdPartyId
+      );
+    }
+
+    function validWorkInvoice(data, documentId) {
+      return data.keys().hasOnly(["id", "ownerUid", "invoiceNumber", "invoiceDate", "dueDate", "thirdPartyId", "workProjectId", "amountHT", "amountVAT", "amountTTC", "status", "pdfPath", "source", "createdAt", "updatedAt", "paymentTransactionId", "isDeleted", "deletedAt", "deletedBy"])
+        && data.id == documentId
+        && data.ownerUid == request.auth.uid
+        && data.invoiceNumber is string && data.invoiceDate is string && data.dueDate is string
+        && (data.thirdPartyId == null || (data.thirdPartyId is string && exists(/databases/$(database)/documents/thirdParties/$(data.thirdPartyId)) && get(/databases/$(database)/documents/thirdParties/$(data.thirdPartyId)).data.ownerUid == request.auth.uid))
+        && validInvoiceProject(data)
+        && data.amountHT is number && data.amountHT >= 0 && data.amountVAT is number && data.amountVAT >= 0 && data.amountTTC is number && data.amountTTC >= 0
+        && data.status in ["pending_payment", "paid", "cancelled"]
+        && data.pdfPath is string && data.pdfPath.matches('^users/' + request.auth.uid + '/documents/invoices/[^/]+/[^/]+$')
+        && data.source == "tiiime"
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (!data.keys().hasAny(["paymentTransactionId"]) || data.paymentTransactionId == null || data.paymentTransactionId is string)
+        && (!data.keys().hasAny(["isDeleted"]) || data.isDeleted is bool)
+        && (!data.keys().hasAny(["deletedAt"]) || data.deletedAt is timestamp)
+        && (!data.keys().hasAny(["deletedBy"]) || data.deletedBy == request.auth.uid);
+    }
+
+    match /workInvoices/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument() && validWorkInvoice(request.resource.data, documentId)
+        && request.resource.data.status == "pending_payment"
+        && request.resource.data.createdAt == request.resource.data.updatedAt;
+      allow update: if updatesOwnDocument() && validWorkInvoice(request.resource.data, documentId)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt is timestamp && request.resource.data.updatedAt > resource.data.updatedAt
+        && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
+            && resource.data.status == "pending_payment" && request.resource.data.status == "paid")
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "paymentTransactionId", "updatedAt"])
+            && resource.data.status == "pending_payment" && request.resource.data.status == "paid"
+            && request.resource.data.paymentTransactionId == "work-invoice-" + documentId
+            && existsAfter(/databases/$(database)/documents/transactions/$(request.resource.data.paymentTransactionId))
+            && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.paymentTransactionId)).data.ownerUid == request.auth.uid
+            && getAfter(/databases/$(database)/documents/transactions/$(request.resource.data.paymentTransactionId)).data.workInvoiceId == documentId)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "paymentTransactionId", "updatedAt"])
+            && resource.data.status == "paid" && request.resource.data.status == "pending_payment"
+            && resource.data.paymentTransactionId == "work-invoice-" + documentId
+            && !request.resource.data.keys().hasAny(["paymentTransactionId"])
+            && existsAfter(/databases/$(database)/documents/transactions/$(resource.data.paymentTransactionId))
+            && getAfter(/databases/$(database)/documents/transactions/$(resource.data.paymentTransactionId)).data.ownerUid == request.auth.uid
+            && getAfter(/databases/$(database)/documents/transactions/$(resource.data.paymentTransactionId)).data.isDeleted == true
+            && !getAfter(/databases/$(database)/documents/transactions/$(resource.data.paymentTransactionId)).data.keys().hasAny(["workInvoiceId"]))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["status", "updatedAt"])
+            && resource.data.status == "paid" && request.resource.data.status == "pending_payment")
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["workProjectId", "updatedAt"])
+            && request.resource.data.status == resource.data.status && resource.data.workProjectId != null && request.resource.data.workProjectId == null)
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["isDeleted", "deletedAt", "deletedBy", "updatedAt"])
+            && (!resource.data.keys().hasAny(["isDeleted"]) || resource.data.isDeleted == false)
+            && request.resource.data.isDeleted == true
+            && request.resource.data.deletedAt is timestamp
+            && request.resource.data.deletedBy == request.auth.uid)
+        );      allow delete: if false;
+    }
     match /workQuotes/{documentId} {
       allow get, list: if readsOwnDocument();
       allow create: if createsOwnDocument();

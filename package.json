@@ -20,6 +20,7 @@
     "test:guard-refusal": "node scripts/integration/verify-guard-refusal.mjs",
     "test:remote-untouched": "node scripts/integration/verify-remote-untouched.mjs",
     "test:e2e": "firebase emulators:exec --only firestore \"node scripts/e2e/playwright-write-safety-check.mjs\"",
+    "test:rules:work-project-create-client": "firebase emulators:exec --only firestore \"node --test scripts/integration/work-project-create-from-quote-client.test.mjs\"",
     "seed:references": "node scripts/seed-reference-data.mjs",
     "cleanup:references": "node scripts/cleanup-reference-data.mjs",
     "seed:demo": "node scripts/seed-demo-data.mjs",
@@ -33,7 +34,8 @@
     "inventory:ux-test-data": "node scripts/maintenance/cleanup-ux-test-references.mjs --report-tag=manual",
     "cleanup:ux-test-data": "node scripts/maintenance/cleanup-ux-test-references.mjs --apply --confirm-run --report-tag=manual",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:rules:work-invoices": "firebase emulators:exec --only firestore \"node scripts/integration/work-invoices-rules-emulator.mjs\""
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -46,6 +48,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@firebase/rules-unit-testing": "^5.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",

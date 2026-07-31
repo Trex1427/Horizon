@@ -1,0 +1,6 @@
+﻿import { auth } from "../firebase.js";
+import { validatePdfFile } from "../features/work/workModels.js";
+import { requestTiiimeInvoiceExtraction } from "./tiiimeInvoiceRequest.js";
+function endpoint() { if (import.meta.env.VITE_PARSE_TIIIME_INVOICE_FUNCTION_URL) return import.meta.env.VITE_PARSE_TIIIME_INVOICE_FUNCTION_URL; const projectId = String(import.meta.env.VITE_FIREBASE_PROJECT_ID || "").trim(); if (!projectId) throw new Error("Configuration Firebase incomplète."); return `https://${import.meta.env.VITE_PARSE_TIIIME_INVOICE_FUNCTION_REGION || "europe-west1"}-${projectId}.cloudfunctions.net/parseTiiimeInvoice`; }
+function readAsDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result || "")); reader.onerror = () => reject(new Error("Lecture du PDF impossible.")); reader.readAsDataURL(file); }); }
+export async function parseTiiimeInvoicePdf(file, options = {}) { validatePdfFile(file); const user = auth.currentUser; if (!user) throw new Error("Utilisateur Firebase requis."); const token = await user.getIdToken(); const pdfBase64 = (await readAsDataUrl(file)).split(",")[1] || ""; return requestTiiimeInvoiceExtraction({ url: options.endpointUrl || endpoint(), token, pdfBase64, fetchImpl: options.fetchImpl }); }

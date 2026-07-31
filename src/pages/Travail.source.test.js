@@ -9,7 +9,7 @@ test("Travail exposes all V1 sections and mobile card quote list", async () => {
   const source = await readFile(resolve(root, "src/pages/Travail.jsx"), "utf8");
   for (const label of ["Tableau de bord", "Devis", "Dossiers", "Factures", "Activités professionnelles", "Paramètres"]) assert.equal(source.includes(label), true, label);
   assert.equal(source.includes("Importer un devis Tiiime"), true);
-  assert.equal(source.includes("<Card variant=\"outlined\" key={quote.id}>"), true);
+  assert.equal(source.includes("<Card variant=\"outlined\" key={quote.id}"), true);
   assert.equal(source.includes("<table"), false);
 });
 

@@ -46,7 +46,7 @@ test("cleanup failure is logged without masking the Firestore error", async () =
     (error) => error.cause === firestoreError,
   );
   assert.equal(logs.length, 1);
-  assert.equal(logs[0][0], "quote_pdf_compensation:orphan_possible");
+  assert.equal(logs[0][0], "document_pdf_compensation:orphan_possible");
   assert.equal(logs[0][1].cleanupError, cleanupError);
   assert.equal(logs[0][1].storagePath, "users/u/documents/quotes/q/file.pdf");
 });
@@ -59,4 +59,18 @@ test("batch failure without a newly uploaded file never calls cleanup", async ()
     cleanupUploadedPdf: async () => { cleanupCalls += 1; },
   }));
   assert.equal(cleanupCalls, 0);
+});
+
+test("invoice failure uses invoice wording and cleans its uploaded PDF", async () => {
+  const cleaned = [];
+  await assert.rejects(
+    () => commitFirestoreWithStorageCompensation({
+      commitFirestore: async () => { throw new Error("write failed"); },
+      storagePath: "users/u/documents/invoices/i/file.pdf",
+      cleanupUploadedPdf: async (path) => cleaned.push(path),
+      failureMessage: "L’enregistrement de la facture a échoué. Aucune facture n’a été créée.",
+    }),
+    /Aucune facture n’a été créée/,
+  );
+  assert.deepEqual(cleaned, ["users/u/documents/invoices/i/file.pdf"]);
 });

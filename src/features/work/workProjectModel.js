@@ -92,6 +92,18 @@ export function buildWorkProjectPayload(quote, { ownerUid, thirdPartyName = "", 
   };
 }
 
+export function buildImportedInvoiceProjectPayload(payload = {}, { ownerUid, now = new Date() } = {}) {
+  if (!ownerUid) throw new Error("Utilisateur non authentifié.");
+  const name = String(payload.name || "").trim();
+  const thirdPartyId = String(payload.thirdPartyId || "").trim();
+  const professionalActivityId = String(payload.professionalActivityId || "").trim();
+  if (!name) throw new Error("Le nom du dossier est obligatoire.");
+  if (!thirdPartyId) throw new Error("Le client est obligatoire.");
+  if (!professionalActivityId) throw new Error("L'activité professionnelle est obligatoire.");
+  const plannedRevenue = payload.plannedRevenue === "" || payload.plannedRevenue == null ? 0 : Number(payload.plannedRevenue);
+  if (!Number.isFinite(plannedRevenue) || plannedRevenue < 0) throw new Error("Le montant prévisionnel est invalide.");
+  return { ownerUid, quoteId: null, professionalActivityId, thirdPartyId, name, status: "planned", plannedRevenue, plannedExpenses: 0, plannedMargin: plannedRevenue, startDate: null, endDate: null, description: "", notes: "", createdAt: now, updatedAt: now, deletedAt: null };
+}
 export function sortWorkProjects(projects = []) {
   return [...projects].sort((left, right) => {
     const statusDifference = (STATUS_ORDER.get(left.status) ?? 99) - (STATUS_ORDER.get(right.status) ?? 99);

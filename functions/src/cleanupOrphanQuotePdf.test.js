@@ -22,6 +22,7 @@ function request({ token = "valid", storagePath = "users/owner-a/documents/quote
 
 test("owned quote paths are accepted and arbitrary paths are rejected", () => {
   assert.equal(isOwnedQuoteStoragePath("users/owner-a/documents/quotes/q1/file.pdf", "owner-a"), true);
+  assert.equal(isOwnedQuoteStoragePath("users/owner-a/documents/invoices/i1/file.pdf", "owner-a"), true);
   assert.equal(isOwnedQuoteStoragePath("users/owner-b/documents/quotes/q1/file.pdf", "owner-a"), false);
   assert.equal(isOwnedQuoteStoragePath("users/owner-a/documents/other/file.pdf", "owner-a"), false);
   assert.equal(isOwnedQuoteStoragePath("users/owner-a/documents/quotes/../file.pdf", "owner-a"), false);

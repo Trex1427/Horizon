@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { createWorkProjectFromQuote, subscribeToWorkProjects, updateWorkProject } from "../services/workProjectsService.js";
+import { createWorkProjectFromInvoice, createWorkProjectFromQuote, subscribeToWorkProjects, updateWorkProject } from "../services/workProjectsService.js";
 
 export function useWorkProjects() {
   const [projects, setProjects] = useState([]);
@@ -8,7 +8,7 @@ export function useWorkProjects() {
 
   useEffect(() => subscribeToWorkProjects(
     (data) => { setProjects(data); setLoading(false); setError(""); },
-    (err) => { setError(err?.message || "Chargement des dossiers impossible."); setLoading(false); },
+    (err) => { console.error("work_projects_load_failed", err); setError("Impossible de charger vos dossiers. Réessayez."); setLoading(false); },
   ), []);
 
   const createFromQuote = useCallback(async (quote, options) => {
@@ -26,5 +26,9 @@ export function useWorkProjects() {
     try { setError(""); return { success: true, value: await updateWorkProject(projectId, payload) }; }
     catch (err) { const message = err?.message || "Mise à jour du dossier impossible."; setError(message); return { success: false, error: message }; }
   }, []);
-  return { projects, loading, error, createFromQuote, editProject };
+  const createFromInvoice = useCallback(async (payload) => {
+    try { setError(""); return { success: true, value: await createWorkProjectFromInvoice(payload) }; }
+    catch (err) { console.error("work_project_invoice_create_failed", err); return { success: false, error: "Impossible de créer le dossier. Réessayez." }; }
+  }, []);
+  return { projects, loading, error, createFromQuote, createFromInvoice, editProject };
 }

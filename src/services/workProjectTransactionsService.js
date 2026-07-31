@@ -8,11 +8,10 @@ export function subscribeToLinkedWorkProjectTransactions(onData, onError) {
   const linkedQuery = query(
     collection(db, "transactions"),
     where("ownerUid", "==", ownerUid),
-    where("workProjectId", "!=", null),
   );
   return onSnapshot(linkedQuery, (snapshot) => {
     onData(snapshot.docs
       .map((entry) => normalizeTransactionRecord({ id: entry.id, ...entry.data() }))
-      .filter((entry) => entry.isDeleted !== true));
+      .filter((entry) => entry.workProjectId && entry.isDeleted !== true));
   }, onError);
 }

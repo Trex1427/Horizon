@@ -3,7 +3,7 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "../firebase.js";
 import { requireCurrentUid } from "../auth/requireCurrentUid.js";
-import { buildWorkProjectPayload, normalizeWorkProjectUpdate, sortWorkProjects } from "../features/work/workProjectModel.js";
+import { buildImportedInvoiceProjectPayload, buildWorkProjectPayload, normalizeWorkProjectUpdate, sortWorkProjects } from "../features/work/workProjectModel.js";
 
 const PROJECTS = "workProjects";
 const QUOTES = "workQuotes";
@@ -45,7 +45,38 @@ export function createWorkProjectFromQuote(quote, { thirdPartyName = "" } = {}) 
     transaction.set(projectRef, buildWorkProjectPayload(currentQuote, { ownerUid, thirdPartyName, now }));
     transaction.update(quoteRef, { projectId: projectRef.id, updatedAt: now });
     return { id: projectRef.id, created: true };
+  }).catch(async (error) => {
+    const [quoteSnapshot, thirdPartySnapshot, activitySnapshot, legacyActivitySnapshot] = await Promise.all([
+      getDoc(quoteRef), getDoc(doc(db, "thirdParties", quote.thirdPartyId)),
+      getDoc(doc(db, "professionalActivities", quote.professionalActivityId)), getDoc(doc(db, "activities", quote.professionalActivityId)),
+    ]);
+    const storedQuote = quoteSnapshot.exists() ? { id: quoteSnapshot.id, ...quoteSnapshot.data() } : null;
+    const payload = storedQuote ? buildWorkProjectPayload(storedQuote, { ownerUid, thirdPartyName, now: new Date() }) : null;
+    console.error("work_project_create_from_quote_failed", {
+      firebaseCode: error?.code || null, firebaseMessage: error?.message || String(error), payload,
+      quoteId: quote.id, expectedProjectId: projectRef.id, quoteExists: quoteSnapshot.exists(),
+      storedQuoteStatus: storedQuote?.status ?? null, ownerUid: storedQuote?.ownerUid ?? null,
+      thirdPartyId: storedQuote?.thirdPartyId ?? null, professionalActivityId: storedQuote?.professionalActivityId ?? null,
+      status: storedQuote?.status ?? null, plannedRevenue: payload?.plannedRevenue ?? null,
+      quoteOwnerUid: storedQuote?.ownerUid ?? null, thirdPartyOwnerUid: thirdPartySnapshot.exists() ? thirdPartySnapshot.data().ownerUid ?? null : null,
+      professionalActivityOwnerUid: activitySnapshot.exists() ? activitySnapshot.data().ownerUid ?? null : null,
+      legacyActivityOwnerUid: legacyActivitySnapshot.exists() ? legacyActivitySnapshot.data().ownerUid ?? null : null,
+    });
+    throw new Error(`Création du dossier impossible${error?.code ? ` (${error.code})` : ""} : ${error?.message || "erreur Firestore inconnue"}`, { cause: error });
   });
+}
+export async function createWorkProjectFromInvoice(payload) {
+  const ownerUid = requireCurrentUid(auth);
+  const projectRef = doc(collection(db, PROJECTS));
+  const project = buildImportedInvoiceProjectPayload(payload, { ownerUid });
+  await runTransaction(db, async (transaction) => {
+    const thirdParty = await transaction.get(doc(db, "thirdParties", project.thirdPartyId));
+    const activity = await transaction.get(doc(db, "professionalActivities", project.professionalActivityId));
+    if (!thirdParty.exists() || thirdParty.data().ownerUid !== ownerUid) throw new Error("Client introuvable.");
+    if (!activity.exists() || activity.data().ownerUid !== ownerUid) throw new Error("Activité professionnelle introuvable.");
+    transaction.set(projectRef, project);
+  });
+  return { id: projectRef.id, created: true };
 }
 export async function updateWorkProject(projectId, payload) {
   const ownerUid = requireCurrentUid(auth);
