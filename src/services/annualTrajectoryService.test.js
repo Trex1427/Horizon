@@ -4,6 +4,7 @@ import {
   calculateAnnualTrajectory,
   findFirstProjectedNegativeMonth,
   findFixedExpenseDuplicateGroups,
+  selectCurrentMonthForecast,
 } from "./annualTrajectoryService.js";
 
 const currentAccount = {
@@ -672,4 +673,25 @@ test("annual trajectory keeps subcategory reservations isolated by account for e
   assert.equal(month(result, "2026-08").remainingBudgets, 50);
   assert.equal(month(result, "2026-08").monthlyExpenses, 200);
   assert.equal(month(result, "2026-09").monthlyExpenses, 200);
+});
+
+test("opening balance chains the current forecast through December", () => {
+  const result = calculateAnnualTrajectory({
+    accounts: [{ id: "account-current", name: "Compte courant", initialBalance: 100, isActive: true }],
+    recurringIncome: [{
+      id: "salary", accountId: "account-current", startDate: "2026-01-20",
+      frequency: "mensuel", initialAmount: 50, isActive: true,
+    }],
+    year: 2026,
+    referenceDate: new Date(2026, 6, 15),
+  });
+
+  assert.equal(month(result, "2026-07").openingBalance, 100);
+  assert.equal(month(result, "2026-07").closingBalance, 150);
+  assert.equal(month(result, "2026-08").openingBalance, 150);
+  assert.equal(month(result, "2026-12").closingBalance, 400);
+  const currentForecast = selectCurrentMonthForecast(result);
+  assert.equal(currentForecast.currentBalance, 100);
+  assert.equal(currentForecast.forecastEndOfMonth, month(result, "2026-07").closingBalance);
+  assert.equal(currentForecast.forecastEndOfMonth, 150);
 });

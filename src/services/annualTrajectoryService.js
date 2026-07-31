@@ -74,7 +74,7 @@ function isAccountIncluded(accountId, includedAccountIds, fallbackAccountId) {
 }
 
 function isRecurringItemDueInMonth(item, monthStart, monthEnd) {
-  if (!item?.isActive) {
+  if (!item?.isActive || item?.isDeleted === true) {
     return false;
   }
 
@@ -137,7 +137,7 @@ function getBudgetRangeIntersection(budget, monthStart, monthEnd) {
 }
 
 function isBudgetApplicableInMonth(budget, monthStart, monthEnd) {
-  if (!budget?.isActive || (budget?.typeBudget && budget.typeBudget !== "depense")) {
+  if (!budget?.isActive || budget?.isDeleted === true || (budget?.typeBudget && budget.typeBudget !== "depense")) {
     return false;
   }
 
@@ -443,6 +443,25 @@ export function findFirstProjectedNegativeMonth(trajectory = []) {
   return null;
 }
 
+export function selectCurrentMonthForecast(trajectory = []) {
+  const row = (Array.isArray(trajectory) ? trajectory : []).find((item) => item?.status === "current");
+  if (!row) return null;
+
+  const [year, month] = String(row.month || "").split("-").map(Number);
+  const monthStart = Number.isInteger(year) && Number.isInteger(month) ? new Date(year, month - 1, 1) : null;
+  const monthEnd = monthStart ? new Date(year, month, 0, 23, 59, 59, 999) : null;
+
+  return {
+    monthStart,
+    monthEnd,
+    currentBalance: row.balanceAtReferenceDate,
+    expectedRecurringIncome: toAmount(row.expectedRecurringIncome) + toAmount(row.expectedOpportunities),
+    expectedFixedExpenses: row.expectedFixedExpenses,
+    remainingBudgets: row.remainingBudgets,
+    forecastEndOfMonth: row.closingBalance,
+  };
+}
+
 export function calculateAnnualTrajectory({
   accounts = [],
   transactions = [],
@@ -468,7 +487,8 @@ export function calculateAnnualTrajectory({
     .filter((transaction) => transaction?.isDeleted !== true)
     .filter((transaction) => transaction?.isArchived !== true)
     .filter((transaction) => Number.isFinite(Number(transaction?.montant ?? transaction?.amount)));
-  const activeTransfers = (transfers || []).filter((transfer) => transfer?.isActive !== false);
+  const activeTransfers = (transfers || []).filter((transfer) => transfer?.isActive !== false)
+    .filter((transfer) => transfer?.isDeleted !== true);
   const initialBalance = activeAccounts.reduce((sum, account) => sum + toAmount(account?.initialBalance), 0);
   const duplicateFixedExpenseGroups = findFixedExpenseDuplicateGroups(fixedExpenses);
 
@@ -537,13 +557,18 @@ export function calculateAnnualTrajectory({
     const monthlyExpenses = actualTotals.expense + expectedFixedExpenses + remainingBudgets;
     const monthlyNet = monthlyIncome - monthlyExpenses;
 
+    const openingBalance = runningBalance;
+    const balanceAtReferenceDate = openingBalance + actualTotals.revenue - actualTotals.expense
+      + actualTotals.adjustment + transferImpact;
     runningBalance += actualTotals.revenue - actualTotals.expense + actualTotals.adjustment + transferImpact
       + expectedRecurringIncome + expectedOpportunities - expectedFixedExpenses - remainingBudgets;
 
     return {
       month: toMonthKey(monthStart),
+      openingBalance,
       closingBalance: Number.isFinite(runningBalance) ? runningBalance : 0,
       status,
+      balanceAtReferenceDate,
       actualRevenue: actualTotals.revenue,
       actualExpense: actualTotals.expense,
       actualAdjustment: actualTotals.adjustment,

@@ -5,18 +5,19 @@ import { resolve } from "node:path";
 
 const appPath = resolve(process.cwd(), "src/App.jsx");
 
-test("mobile portrait navigation exposes direct actions, Plus and Android safe area", async () => {
+test("mobile navigation exposes the five M1 actions and safe areas", async () => {
   const content = await readFile(appPath, "utf8");
-  assert.match(content, /max-width:600px.*orientation: portrait/);
-  assert.match(content, /label="Résumé"/);
+  assert.match(content, /MOBILE_NAVIGATION_MEDIA_QUERY/);
+  assert.match(content, /label="Accueil"/);
   assert.match(content, /label="Transactions"/);
-  assert.match(content, /label="Budgets"/);
+  assert.match(content, /value=\{PAGES\.TRAVAIL\} label="Travail"/);
+  assert.match(content, /value=\{PAGES\.ANALYSE\} label="Analyse"/);
   assert.match(content, /value="MORE" label="Plus"/);
   assert.match(content, /gridTemplateColumns: "repeat\(5, minmax\(0, 1fr\)\)"/);
   assert.match(content, /overflowX: "hidden"/);
   assert.match(content, /safe-area-inset-bottom/);
-  assert.match(content, /aria-label="Ouvrir le résumé mensuel"/);
-  assert.match(content, /aria-label="Ouvrir les autres sections"/);
+  assert.match(content, /aria-label="Ouvrir l’accueil"/);
+  assert.match(content, /aria-label="Ouvrir les autres pages"/);
 });
 
 test("Plus is active on secondary pages and closes after navigation", async () => {
@@ -25,6 +26,8 @@ test("Plus is active on secondary pages and closes after navigation", async () =
   assert.match(content, /selected=\{item\.page === page/);
   assert.match(content, /navigateToPage\(item\.page\);[\s\S]*setMoreDrawerOpen\(false\);/);
   assert.match(content, /onClose=\{\(\) => setMoreDrawerOpen\(false\)\}/);
+  assert.match(content, /anchor="bottom"/);
+  assert.match(content, /minHeight: 56/);
 });
 
 test("browser history, refresh and back navigation are wired without replacing desktop navigation", async () => {
@@ -41,8 +44,8 @@ test("Plus has no duplicate summary alias and retains all secondary module entri
   const content = await readFile(appPath, "utf8");
   assert.doesNotMatch(content, /key: "COMPTES"/);
   for (const label of [
-    "Catégories", "Référentiels", "Frais fixes", "Revenus récurrents", "Opportunités",
-    "Dettes et créances", "Objectifs", "Prévisions", "Analyse", "Historique des imports", "Paramètres",
+    "Catégories", "Comptes, activités et tiers", "Frais fixes", "Revenus récurrents", "Opportunités",
+    "Dettes et créances", "Objectifs", "Prévisions", "Historique des imports", "Paramètres",
   ]) {
     assert.equal(content.includes(`label: "${label}"`), true, label);
   }
