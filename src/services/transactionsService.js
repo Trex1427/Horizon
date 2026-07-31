@@ -24,6 +24,7 @@ function normalizeTransactionPayload(payload = {}) {
     projectId: safePayload.projectId || null,
     projectName: safePayload.projectName || null,
     workProjectId: safePayload.workProjectId || null,
+    vehicleId: safePayload.vehicleId || null,
     destinationAccountId: null,
   };
 }

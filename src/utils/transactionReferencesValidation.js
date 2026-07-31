@@ -21,6 +21,7 @@ export function validateTransactionReferencesForSave(form = {}, catalogs = {}) {
   const activityMap = catalogs?.activityMap || new Map();
   const thirdPartyMap = catalogs?.thirdPartyMap || new Map();
   const projectMap = catalogs?.projectMap || new Map();
+  const vehicleMap = catalogs?.vehicleMap || new Map();
 
   if (form.subcategoryId) {
     const subcategory = subcategoryMap.get(form.subcategoryId);
@@ -68,6 +69,12 @@ export function validateTransactionReferencesForSave(form = {}, catalogs = {}) {
     if (project.isActive === false) {
       return "Projet inactif";
     }
+  }
+
+  if (form.vehicleId) {
+    const vehicle = vehicleMap.get(form.vehicleId);
+    if (!vehicle) return "Véhicule inexistant";
+    if (vehicle.isDeleted === true && catalogs.allowDeletedVehicleId !== form.vehicleId) return "Véhicule supprimé";
   }
 
   return "";

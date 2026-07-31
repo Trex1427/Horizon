@@ -29,10 +29,11 @@ function InvoiceDialog({ draft, extraction, file, thirdParties, projects, activi
   </Dialog>;
 }
 
-export function WorkInvoicesSection({ invoices, projects, thirdParties, activities, accounts, addThirdParty, createProject, thirdPartyMap, projectMap, loading, error, parsePdf, importInvoice, markPaid, markPaidWithTransaction, markPending, deleteInvoice, openPdf }) {
+export function WorkInvoicesSection({ invoices, projects, thirdParties, activities, accounts, addThirdParty, createProject, thirdPartyMap, projectMap, loading, error, parsePdf, importInvoice, markPaid, markPaidWithTransaction, markPending, inspectDelete, deleteInvoice, openPdf }) {
   const [draft, setDraft] = useState(null), [file, setFile] = useState(null), [extraction, setExtraction] = useState(null), [importing, setImporting] = useState(false), [notice, setNotice] = useState("");
   const [paymentInvoice, setPaymentInvoice] = useState(null), [pendingInvoice, setPendingInvoice] = useState(null), [paymentForm, setPaymentForm] = useState({ accountId: "", date: new Date().toISOString().slice(0, 10), categoryId: "" });
   const [paymentError, setPaymentError] = useState(""), [paymentSubmitting, setPaymentSubmitting] = useState(false); const paymentGuard = useRef(false);
+  const [deletionInvoice, setDeletionInvoice] = useState(null), [deletionError, setDeletionError] = useState(""), [deletionSubmitting, setDeletionSubmitting] = useState(false);
   const [filters, setFilters] = useState({ project: "all", client: "all", status: "all" }); const inputRef = useRef(null);
   const selectPdf = async (selected) => { if (!selected) return; setImporting(true); setNotice(""); try { const detected = await parsePdf(selected); const clientMatch = matchThirdParties(detected.customerName, thirdParties); const thirdPartyId = clientMatch.state === "found" ? clientMatch.candidates[0].id : ""; const projectMatch = suggestWorkProject(thirdPartyId, projects); setFile(selected); setExtraction(detected); setDraft({ ...EMPTY, ...detected, thirdPartyId, workProjectId: projectMatch.workProjectId }); } catch (err) { setNotice(err?.message || "Import impossible."); } finally { setImporting(false); if (inputRef.current) inputRef.current.value = ""; } };
   const save = async (form, pdf) => { const result = await importInvoice(form, pdf); if (result.success) { setDraft(null); setFile(null); setExtraction(null); setNotice("Facture importée."); } return result; };
@@ -50,7 +51,40 @@ export function WorkInvoicesSection({ invoices, projects, thirdParties, activiti
     return;
   }
   setPaymentInvoice(invoice); setPaymentForm({ accountId: "", date: new Date().toISOString().slice(0, 10), categoryId: "" });
-}}>Marquer payée</Button>}{invoice.status === "paid" && <Button onClick={(e) => { e.stopPropagation(); setPaymentError(""); setPendingInvoice(invoice); }}>Repasser non payée</Button>}<Button color="error" onClick={async(e)=>{e.stopPropagation();const warning=invoice.paymentTransactionId?"Une transaction est liée à cette facture. Elle sera conservée. Supprimer la facture ?":"Supprimer cette facture ?";if(window.confirm(warning)){const result=await deleteInvoice(invoice);setNotice(result.success?"Facture supprimée. Le PDF est conservé.":result.error);}}}>Supprimer</Button></CardActions></Card>)}{!filtered.length && <Typography color="text.secondary">Aucune facture ne correspond aux filtres.</Typography>}</Stack>}
+}}>Marquer payée</Button>}{invoice.status === "paid" && <Button onClick={(e) => { e.stopPropagation(); setPaymentError(""); setPendingInvoice(invoice); }}>Repasser non payée</Button>}<Button color="error" disabled={deletionSubmitting} onClick={async (event) => {
+  event.stopPropagation(); setDeletionError(""); setDeletionSubmitting(true);
+  const context = await inspectDelete(invoice);
+  setDeletionSubmitting(false);
+  if (!context.success) { setNotice(context.error); return; }
+  if (context.value.hasLinkedTransaction) { setDeletionInvoice(invoice); return; }
+  if (!window.confirm("Supprimer cette facture ?")) return;
+  const result = await deleteInvoice(invoice, { deleteLinkedTransaction: false });
+  setNotice(result.success ? "Facture supprimée. Le PDF est conservé." : result.error);
+}}>Supprimer</Button></CardActions></Card>)}{!filtered.length && <Typography color="text.secondary">Aucune facture ne correspond aux filtres.</Typography>}</Stack>}
+    <Dialog open={Boolean(deletionInvoice)} onClose={() => { if (!deletionSubmitting) setDeletionInvoice(null); }} fullWidth maxWidth="sm">
+      <DialogTitle>Supprimer la facture</DialogTitle>
+      <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+        {deletionError && <Alert severity="error">{deletionError}</Alert>}
+        <Typography>Cette facture est liée à une transaction de paiement. Que souhaitez-vous supprimer ?</Typography>
+      </Stack></DialogContent>
+      <DialogActions sx={{ flexWrap: "wrap" }}>
+        <Button disabled={deletionSubmitting} onClick={() => setDeletionInvoice(null)}>Annuler</Button>
+        <Button disabled={deletionSubmitting} onClick={async () => {
+          setDeletionSubmitting(true); setDeletionError("");
+          const result = await deleteInvoice(deletionInvoice, { deleteLinkedTransaction: false });
+          setDeletionSubmitting(false);
+          if (result.success) { setNotice("Facture supprimée. La transaction est conservée comme recette indépendante."); setDeletionInvoice(null); }
+          else setDeletionError(result.error);
+        }}>Supprimer uniquement la facture</Button>
+        <Button disabled={deletionSubmitting} color="error" variant="contained" onClick={async () => {
+          setDeletionSubmitting(true); setDeletionError("");
+          const result = await deleteInvoice(deletionInvoice, { deleteLinkedTransaction: true });
+          setDeletionSubmitting(false);
+          if (result.success) { setNotice("Facture et transaction supprimées."); setDeletionInvoice(null); }
+          else setDeletionError(result.error);
+        }}>Supprimer la facture et la transaction</Button>
+      </DialogActions>
+    </Dialog>
     <Dialog open={Boolean(paymentInvoice)} onClose={() => { if (!paymentSubmitting) setPaymentInvoice(null); }} fullWidth maxWidth="xs">
       <DialogTitle>Paiement de la facture</DialogTitle>
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>

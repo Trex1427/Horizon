@@ -13,24 +13,14 @@ import Referentiels from "./pages/Referentiels";
 import Parametres from "./pages/Parametres";
 import ImportHistory from "./pages/ImportHistory";
 import Travail from "./pages/Travail";
-import { TransactionsProvider, useTransactionsContext } from "./context/TransactionsContext";
+import Vehicles from "./pages/Vehicles";
+import ProfessionalDashboard from "./pages/ProfessionalDashboard";
+import { TransactionsProvider } from "./context/TransactionsContext";
 import { RecurringIncomeProvider } from "./context/RecurringIncomeContext";
 import { AuthGate } from "./auth/AuthGate";
 import { AuthProvider } from "./auth/AuthProvider";
 import { useAuth } from "./auth/useAuth";
 import { useAccounts } from "./hooks/useAccounts";
-import { useDashboard } from "./hooks/useDashboard";
-import { useBudgets } from "./hooks/useBudgets";
-import { useFixedExpenses } from "./hooks/useFixedExpenses";
-import { useOpportunities } from "./hooks/useOpportunities";
-import { useRecurringIncome } from "./hooks/useRecurringIncome";
-import { useTransfers } from "./hooks/useTransfers";
-import HorizonCockpit from "./components/HorizonCockpit";
-import { calculateAnnualTrajectory } from "./services/annualTrajectoryService";
-import { createCashBalanceAdjustment } from "./services/cashBalanceAdjustmentService";
-import { CASH_ACCOUNT_NAME, CASH_ACCOUNT_TYPE } from "./constants/cashBalanceConstants";
-import { hasCashAccountHistory } from "./utils/cashBalanceAdjustment";
-import { selectAccountsForBalanceDisplay } from "./utils/accountBalanceDisplay";
 import {
   buildPageUrl,
   getPageFromLocation,
@@ -72,6 +62,7 @@ import Category from "@mui/icons-material/Category";
 import UploadFile from "@mui/icons-material/UploadFile";
 import Logout from "@mui/icons-material/Logout";
 import Work from "@mui/icons-material/Work";
+import DirectionsCar from "@mui/icons-material/DirectionsCar";
 
 const MORE_MENU_PAGES = [
   {
@@ -103,6 +94,12 @@ const MORE_MENU_PAGES = [
     label: "Travail",
     icon: <Work />,
     page: PAGES.TRAVAIL,
+  },
+  {
+    key: PAGES.VEHICLES,
+    label: "Véhicules",
+    icon: <DirectionsCar />,
+    page: PAGES.VEHICLES,
   },
   {
     key: PAGES.OPPORTUNITES,
@@ -190,30 +187,7 @@ function AppContent() {
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
-  const { transactions, loading, error: transactionsError } = useTransactionsContext();
   const { accounts, defaultAccount, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
-  const { fixedExpenses, loading: fixedExpensesLoading, error: fixedExpensesError } = useFixedExpenses();
-  const { recurringIncome, loading: recurringIncomeLoading, error: recurringIncomeError } = useRecurringIncome();
-  const { opportunities, loading: opportunitiesLoading, error: opportunitiesError } = useOpportunities();
-  const { budgets, loading: budgetsLoading, error: budgetsError } = useBudgets();
-  const { transfers, loading: transfersLoading, error: transfersError } = useTransfers();
-  const balanceDisplayAccounts = useMemo(() => selectAccountsForBalanceDisplay(accounts), [accounts]);
-  const dashboardMetrics = useDashboard(transactions, balanceDisplayAccounts);
-  const annualTrajectory = calculateAnnualTrajectory({
-    accounts,
-    transactions,
-    transfers,
-    fixedExpenses,
-    recurringIncome,
-    budgets,
-    opportunities,
-  });
-  const cashAccount = dashboardMetrics.accountBalances.find((account) => (
-    account?.type === CASH_ACCOUNT_TYPE || account?.name === CASH_ACCOUNT_NAME
-  ));
-  const cashHasHistory = hasCashAccountHistory(cashAccount?.id, transactions, transfers);
-  const dashboardLoading = loading || accountsLoading || fixedExpensesLoading || recurringIncomeLoading || opportunitiesLoading || budgetsLoading || transfersLoading;
-  const dashboardError = transactionsError || accountsError || fixedExpensesError || recurringIncomeError || opportunitiesError || budgetsError || transfersError || null;
   const isMobilePortrait = useMediaQuery("(max-width:600px) and (orientation: portrait)");
 
   const mobileBottomNavValue = MOBILE_PRIMARY_PAGES.includes(page)
@@ -372,33 +346,11 @@ function AppContent() {
           }}
         >
         {page === PAGES.HOME && (
-          <>
-            {dashboardLoading ? (
-              <Typography color="text.secondary">Chargement du tableau de bord...</Typography>
-            ) : (
-              <HorizonCockpit
-                metrics={{
-                  ...dashboardMetrics,
-                  annualTrajectory,
-                  annualTrajectoryError: dashboardError,
-                  cashBalance: {
-                    hasHistory: cashHasHistory,
-                    onSubmit: async (payload) => {
-                      try {
-                        await createCashBalanceAdjustment(payload);
-                        return { success: true };
-                      } catch (err) {
-                        return { success: false, error: err?.message || "Erreur lors de l'ajustement du solde Espèces" };
-                      }
-                    },
-                  },
-                }}
-                onOpenTransactions={() => openTransactionsWithContext(null)}
-                onOpenAnalysisMonth={openAnalysisMonth}
-                onOpenOpportunities={() => navigateToPage(PAGES.OPPORTUNITES)}
-              />
-            )}
-          </>
+          <ProfessionalDashboard
+            onOpenTransactions={() => openTransactionsWithContext(null)}
+            onOpenAnalysisMonth={openAnalysisMonth}
+            onOpenOpportunities={() => navigateToPage(PAGES.OPPORTUNITES)}
+          />
         )}
 
         {page === PAGES.TRANSACTIONS && (
@@ -417,6 +369,8 @@ function AppContent() {
         {page === PAGES.REVENUS_RECURRENTS && <RevenusRecurrents />}
 
         {page === PAGES.TRAVAIL && <Travail onOpenTransaction={(transactionId) => openTransactionsWithContext({ source: "analysis", transactionIds: [transactionId] })} />}
+
+        {page === PAGES.VEHICLES && <Vehicles />}
 
         {page === PAGES.OPPORTUNITES && <Opportunites />}
 
@@ -594,6 +548,7 @@ function AppContent() {
           <BottomNavigationAction label="Frais fixes" icon={<PieChart />} />
           <BottomNavigationAction label="Revenus récurrents" icon={<ReceiptLong />} />
           <BottomNavigationAction label="Travail" icon={<Work />} />
+          <BottomNavigationAction label="Véhicules" icon={<DirectionsCar />} />
           <BottomNavigationAction label="Opportunités" icon={<ShowChart />} />
           <BottomNavigationAction label="Dettes et créances" icon={<AccountBalance />} />
           <BottomNavigationAction label="Budgets" icon={<PieChart />} />

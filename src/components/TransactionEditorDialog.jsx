@@ -24,6 +24,7 @@ export default function TransactionEditorDialog({
   projects = [],
   prioritizedProjectOptions = [],
   workProjects = [],
+  vehicles = [],
   fixedExpenses = [],
   helperText,
   scrollRestorePosition = null,
@@ -79,6 +80,7 @@ export default function TransactionEditorDialog({
           projects={projects}
           prioritizedProjectOptions={prioritizedProjectOptions}
           workProjects={workProjects}
+          vehicles={vehicles}
           fixedExpenses={fixedExpenses}
           subcategoryHelperText={helperText}
         />
