@@ -25,7 +25,8 @@ test("invoice and quote soft deletes keep storage and linked records", async () 
   assert.doesNotMatch(invoiceService, /deleteObject/);
   assert.match(quoteService, /softDeleteWorkQuote/);
   assert.doesNotMatch(quoteService, /deleteDoc/);
-  assert.match(invoiceView, /Elle sera conservée/);
+  assert.match(invoiceView, /Supprimer uniquement la facture/);
+  assert.match(invoiceView, /Supprimer la facture et la transaction/);
 });
 
 test("payment dialog exposes all three choices and requires an account", async () => {

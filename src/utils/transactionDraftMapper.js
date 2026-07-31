@@ -10,6 +10,7 @@ export function buildTransactionPayload(form, defaultAccountId = "") {
   const thirdPartyId = isCreateReferenceValue(form.thirdPartyId) ? null : form.thirdPartyId || null;
   const projectId = isCreateReferenceValue(form.projectId) ? null : form.projectId || null;
   const workProjectId = String(form.workProjectId || "" ).trim() || null;
+  const vehicleId = String(form.vehicleId || "").trim() || null;
   const accountId = isCreateReferenceValue(form.accountId) ? "" : form.accountId || defaultAccountId || "";
   const subcategoryName = subcategoryId ? form.subcategoryName || null : null;
   const activityName = activityId ? form.activityName || null : null;
@@ -37,6 +38,7 @@ export function buildTransactionPayload(form, defaultAccountId = "") {
     projectId,
     projectName,
     workProjectId,
+    vehicleId,
     description: form.description,
     type: form.type,
     accountId,

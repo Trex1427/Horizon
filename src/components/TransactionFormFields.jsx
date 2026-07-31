@@ -10,6 +10,7 @@ import {
   CREATE_THIRD_PARTY_VALUE,
 } from "../constants/transactionReferenceCreateValues";
 import { CREATE_FIXED_EXPENSE_VALUE } from "../constants/transactionFixedExpenseReference";
+import { CREATE_VEHICLE_VALUE } from "../constants/transactionVehicleReference.js";
 import { findCompatibleFixedExpenses } from "../utils/fixedExpenseIdentity";
 
 export default function TransactionFormFields({
@@ -22,6 +23,7 @@ export default function TransactionFormFields({
   thirdParties = [],
   prioritizedProjectOptions = [],
   workProjects = [],
+  vehicles = [],
   subcategoryHelperText = "Facultatif",
   fixedExpenses = [],
 }) {
@@ -226,6 +228,22 @@ export default function TransactionFormFields({
         </MenuItem>
       </TextField>
 
+
+      <TextField
+        label="Véhicule"
+        name="vehicleId"
+        select
+        value={form.vehicleId || ""}
+        onChange={onChange}
+        fullWidth
+        size="small"
+        helperText="Facultatif"
+      >
+        <MenuItem value="">Aucun</MenuItem>
+        {vehicles.map((vehicle) => <MenuItem key={vehicle.id} value={vehicle.id}>{vehicle.name}</MenuItem>)}
+        <Divider />
+        <MenuItem value={CREATE_VEHICLE_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>+ Ajouter un véhicule</MenuItem>
+      </TextField>
 
       <TextField
         label="Dossier"

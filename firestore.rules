@@ -273,6 +273,26 @@ service cloud.firestore {
     }
 
 
+    function hasValidVehicleLink(data) {
+      return !data.keys().hasAny(["vehicleId"])
+        || data.vehicleId == null
+        || (
+          data.vehicleId is string
+          && data.vehicleId.size() > 0
+          && exists(/databases/$(database)/documents/vehicles/$(data.vehicleId))
+          && get(/databases/$(database)/documents/vehicles/$(data.vehicleId)).data.ownerUid == request.auth.uid
+          && get(/databases/$(database)/documents/vehicles/$(data.vehicleId)).data.isDeleted == false
+        );
+    }
+
+    function hasPreservedOwnedVehicleLink(data) {
+      return resource.data.keys().hasAny(["vehicleId"])
+        && data.vehicleId == resource.data.vehicleId
+        && data.vehicleId is string
+        && exists(/databases/$(database)/documents/vehicles/$(data.vehicleId))
+        && get(/databases/$(database)/documents/vehicles/$(data.vehicleId)).data.ownerUid == request.auth.uid;
+    }
+
     function hasValidWorkProjectLink(data) {
       return !data.keys().hasAny(["workProjectId"])
         || data.workProjectId == null
@@ -309,10 +329,28 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId)).data.status == "pending_payment"
         && !getAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId)).data.keys().hasAny(["paymentTransactionId"]);
     }
+    function isWorkInvoiceDeletionCleanup() {
+      return resource.data.keys().hasAny(["workInvoiceId"])
+        && resource.data.workInvoiceId is string
+        && !request.resource.data.keys().hasAny(["workInvoiceId"])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["workInvoiceId", "isDeleted", "deletedAt", "deletedBy", "updatedAt"])
+        && request.resource.data.updatedAt == request.time
+        && existsAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId))
+        && getAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId)).data.ownerUid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId)).data.isDeleted == true
+        && !getAfter(/databases/$(database)/documents/workInvoices/$(resource.data.workInvoiceId)).data.keys().hasAny(["paymentTransactionId"])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(["isDeleted"]) || (
+          request.resource.data.isDeleted == true
+          && request.resource.data.deletedAt == request.time
+          && request.resource.data.deletedBy == request.auth.uid
+        ));
+    }
+
     match /transactions/{documentId} {
       allow get, list: if readsOwnDocument();
       allow create: if createsOwnDocument()
         && hasValidWorkProjectLink(request.resource.data)
+        && hasValidVehicleLink(request.resource.data)
         && (
           (!isLinkedTransaction(request.resource.data) && !isInitialDebtReceivableTransaction(request.resource.data) && (!request.resource.data.keys().hasAny(["workInvoiceId"]) || isWorkInvoicePaymentTransaction(documentId, request.resource.data)))
           || hasReciprocalLinkedPayment(documentId)
@@ -320,6 +358,7 @@ service cloud.firestore {
         );
       allow update: if updatesOwnDocument()
         && hasValidWorkProjectLink(request.resource.data)
+        && (hasValidVehicleLink(request.resource.data) || hasPreservedOwnedVehicleLink(request.resource.data))
         && (
           (!resource.data.keys().hasAny(["workInvoiceId"]) && !request.resource.data.keys().hasAny(["workInvoiceId"]))
           || (request.resource.data.keys().hasAny(["workInvoiceId"]) && request.resource.data.workInvoiceId == resource.data.workInvoiceId && isWorkInvoicePaymentTransaction(documentId, request.resource.data))
@@ -327,6 +366,7 @@ service cloud.firestore {
             && !resource.data.keys().hasAny(["workInvoiceId"]) && request.resource.data.isDeleted == false
             && isWorkInvoicePaymentTransaction(documentId, request.resource.data))
           || isWorkInvoicePaymentRemoval(documentId)
+          || isWorkInvoiceDeletionCleanup()
         )
         && (
           (!isLinkedTransaction(resource.data) && !isLinkedTransaction(request.resource.data)
@@ -339,6 +379,21 @@ service cloud.firestore {
             && hasReciprocalInitialDebtReceivableTransaction(documentId))
         );
       allow delete: if deletesOwnDocument() && !isLinkedTransaction(resource.data) && !isInitialDebtReceivableTransaction(resource.data);
+    }
+
+    match /vehicles/{documentId} {
+      allow get, list: if readsOwnDocument();
+      allow create: if createsOwnDocument()
+        && request.resource.data.keys().hasOnly(["name", "isDeleted", "createdAt", "updatedAt", "ownerUid"])
+        && request.resource.data.keys().hasAll(["name", "isDeleted", "createdAt", "updatedAt", "ownerUid"])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.isDeleted == false;
+      allow update: if updatesOwnDocument()
+        && request.resource.data.keys().hasOnly(["name", "isDeleted", "createdAt", "updatedAt", "ownerUid"])
+        && request.resource.data.keys().hasAll(["name", "isDeleted", "createdAt", "updatedAt", "ownerUid"])
+        && request.resource.data.name is string && request.resource.data.name.size() > 0
+        && request.resource.data.isDeleted is bool;
+      allow delete: if false;
     }
 
     match /categories/{documentId} {
@@ -631,7 +686,8 @@ service cloud.firestore {
             && resource.data.status == "paid" && request.resource.data.status == "pending_payment")
           || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["workProjectId", "updatedAt"])
             && request.resource.data.status == resource.data.status && resource.data.workProjectId != null && request.resource.data.workProjectId == null)
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["isDeleted", "deletedAt", "deletedBy", "updatedAt"])
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(["paymentTransactionId", "isDeleted", "deletedAt", "deletedBy", "updatedAt"])
+            && !request.resource.data.keys().hasAny(["paymentTransactionId"])
             && (!resource.data.keys().hasAny(["isDeleted"]) || resource.data.isDeleted == false)
             && request.resource.data.isDeleted == true
             && request.resource.data.deletedAt is timestamp

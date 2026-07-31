@@ -22,6 +22,9 @@ import {
 import { validateTransactionForm } from "../utils/transactionDraftMapper";
 import AccountSelector from "./AccountSelector";
 import { getSafeCategoryLabel } from "../utils/displayTextUtils";
+import VehicleFormDialog from "./VehicleFormDialog.jsx";
+import { CREATE_VEHICLE_VALUE } from "../constants/transactionVehicleReference.js";
+import { sortVehicles } from "../services/vehicleModel.js";
 
 function normalizeCategoryName(value) {
   return (value || "").trim().toLowerCase();
@@ -65,13 +68,17 @@ export default function TransactionDraftReviewDialog({
   activities = [],
   thirdParties = [],
   projects = [],
+  vehicles = [],
   defaultAccount,
   submitting = false,
   onClose,
   onConfirm,
+  onCreateVehicle,
 }) {
   const [form, setForm] = useState(initialDraft || null);
   const [suggestionOpen, setSuggestionOpen] = useState(false);
+  const [quickVehicleOpen, setQuickVehicleOpen] = useState(false);
+  const [quickCreatedVehicle, setQuickCreatedVehicle] = useState(null);
 
   useEffect(() => {
     if (!open) {
@@ -146,6 +153,15 @@ export default function TransactionDraftReviewDialog({
     return [...linked, ...remaining];
   }, [projects, form?.activityId]);
 
+  const vehicleOptions = useMemo(() => {
+    const activeVehicles = vehicles.filter((vehicle) => vehicle.isDeleted !== true);
+    if (!quickCreatedVehicle || activeVehicles.some((vehicle) => vehicle.id === quickCreatedVehicle.id)) {
+      return activeVehicles;
+    }
+
+    return sortVehicles([...activeVehicles, quickCreatedVehicle]);
+  }, [quickCreatedVehicle, vehicles]);
+
   const suggestionState = useMemo(() => {
     if (!form) {
       return null;
@@ -178,6 +194,11 @@ export default function TransactionDraftReviewDialog({
 
   function handleChange(event) {
     const { name, value } = event.target;
+
+    if (name === "vehicleId" && value === CREATE_VEHICLE_VALUE) {
+      setQuickVehicleOpen(true);
+      return;
+    }
 
     setForm((previous) => {
       if (!previous) {
@@ -469,6 +490,24 @@ export default function TransactionDraftReviewDialog({
             sx={{ mb: 0 }}
           />
 
+          {form?.type === "depense" && (
+            <TextField
+              label="Véhicule"
+              name="vehicleId"
+              select
+              value={form?.vehicleId || ""}
+              onChange={handleChange}
+              fullWidth
+              size="small"
+            >
+              <MenuItem value="">Aucun</MenuItem>
+              {vehicleOptions.map((vehicle) => (
+                <MenuItem key={vehicle.id} value={vehicle.id}>{vehicle.name}</MenuItem>
+              ))}
+              <MenuItem value={CREATE_VEHICLE_VALUE}>+ Ajouter un véhicule</MenuItem>
+            </TextField>
+          )}
+
           <TextField
             label="Description"
             name="description"
@@ -489,6 +528,20 @@ export default function TransactionDraftReviewDialog({
           Créer la transaction
         </Button>
       </DialogActions>
+      <VehicleFormDialog
+        open={quickVehicleOpen}
+        title="Ajouter un véhicule"
+        onClose={() => setQuickVehicleOpen(false)}
+        onSave={async (name) => {
+          const result = await onCreateVehicle?.({ name });
+          if (result?.success) {
+            const createdVehicle = { id: result.value.id, name, isDeleted: false };
+            setQuickCreatedVehicle(createdVehicle);
+            setForm((previous) => ({ ...previous, vehicleId: createdVehicle.id }));
+          }
+          return result || { success: false, error: "Création du véhicule indisponible." };
+        }}
+      />
     </Dialog>
   );
 }

@@ -33,6 +33,10 @@ import { useActivities } from "../hooks/useActivities";
 import { useThirdParties } from "../hooks/useThirdParties";
 import { useProjects } from "../hooks/useProjects";
 import { useWorkProjects } from "../hooks/useWorkProjects.js";
+import { useVehicles } from "../hooks/useVehicles.js";
+import { CREATE_VEHICLE_VALUE } from "../constants/transactionVehicleReference.js";
+import VehicleFormDialog from "../components/VehicleFormDialog.jsx";
+import { sortVehicles } from "../services/vehicleModel.js";
 import { useFixedExpenses } from "../hooks/useFixedExpenses";
 import { getCategoryOptions } from "../constants/transactionCategories";
 import AccountSelector from "../components/AccountSelector";
@@ -160,6 +164,7 @@ function getInitialForm() {
     projectId: "",
     projectName: "",
     workProjectId: "",
+    vehicleId: "",
     destinationAccountId: "",
     isFixedExpense: false,
     fixedExpenseId: "",
@@ -306,6 +311,7 @@ export default function Transactions({
   const [quickProjectForm, setQuickProjectForm] = useState({ name: "", activityId: "", startDate: "", endDate: "", notes: "" });
   const [quickProjectError, setQuickProjectError] = useState("");
   const [quickFixedExpenseOpen, setQuickFixedExpenseOpen] = useState(false);
+  const [quickVehicleOpen, setQuickVehicleOpen] = useState(false);
   const [quickFixedExpenseForm, setQuickFixedExpenseForm] = useState({ name: "", frequency: "monthly", startDate: "", endDate: "", description: "" });
   const [quickFixedExpenseError, setQuickFixedExpenseError] = useState("");
   const [quickFixedExpenseSubmitting, setQuickFixedExpenseSubmitting] = useState(false);
@@ -338,6 +344,7 @@ export default function Transactions({
   const { thirdParties = [], addThirdParty } = useThirdParties({ includeInactive: true });
   const { projects = [], addProject } = useProjects({ includeInactive: true });
   const { projects: workProjects = [] } = useWorkProjects();
+  const { vehicles = [], addVehicle } = useVehicles({ includeDeleted: true });
   const { fixedExpenses = [], addFixedExpense } = useFixedExpenses();
   const voiceParserCategories = useMemo(
     () => categories
@@ -458,6 +465,13 @@ export default function Transactions({
     [thirdParties]
   );
   const activeWorkProjects = useMemo(() => workProjects.filter((project) => !["completed", "cancelled"].includes(project.status)), [workProjects]);
+  const vehicleMap = useMemo(() => new Map(vehicles.map((vehicle) => [vehicle.id, vehicle])), [vehicles]);
+  const activeVehicles = useMemo(() => vehicles.filter((vehicle) => vehicle.isDeleted !== true), [vehicles]);
+  const formVehicleOptions = useMemo(() => {
+    const selected = vehicleMap.get(form.vehicleId);
+    if (!selected?.isDeleted) return activeVehicles;
+    return sortVehicles([...activeVehicles, { ...selected, name: `${selected.name} (supprimé)` }]);
+  }, [activeVehicles, form.vehicleId, vehicleMap]);
   const activeProjects = useMemo(
     () => projects.filter((project) => project.isActive !== false),
     [projects]
@@ -1015,6 +1029,11 @@ export default function Transactions({
       return;
     }
 
+    if (name === "vehicleId" && value === CREATE_VEHICLE_VALUE) {
+      setQuickVehicleOpen(true);
+      return;
+    }
+
     if (name === "fixedExpenseId" && value === CREATE_FIXED_EXPENSE_VALUE) {
       openQuickFixedExpenseDialog();
       return;
@@ -1507,6 +1526,7 @@ export default function Transactions({
       projectId: transaction.projectId || "",
       projectName: transaction.projectName || projectMap.get(transaction.projectId || "")?.name || "",
       workProjectId: transaction.workProjectId || "",
+      vehicleId: transaction.vehicleId || "",
       destinationAccountId: transaction.destinationAccountId || "",
       isFixedExpense: Boolean(matchingFixedExpense),
       fixedExpenseId: matchingFixedExpense?.id || "",
@@ -1701,6 +1721,8 @@ export default function Transactions({
       activityMap,
       thirdPartyMap,
       projectMap,
+      vehicleMap,
+      allowDeletedVehicleId: editingId ? transactionEditorInitialForm.vehicleId : "",
     });
 
     return validationMessage ? `${validationMessage} ❌` : "";
@@ -3239,6 +3261,17 @@ export default function Transactions({
         </DialogActions>
       </Dialog>
 
+      <VehicleFormDialog
+        open={quickVehicleOpen}
+        title="Ajouter un véhicule"
+        onClose={() => setQuickVehicleOpen(false)}
+        onSave={async (name) => {
+          const result = await addVehicle({ name });
+          if (result.success) setForm((previous) => ({ ...previous, vehicleId: result.value.id }));
+          return result;
+        }}
+      />
+
       <TransactionEditorDialog
         open={transactionEditorOpen}
         title={editingId ? "Modifier une transaction" : "Ajouter une transaction"}
@@ -3257,6 +3290,7 @@ export default function Transactions({
         projects={prioritizedProjectOptions}
         prioritizedProjectOptions={prioritizedProjectOptions}
         workProjects={activeWorkProjects}
+        vehicles={formVehicleOptions}
         fixedExpenses={fixedExpenses}
         helperText={form.categoryId ? "Facultatif" : "Choisir une categorie d'abord"}
         scrollRestorePosition={transactionEditorScrollRestorePosition}
@@ -3603,10 +3637,12 @@ export default function Transactions({
         activities={activeActivities}
         thirdParties={activeThirdParties}
         projects={activeProjects}
+        vehicles={activeVehicles}
         defaultAccount={defaultAccount}
         submitting={isCreatingFromDraft}
         onClose={closeDraftDialog}
         onConfirm={handleCreateFromDraft}
+        onCreateVehicle={addVehicle}
       />
 
       <BankingImportWizard

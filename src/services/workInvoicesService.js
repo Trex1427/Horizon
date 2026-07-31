@@ -1,5 +1,5 @@
 import {
-  collection, deleteField, doc, onSnapshot, query, runTransaction, serverTimestamp, setDoc, where,
+  collection, deleteField, doc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc, where,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { auth, db, storage } from "../firebase.js";
@@ -9,6 +9,7 @@ import {
 } from "../features/work/workModels.js";
 import { commitFirestoreWithStorageCompensation } from "./firestoreCompensationCore.js";
 import { cleanupOrphanQuotePdf } from "./orphanQuotePdfCleanupService.js";
+import { planWorkInvoiceDeletion } from "./workInvoiceDeletionModel.js";
 
 const INVOICES = "workInvoices";
 const MAX_BYTES = Number(import.meta.env.VITE_WORK_DOCUMENT_MAX_BYTES || WORK_DOCUMENT_MAX_BYTES);
@@ -122,14 +123,55 @@ export async function markWorkInvoicePaidWithTransaction(invoiceId, transactionP
   });
 }
 
-export async function softDeleteWorkInvoice(invoiceId) {
+async function findOwnedInvoicePaymentCandidates(ownerUid, invoiceId) {
+  const snapshot = await getDocs(query(collection(db, "transactions"), where("ownerUid", "==", ownerUid)));
+  return snapshot.docs
+    .map((entry) => ({ id: entry.id, ...entry.data() }))
+    .filter((entry) => entry.workInvoiceId === invoiceId || entry.id === `work-invoice-${invoiceId}`);
+}
+
+export async function inspectWorkInvoiceDeletion(invoice) {
   const ownerUid = requireCurrentUid(auth);
+  const candidates = await findOwnedInvoicePaymentCandidates(ownerUid, invoice.id);
+  return { hasLinkedTransaction: Boolean(invoice.paymentTransactionId || candidates.length) };
+}
+
+export async function softDeleteWorkInvoice(invoiceId, { deleteLinkedTransaction = false } = {}) {
+  const ownerUid = requireCurrentUid(auth);
+  const prefetchedCandidates = await findOwnedInvoicePaymentCandidates(ownerUid, invoiceId);
   const invoiceRef = doc(db, INVOICES, invoiceId);
   return runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(invoiceRef);
-    if (!snapshot.exists() || snapshot.data().ownerUid !== ownerUid) throw new Error("Facture introuvable.");
-    transaction.update(invoiceRef, { isDeleted: true, deletedAt: serverTimestamp(), deletedBy: ownerUid, updatedAt: serverTimestamp() });
-    return { paymentTransactionId: snapshot.data().paymentTransactionId || null };
+    const invoiceSnapshot = await transaction.get(invoiceRef);
+    if (!invoiceSnapshot.exists() || invoiceSnapshot.data().ownerUid !== ownerUid) throw new Error("Facture introuvable.");
+    const invoice = invoiceSnapshot.data();
+    const candidateIds = new Set(prefetchedCandidates.map((entry) => entry.id));
+    candidateIds.add(`work-invoice-${invoiceId}`);
+    if (invoice.paymentTransactionId) candidateIds.add(invoice.paymentTransactionId);
+    const paymentSnapshots = await Promise.all([...candidateIds].map((id) => transaction.get(doc(db, "transactions", id))));
+    const ownedPayments = paymentSnapshots
+      .filter((snapshot) => snapshot.exists() && snapshot.data().ownerUid === ownerUid)
+      .map((snapshot) => ({ id: snapshot.id, ...snapshot.data() }));
+    const plan = planWorkInvoiceDeletion({ invoiceId, invoice, transactions: ownedPayments, deleteLinkedTransaction });
+    const now = serverTimestamp();
+
+    for (const payment of plan.linkedTransactions) {
+      if (!payment.removeInvoiceLink && !payment.softDelete) continue;
+      const patch = { workInvoiceId: deleteField(), updatedAt: now };
+      if (payment.softDelete) Object.assign(patch, { isDeleted: true, deletedAt: now, deletedBy: ownerUid });
+      transaction.update(doc(db, "transactions", payment.id), patch);
+    }
+    transaction.update(invoiceRef, {
+      paymentTransactionId: deleteField(),
+      isDeleted: true,
+      deletedAt: now,
+      deletedBy: ownerUid,
+      updatedAt: now,
+    });
+    return {
+      transactionDeleted: plan.transactionDeleted,
+      transactionKept: plan.transactionKept,
+      cleanedTransactionCount: plan.linkedTransactions.length,
+    };
   });
 }
 export function openWorkInvoicePdf(invoice) {
