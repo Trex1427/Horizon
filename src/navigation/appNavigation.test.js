@@ -4,6 +4,7 @@ import {
   buildPageUrl,
   getPageFromLocation,
   getPageSlug,
+  MOBILE_NAVIGATION_MEDIA_QUERY,
   MOBILE_PRIMARY_PAGES,
   MOBILE_SECONDARY_PAGES,
   PAGE_ORDER,
@@ -17,9 +18,11 @@ test("every functional desktop page has exactly one primary or secondary mobile 
   assert.deepEqual(new Set(mobilePages), new Set(PAGE_ORDER));
 });
 
-test("mobile direct routes keep summary, transactions and budgets", () => {
-  assert.deepEqual(MOBILE_PRIMARY_PAGES, [PAGES.HOME, PAGES.TRANSACTIONS, PAGES.BUDGETS]);
+test("mobile direct routes expose the four M1 destinations", () => {
+  assert.deepEqual(MOBILE_PRIMARY_PAGES, [PAGES.HOME, PAGES.TRANSACTIONS, PAGES.TRAVAIL, PAGES.ANALYSE]);
   assert.equal(MOBILE_SECONDARY_PAGES.includes(PAGES.TRANSACTIONS), false);
+  assert.equal(MOBILE_SECONDARY_PAGES.includes(PAGES.BUDGETS), true);
+  assert.match(MOBILE_NAVIGATION_MEDIA_QUERY, /orientation: landscape/);
 });
 
 test("all routes expose unique stable direct-link slugs", () => {

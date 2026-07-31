@@ -36,8 +36,21 @@ export const PAGE_ORDER = Object.freeze([
   PAGES.PARAMETRES,
 ]);
 
-export const MOBILE_PRIMARY_PAGES = Object.freeze([PAGES.HOME, PAGES.TRANSACTIONS, PAGES.BUDGETS]);
+export const MOBILE_PRIMARY_PAGES = Object.freeze([
+  PAGES.HOME,
+  PAGES.TRANSACTIONS,
+  PAGES.TRAVAIL,
+  PAGES.ANALYSE,
+]);
 export const MOBILE_SECONDARY_PAGES = Object.freeze(PAGE_ORDER.filter((page) => !MOBILE_PRIMARY_PAGES.includes(page)));
+
+export const RESPONSIVE_BREAKPOINTS = Object.freeze({
+  mobileMax: 599.95,
+  tabletMin: 600,
+  desktopMin: 900,
+});
+
+export const MOBILE_NAVIGATION_MEDIA_QUERY = `(max-width:${RESPONSIVE_BREAKPOINTS.mobileMax}px), (max-width:${RESPONSIVE_BREAKPOINTS.desktopMin - 0.05}px) and (max-height:600px) and (orientation: landscape)`;
 
 const PAGE_SLUGS = Object.freeze({
   [PAGES.HOME]: "resume",

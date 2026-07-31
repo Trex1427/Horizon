@@ -378,6 +378,7 @@ function AnnualTrajectorySummary({
 }) {
   const rows = Array.isArray(trajectory) ? trajectory : [];
   const year = getTrajectoryYear(rows);
+  const visibleRows = rows.filter((row) => row?.status !== "actual");
   const december = rows[11] || null;
 
   if (error) {
@@ -442,16 +443,16 @@ function AnnualTrajectorySummary({
           gap: 0.75,
         }}
       >
-        {rows.map((row, index) => {
+        {visibleRows.map((row, index) => {
           const closingBalance = Number(row?.closingBalance);
           const monthlyIncome = getFiniteAmount(row?.monthlyIncome);
           const monthlyExpenses = getFiniteAmount(row?.monthlyExpenses);
           const monthlyNet = getFiniteAmount(row?.monthlyNet);
           const isNegative = Number.isFinite(closingBalance) && closingBalance < 0;
           const isCurrent = row.status === "current";
-          const isDecember = index === 11;
+          const isDecember = String(row.month).endsWith("-12");
           const borderColor = isNegative ? HORIZON_COLORS.red : isCurrent ? HORIZON_COLORS.blue : isDecember ? HORIZON_COLORS.green : HORIZON_COLORS.line;
-          const monthLabel = MONTH_LABELS[index] || row.month;
+          const monthLabel = MONTH_LABELS[Number(String(row.month).slice(5, 7)) - 1] || row.month;
           const isInteractive = typeof onMonthClick === "function" && row.month;
           const monthCardSx = {
             border: "1px solid",
@@ -475,6 +476,7 @@ function AnnualTrajectorySummary({
                 {formatCurrency(closingBalance)}
               </Typography>
               <Stack spacing={0.15} sx={{ mt: 0.75 }}>
+                <MonthAmountLine label="Début" value={row.openingBalance} color={HORIZON_COLORS.muted} />
                 <MonthAmountLine label="Rev." value={monthlyIncome} color={HORIZON_COLORS.green} />
                 <MonthAmountLine label="Dep." value={monthlyExpenses} color={HORIZON_COLORS.red} />
                 <MonthAmountLine label="Variation" value={monthlyNet} color={monthlyNet >= 0 ? HORIZON_COLORS.green : HORIZON_COLORS.red} />
@@ -904,25 +906,6 @@ export default function HorizonCockpit({
         </MetricCard>
 
         <MetricCard
-          icon={monthlySavings > 0 ? <TrendingUp /> : monthlySavings < 0 ? <TrendingDown /> : <TrendingFlat />}
-          title="Variation du mois"
-          value={formatCurrency(monthlySavings)}
-          subtitle={`${formatCurrency(totalRevenue)} de revenus - ${formatCurrency(totalExpense)} de depenses.`}
-          color={monthlySavings >= 0 ? HORIZON_COLORS.green : HORIZON_COLORS.red}
-          large
-          helpText="Revenus moins dépenses du mois."
-          onClick={() => openAnalysisMonth(currentTrajectoryMonth)}
-          ariaLabel="Ouvrir l'analyse du mois courant"
-        >
-          <Chip
-            icon={monthlySavings > 0 ? <TrendingUp /> : monthlySavings < 0 ? <TrendingDown /> : <TrendingFlat />}
-            label={monthlySavings > 0 ? "Mois positif" : monthlySavings < 0 ? "Mois sous tension" : "Mois stable"}
-            size="small"
-            sx={{ mt: 2, width: "fit-content", color: monthlySavings >= 0 ? HORIZON_COLORS.green : HORIZON_COLORS.red, fontWeight: 800 }}
-          />
-        </MetricCard>
-
-        <MetricCard
           icon={<Savings />}
           title="Solde prévu fin de mois"
           value={formatCurrency(remaining)}
@@ -933,31 +916,26 @@ export default function HorizonCockpit({
           onClick={() => scrollToTrajectoryMonth(currentTrajectoryMonth)}
           ariaLabel="Faire défiler la trajectoire jusqu'au mois courant"
         >
-          <Box
-            role="meter"
-            aria-label="Jauge du solde prévu fin de mois"
-            aria-valuenow={remainingStatus.percent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            sx={{
-              mt: 2,
-              height: 12,
-              borderRadius: 999,
-              bgcolor: HORIZON_COLORS.secondary,
-              overflow: "hidden",
-            }}
-          >
-            <Box
-              sx={{
-                width: `${remainingStatus.percent}%`,
-                minWidth: remainingStatus.percent > 0 ? 8 : 0,
-                height: "100%",
-                borderRadius: 999,
-                bgcolor: remainingStatus.color,
-                transition: "width 240ms ease",
-              }}
-            />
-          </Box>
+          <Chip
+            icon={remaining >= 0 ? <TrendingUp /> : <TrendingDown />}
+            label={remaining >= 0 ? "Solde positif" : "Solde négatif"}
+            size="small"
+            sx={{ mt: 2, width: "fit-content", color: remainingStatus.color, fontWeight: 800 }}
+          />
+        </MetricCard>
+
+        <MetricCard
+          icon={<Flag />}
+          title="Solde prévu au 31 décembre"
+          value={formatCurrency(december?.closingBalance)}
+          subtitle={`Prévision au 31 décembre ${trajectoryYear}`}
+          color={Number(december?.closingBalance) < 0 ? HORIZON_COLORS.red : HORIZON_COLORS.green}
+          large
+          helpText="Projection du solde au dernier jour de l'année."
+          onClick={() => scrollToTrajectoryMonth(decemberMonth)}
+          ariaLabel="Faire défiler la trajectoire jusqu'à décembre"
+        >
+          <Chip label={Number(december?.closingBalance) < 0 ? "Solde négatif" : "Solde positif"} size="small" sx={{ mt: 2, width: "fit-content", fontWeight: 800 }} />
         </MetricCard>
       </Box>
 
@@ -969,20 +947,20 @@ export default function HorizonCockpit({
         }}
       >
         <MetricCard
-          icon={<Flag />}
-          title="Solde prévu au 31 décembre"
-          value={formatCurrency(december?.closingBalance)}
-          subtitle={`Prévision au 31 decembre ${trajectoryYear}`}
-          color={Number(december?.closingBalance) < 0 ? HORIZON_COLORS.red : HORIZON_COLORS.green}
-          helpText="Projection du solde au dernier jour de l'année."
-          onClick={() => scrollToTrajectoryMonth(decemberMonth)}
-          ariaLabel="Faire défiler la trajectoire jusqu'à décembre"
+          icon={monthlySavings >= 0 ? <TrendingUp /> : <TrendingDown />}
+          title="Variation du mois"
+          value={formatCurrency(monthlySavings)}
+          subtitle={`${formatCurrency(totalRevenue)} de revenus - ${formatCurrency(totalExpense)} de dépenses.`}
+          color={monthlySavings >= 0 ? HORIZON_COLORS.green : HORIZON_COLORS.red}
+          helpText="Revenus moins dépenses du mois."
+          onClick={() => openAnalysisMonth(currentTrajectoryMonth)}
+          ariaLabel="Ouvrir l'analyse du mois courant"
         >
           <Chip
-            icon={decemberTrend.icon}
-            label={`${decemberTrend.label} vs novembre (${formatCurrency(decemberTrend.delta)})`}
+            icon={monthlySavings >= 0 ? <TrendingUp /> : <TrendingDown />}
+            label={monthlySavings >= 0 ? "Mois positif" : "Mois sous tension"}
             size="small"
-            sx={{ mt: 1.5, width: "fit-content", color: decemberTrend.color, fontWeight: 800 }}
+            sx={{ mt: 1.5, width: "fit-content", color: monthlySavings >= 0 ? HORIZON_COLORS.green : HORIZON_COLORS.red, fontWeight: 800 }}
           />
         </MetricCard>
 

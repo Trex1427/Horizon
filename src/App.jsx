@@ -14,7 +14,7 @@ import Parametres from "./pages/Parametres";
 import ImportHistory from "./pages/ImportHistory";
 import Travail from "./pages/Travail";
 import Vehicles from "./pages/Vehicles";
-import ProfessionalDashboard from "./pages/ProfessionalDashboard";
+import FinancialHome from "./pages/FinancialHome";
 import { TransactionsProvider } from "./context/TransactionsContext";
 import { RecurringIncomeProvider } from "./context/RecurringIncomeContext";
 import { AuthGate } from "./auth/AuthGate";
@@ -24,6 +24,7 @@ import { useAccounts } from "./hooks/useAccounts";
 import {
   buildPageUrl,
   getPageFromLocation,
+  MOBILE_NAVIGATION_MEDIA_QUERY,
   MOBILE_PRIMARY_PAGES,
   MOBILE_SECONDARY_PAGES,
   PAGE_ORDER,
@@ -73,7 +74,7 @@ const MORE_MENU_PAGES = [
   },
   {
     key: PAGES.REFERENTIELS,
-    label: "Référentiels",
+    label: "Comptes, activités et tiers",
     icon: <Category />,
     page: PAGES.REFERENTIELS,
   },
@@ -88,12 +89,6 @@ const MORE_MENU_PAGES = [
     label: "Revenus récurrents",
     icon: <ReceiptLong />,
     page: PAGES.REVENUS_RECURRENTS,
-  },
-  {
-    key: PAGES.TRAVAIL,
-    label: "Travail",
-    icon: <Work />,
-    page: PAGES.TRAVAIL,
   },
   {
     key: PAGES.VEHICLES,
@@ -124,12 +119,6 @@ const MORE_MENU_PAGES = [
     label: "Prévisions",
     icon: <ShowChart />,
     page: PAGES.PREVISIONS,
-  },
-  {
-    key: PAGES.ANALYSE,
-    label: "Analyse",
-    icon: <ShowChart />,
-    page: PAGES.ANALYSE,
   },
   {
     key: "SCANNER",
@@ -188,7 +177,7 @@ function AppContent() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
   const { accounts, defaultAccount, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
-  const isMobilePortrait = useMediaQuery("(max-width:600px) and (orientation: portrait)");
+  const isMobile = useMediaQuery(MOBILE_NAVIGATION_MEDIA_QUERY);
 
   const mobileBottomNavValue = MOBILE_PRIMARY_PAGES.includes(page)
     ? page
@@ -242,7 +231,7 @@ function AppContent() {
   }
 
   return (
-    <Box sx={{ minHeight: "100dvh", overflowX: "hidden", pb: isMobilePortrait ? "calc(72px + env(safe-area-inset-bottom, 0px))" : 10 }}>
+    <Box sx={{ minHeight: "100dvh", overflowX: "hidden", pb: isMobile ? "calc(72px + env(safe-area-inset-bottom, 0px))" : 10 }}>
       <AppBar
         position="sticky"
         elevation={0}
@@ -291,7 +280,7 @@ function AppContent() {
             </Box>
           )}
 
-          {!isMobilePortrait && (
+          {!isMobile && (
             <Box sx={{ display: "flex", gap: 1 }}>
               <Tooltip title="Paramètres">
                 <IconButton
@@ -346,7 +335,10 @@ function AppContent() {
           }}
         >
         {page === PAGES.HOME && (
-          <ProfessionalDashboard
+          <FinancialHome
+            accounts={accounts}
+            accountsLoading={accountsLoading}
+            accountsError={accountsError}
             onOpenTransactions={() => openTransactionsWithContext(null)}
             onOpenAnalysisMonth={openAnalysisMonth}
             onOpenOpportunities={() => navigateToPage(PAGES.OPPORTUNITES)}
@@ -407,7 +399,7 @@ function AppContent() {
         </Box>
       </Container>
 
-      {!isMobilePortrait && (
+      {!isMobile && (
         <Fab
           aria-label="Ajouter une transaction"
           onClick={() => openTransactionsWithContext(null)}
@@ -427,7 +419,7 @@ function AppContent() {
         </Fab>
       )}
 
-      {isMobilePortrait ? (
+      {isMobile ? (
         <>
           <BottomNavigation
             value={mobileBottomNavValue}
@@ -450,18 +442,20 @@ function AppContent() {
                 minWidth: "0 !important",
                 width: "100%",
                 px: 0.25,
+                minHeight: 56,
               },
               "& .Mui-selected": {
                 color: "#0f5257",
                 fontWeight: 700,
+                borderTop: "3px solid currentColor",
               },
             }}
           >
-            <BottomNavigationAction value={PAGES.HOME} label="Résumé" icon={<Home />} aria-label="Ouvrir le résumé mensuel" />
+            <BottomNavigationAction value={PAGES.HOME} label="Accueil" icon={<Home />} aria-label="Ouvrir l’accueil" />
             <BottomNavigationAction value={PAGES.TRANSACTIONS} label="Transactions" icon={<ReceiptLong />} aria-label="Ouvrir les transactions" />
-            <BottomNavigationAction value={PAGES.BUDGETS} label="Budgets" icon={<PieChart />} aria-label="Ouvrir les budgets" />
-            <BottomNavigationAction value="MORE" label="Plus" icon={<MoreHoriz />} aria-label="Ouvrir les autres sections" />
-            <BottomNavigationAction value="ADD" label="Ajouter" icon={<Add />} aria-label="Ajouter une transaction" />
+            <BottomNavigationAction value={PAGES.TRAVAIL} label="Travail" icon={<Work />} aria-label="Ouvrir Travail" />
+            <BottomNavigationAction value={PAGES.ANALYSE} label="Analyse" icon={<ShowChart />} aria-label="Ouvrir l’analyse" />
+            <BottomNavigationAction value="MORE" label="Plus" icon={<MoreHoriz />} aria-label="Ouvrir les autres pages" />
           </BottomNavigation>
 
           <Drawer

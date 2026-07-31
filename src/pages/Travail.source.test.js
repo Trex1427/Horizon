@@ -22,13 +22,13 @@ test("shared quote form supports manual/imported drafts, filters, PDF and dossie
   assert.equal(source.includes("openWorkQuoteDocument"), true);
 });
 
-test("navigation registers Travail with direct URL and mobile Plus access", async () => {
+test("navigation registers Travail with direct URL and primary mobile access", async () => {
   const navigation = await readFile(resolve(root, "src/navigation/appNavigation.js"), "utf8");
   const app = await readFile(resolve(root, "src/App.jsx"), "utf8");
   assert.equal(navigation.includes('TRAVAIL: "TRAVAIL"'), true);
   assert.equal(navigation.includes('[PAGES.TRAVAIL]: "travail"'), true);
   assert.equal(app.includes("page === PAGES.TRAVAIL && <Travail onOpenTransaction="), true);
-  assert.equal(app.includes("key: PAGES.TRAVAIL"), true);
+  assert.equal(app.includes('value={PAGES.TRAVAIL} label="Travail"'), true);
 });
 
 test("professional records are separate from transactional activities and use ownerUid guards", async () => {
