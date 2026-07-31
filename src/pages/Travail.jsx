@@ -15,11 +15,15 @@ import { useWorkProjects } from "../hooks/useWorkProjects.js";
 import { useWorkProjectTransactions } from "../hooks/useWorkProjectTransactions.js";
 import { useAccounts } from "../hooks/useAccounts.js";
 import { useWorkQuotes } from "../hooks/useWorkQuotes.js";
+import { useWorkInvoices } from "../hooks/useWorkInvoices.js";
 import { useThirdParties } from "../hooks/useThirdParties.js";
 import { parseTiiimeQuotePdf } from "../services/tiiimeQuoteParserService.js";
+import { parseTiiimeInvoicePdf } from "../services/tiiimeInvoiceParserService.js";
 import { matchThirdParties } from "../features/work/workModels.js";
 import { openWorkQuoteDocument } from "../services/workQuotesService.js";
+import { openWorkInvoicePdf } from "../services/workInvoicesService.js";
 import { WorkDashboard, WorkProjectsSection } from "../features/work/WorkProjectsViews.jsx";
+import { WorkInvoicesSection } from "../features/work/WorkInvoicesViews.jsx";
 
 const SECTIONS = [
   ["dashboard", "Tableau de bord"], ["quotes", "Devis"], ["sites", "Dossiers"],
@@ -35,10 +39,14 @@ function WaitingPanel({ children }) {
   return <Card variant="outlined"><CardContent><Typography color="text.secondary">{children}</Typography></CardContent></Card>;
 }
 
-function QuoteDialog({ open, quote, file, activities, thirdParties, extraction, onFileChange, onClose, onSave, addThirdParty }) {
+const EMPTY_ACTIVITY = { name: "", color: "#2e7d6f", icon: "work", urssafRate: "0", isActive: true };
+
+function QuoteDialog({ open, quote, file, activities, thirdParties, extraction, onFileChange, onClose, onSave, addThirdParty, addProfessionalActivity }) {
   const [form, setForm] = useState(quote);
   const [error, setError] = useState("");
   const [quickThirdParty, setQuickThirdParty] = useState("");
+  const [quickActivity, setQuickActivity] = useState(null);
+  const [quickActivitySaving, setQuickActivitySaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   if (!open) return null;
@@ -71,8 +79,12 @@ function QuoteDialog({ open, quote, file, activities, thirdParties, extraction, 
           )}
           {error && <Alert severity="error">{error}</Alert>}
           <TextField select required label="Activité professionnelle" value={form.professionalActivityId}
-            onChange={(e) => setForm({ ...form, professionalActivityId: e.target.value })}>
+            onChange={(e) => e.target.value === "__create__"
+              ? setQuickActivity({ ...EMPTY_ACTIVITY })
+              : setForm({ ...form, professionalActivityId: e.target.value })}>
             {activeActivities.map((entry) => <MenuItem key={entry.id} value={entry.id}>{entry.name}{entry.isActive === false ? " (inactive)" : ""}</MenuItem>)}
+            <MenuItem value="__create__">+ Nouvelle activité</MenuItem>
+
           </TextField>
           <TextField select required label="Tiers" value={form.thirdPartyId}
             onChange={(e) => e.target.value === "__create__" ? setQuickThirdParty(extraction?.customerName || "Nouveau tiers") : setForm({ ...form, thirdPartyId: e.target.value })}>
@@ -107,7 +119,26 @@ function QuoteDialog({ open, quote, file, activities, thirdParties, extraction, 
           else setError(result.error);
         }}>Créer et sélectionner</Button></DialogActions>
       </Dialog>
-    </Dialog>
+      <Dialog open={Boolean(quickActivity)} onClose={() => !quickActivitySaving && setQuickActivity(null)} fullWidth maxWidth="xs">
+        <DialogTitle>Nouvelle activité</DialogTitle>
+        <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+          <TextField autoFocus required label="Nom" value={quickActivity?.name || ""} onChange={(e) => setQuickActivity({ ...quickActivity, name: e.target.value })} />
+          <TextField type="number" label="Taux URSSAF (%)" inputProps={{ min: 0, step: "0.01" }} value={quickActivity?.urssafRate || "0"} onChange={(e) => setQuickActivity({ ...quickActivity, urssafRate: e.target.value })} />
+          <TextField label="Couleur" type="color" value={quickActivity?.color || "#2e7d6f"} onChange={(e) => setQuickActivity({ ...quickActivity, color: e.target.value })} />
+          <TextField label="Icône" value={quickActivity?.icon || "work"} onChange={(e) => setQuickActivity({ ...quickActivity, icon: e.target.value })} />
+        </Stack></DialogContent>
+        <DialogActions><Button disabled={quickActivitySaving} onClick={() => setQuickActivity(null)}>Annuler</Button><Button variant="contained" disabled={quickActivitySaving} onClick={async () => {
+          if (!String(quickActivity?.name || "").trim()) { setError("Le nom de l'activité professionnelle est obligatoire."); return; }
+          setQuickActivitySaving(true);
+          const result = await addProfessionalActivity(quickActivity);
+          setQuickActivitySaving(false);
+          if (result.success) {
+            setForm((current) => ({ ...current, professionalActivityId: result.value.id }));
+            setQuickActivity(null);
+            setError("");
+          } else setError(result.error);
+        }}>{quickActivitySaving ? <CircularProgress size={20} /> : "Créer et sélectionner"}</Button></DialogActions>
+      </Dialog>    </Dialog>
   );
 }
 
@@ -153,6 +184,7 @@ export default function Travail({ onOpenTransaction }) {
   const [section, setSection] = useState("dashboard");
   const activitiesApi = useProfessionalActivities();
   const quotesApi = useWorkQuotes();
+  const invoicesApi = useWorkInvoices();
   const projectsApi = useWorkProjects();
   const linkedTransactionsApi = useWorkProjectTransactions();
   const { accounts } = useAccounts();
@@ -172,6 +204,7 @@ export default function Travail({ onOpenTransaction }) {
   const accountMap = useMemo(() => new Map(accounts.map((entry) => [entry.id, entry])), [accounts]);
   const quoteMap = useMemo(() => new Map(quotesApi.quotes.map((entry) => [entry.id, entry])), [quotesApi.quotes]);
   const projectByQuoteId = useMemo(() => new Map(projectsApi.projects.map((entry) => [entry.quoteId, entry])), [projectsApi.projects]);
+  const projectMap = useMemo(() => new Map(projectsApi.projects.map((entry) => [entry.id, entry])), [projectsApi.projects]);
   const filteredQuotes = quotesApi.quotes.filter((quote) => {
     const text = `${quote.quoteNumber || ""} ${thirdPartyMap.get(quote.thirdPartyId)?.name || ""}`.toLowerCase();
     return (filters.status === "all" || quote.status === filters.status)
@@ -203,6 +236,10 @@ export default function Travail({ onOpenTransaction }) {
     try { window.open(await openWorkQuoteDocument(documentMap.get(quote.documentId)), "_blank", "noopener,noreferrer"); }
     catch (error) { setNotice(error?.message || "PDF inaccessible."); }
   };
+  const openInvoicePdf = async (invoice) => {
+    try { window.open(await openWorkInvoicePdf(invoice), "_blank", "noopener,noreferrer"); }
+    catch (error) { setNotice(error?.message || "PDF inaccessible."); }
+  };
   const openProject = (projectId) => {
     setSelectedProjectId(projectId);
     setSection("sites");
@@ -232,10 +269,10 @@ export default function Travail({ onOpenTransaction }) {
       {SECTIONS.map(([value, label]) => <Tab key={value} value={value} label={label} />)}
     </Tabs>
     {notice && <Alert severity="info" onClose={() => setNotice("")} sx={{ mb: 2 }}>{notice}</Alert>}
-    {section === "dashboard" && <WorkDashboard projects={projectsApi.projects} transactions={linkedTransactionsApi.transactions} loading={projectsApi.loading || linkedTransactionsApi.loading} error={projectsApi.error || linkedTransactionsApi.error} />}
+    {section === "dashboard" && <WorkDashboard projects={projectsApi.projects} transactions={linkedTransactionsApi.transactions} invoices={invoicesApi.invoices} loading={projectsApi.loading || linkedTransactionsApi.loading || invoicesApi.loading} error={projectsApi.error || linkedTransactionsApi.error || invoicesApi.error} />}
     {section === "sites" && <WorkProjectsSection projects={projectsApi.projects} loading={projectsApi.loading} error={projectsApi.error}
-      activityMap={activityMap} thirdPartyMap={thirdPartyMap} quoteMap={quoteMap} accountMap={accountMap} transactions={linkedTransactionsApi.transactions} transactionsLoading={linkedTransactionsApi.loading} transactionsError={linkedTransactionsApi.error} selectedProjectId={selectedProjectId} onOpen={openProject} onBack={() => setSelectedProjectId("")} onSave={projectsApi.editProject} onOpenTransaction={onOpenTransaction} />}
-    {section === "invoices" && <WaitingPanel>La gestion des factures sera disponible dans un prochain sprint.</WaitingPanel>}
+      activityMap={activityMap} thirdPartyMap={thirdPartyMap} quoteMap={quoteMap} accountMap={accountMap} transactions={linkedTransactionsApi.transactions} transactionsLoading={linkedTransactionsApi.loading} transactionsError={linkedTransactionsApi.error} invoices={invoicesApi.invoices} onOpenInvoice={openInvoicePdf} selectedProjectId={selectedProjectId} onOpen={openProject} onBack={() => setSelectedProjectId("")} onSave={projectsApi.editProject} onOpenTransaction={onOpenTransaction} />}
+    {section === "invoices" && <WorkInvoicesSection invoices={invoicesApi.invoices} projects={projectsApi.projects} thirdParties={thirdParties} activities={activitiesApi.professionalActivities} accounts={accounts} addThirdParty={addThirdParty} createProject={projectsApi.createFromInvoice} thirdPartyMap={thirdPartyMap} projectMap={projectMap} loading={invoicesApi.loading} error={invoicesApi.error} parsePdf={parseTiiimeInvoicePdf} importInvoice={invoicesApi.importInvoice} markPaid={invoicesApi.markPaid} markPaidWithTransaction={invoicesApi.markPaidWithTransaction} markPending={invoicesApi.markPending} deleteInvoice={invoicesApi.deleteInvoice} openPdf={openInvoicePdf} />}
     {section === "settings" && <WaitingPanel>Les paramètres du module Travail seront ajoutés progressivement.</WaitingPanel>}
     {section === "activities" && <ActivitiesSection activitiesApi={activitiesApi} />}
     {section === "quotes" && <>
@@ -258,7 +295,7 @@ export default function Travail({ onOpenTransaction }) {
           <MenuItem value="all">Tous</MenuItem>{thirdParties.map((entry) => <MenuItem key={entry.id} value={entry.id}>{entry.name}</MenuItem>)}
         </TextField>
       </Stack>
-      <Stack spacing={1.5}>{filteredQuotes.map((quote) => <Card variant="outlined" key={quote.id}>
+      <Stack spacing={1.5}>{filteredQuotes.map((quote) => <Card variant="outlined" key={quote.id} onDoubleClick={() => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); }}>
         <CardContent><Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" gap={1}>
           <Box><Typography fontWeight={700}>{quote.quoteNumber || "Devis sans numéro"}</Typography>
             <Typography variant="body2">{quote.issueDate} · {thirdPartyMap.get(quote.thirdPartyId)?.name || "Tiers indisponible"}</Typography>
@@ -266,18 +303,18 @@ export default function Travail({ onOpenTransaction }) {
           <Stack direction="row" spacing={1}><Chip size="small" color={quote.status === "accepted" ? "success" : "warning"} label={quote.status === "accepted" ? "Accepté" : "En attente"} />
             {quote.documentId && <Chip size="small" icon={<Description />} label="PDF" />}</Stack>
         </Stack></CardContent>
-        <CardActions><IconButton aria-label="Modifier le devis" onClick={() => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); }}><Edit /></IconButton>
+        <CardActions onDoubleClick={(event) => event.stopPropagation()}><IconButton aria-label="Modifier le devis" onClick={() => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); }}><Edit /></IconButton>
           {quote.documentId && <Button onClick={() => openPdf(quote)} startIcon={<Description />}>PDF</Button>}
           {quote.status === "accepted" && <Button onClick={() => createProject(quote)} startIcon={<FolderOpen />}
             disabled={creatingProjectId === quote.id}>
             {creatingProjectId === quote.id ? "Création…" : (projectByQuoteId.has(quote.id) || quote.projectId) ? "Ouvrir le dossier" : "Créer le dossier"}
           </Button>}
-          <Button color="error" onClick={() => quotesApi.archiveQuote(quote.id, quote.documentId)} startIcon={<Archive />}>Archiver</Button></CardActions>
+          <Button color="error" onClick={() => quotesApi.archiveQuote(quote.id, quote.documentId)} startIcon={<Archive />}>Archiver</Button><Button color="error" onClick={async()=>{const linked=projectByQuoteId.has(quote.id)||quote.projectId;if(window.confirm(linked?"Ce devis possède un dossier qui sera conservé. Supprimer le devis ?":"Supprimer ce devis ?")){const result=await quotesApi.deleteQuote(quote.id);setNotice(result.success?"Devis supprimé. Le PDF et le dossier éventuel sont conservés.":result.error);}}}>Supprimer</Button></CardActions>
       </Card>)}
       {!quotesApi.loading && !filteredQuotes.length && <WaitingPanel>Aucun devis ne correspond aux filtres.</WaitingPanel>}</Stack>
     </>}
     <QuoteDialog key={dialog ? `${dialog.id || "new"}-${dialog.source}` : "closed"} open={Boolean(dialog)} quote={dialog || EMPTY_QUOTE}
       file={pdfFile} activities={activitiesApi.professionalActivities} thirdParties={thirdParties} extraction={extraction}
-      onFileChange={setPdfFile} onClose={() => setDialog(null)} onSave={saveQuote} addThirdParty={addThirdParty} />
+      onFileChange={setPdfFile} onClose={() => setDialog(null)} onSave={saveQuote} addThirdParty={addThirdParty} addProfessionalActivity={activitiesApi.addProfessionalActivity} />
   </Box>;
 }

@@ -4,6 +4,7 @@ export async function commitFirestoreWithStorageCompensation({
   cleanupUploadedPdf,
   successValue,
   logger = console,
+  failureMessage = "L’enregistrement du devis a échoué. Aucun devis n’a été créé.",
 }) {
   try {
     await commitFirestore();
@@ -13,15 +14,13 @@ export async function commitFirestoreWithStorageCompensation({
       try {
         await cleanupUploadedPdf(storagePath);
       } catch (cleanupError) {
-        logger.error("quote_pdf_compensation:orphan_possible", {
+        logger.error("document_pdf_compensation:orphan_possible", {
           storagePath,
           firestoreError,
           cleanupError,
         });
       }
     }
-    throw new Error("L’enregistrement du devis a échoué. Aucun devis n’a été créé.", {
-      cause: firestoreError,
-    });
+    throw new Error(failureMessage, { cause: firestoreError });
   }
 }

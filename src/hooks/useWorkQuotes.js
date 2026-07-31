@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   archiveWorkQuote, createWorkQuote, subscribeToWorkDocuments,
-  subscribeToWorkQuotes, updateWorkQuote,
+  softDeleteWorkQuote, subscribeToWorkQuotes, updateWorkQuote,
 } from "../services/workQuotesService.js";
 
 export function useWorkQuotes() {
@@ -26,5 +26,6 @@ export function useWorkQuotes() {
     addQuote: useCallback((payload, file) => run(() => createWorkQuote(payload, file)), [run]),
     editQuote: useCallback((id, payload) => run(() => updateWorkQuote(id, payload)), [run]),
     archiveQuote: useCallback((id, documentId) => run(() => archiveWorkQuote(id, documentId)), [run]),
+    deleteQuote: useCallback((id) => run(() => softDeleteWorkQuote(id)), [run]),
   };
 }

@@ -9,8 +9,9 @@ export function isOwnedQuoteStoragePath(storagePath, ownerUid) {
   const path = String(storagePath || "").trim();
   const uid = String(ownerUid || "").trim();
   if (!path || !uid || path.includes("..") || path.includes("\\") || path.startsWith("/")) return false;
-  const prefix = `users/${uid}/documents/quotes/`;
-  if (!path.startsWith(prefix)) return false;
+  const prefixes = ["quotes", "invoices"].map((kind) => `users/${uid}/documents/${kind}/`);
+  const prefix = prefixes.find((candidate) => path.startsWith(candidate));
+  if (!prefix) return false;
   const relative = path.slice(prefix.length);
   const segments = relative.split("/");
   return segments.length === 2 && segments.every((segment) => segment.length > 0);
@@ -52,7 +53,7 @@ export async function cleanupOrphanQuotePdfRequest(req, res, config = {}) {
     await deleteFile(storagePath);
     res.status(200).json({ deleted: true, storagePath });
   } catch (error) {
-    console.error("quote_pdf_compensation:delete_failed", {
+    console.error("document_pdf_compensation:delete_failed", {
       ownerUid,
       storagePath,
       message: error?.message,

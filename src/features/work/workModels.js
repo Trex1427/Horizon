@@ -1,6 +1,12 @@
 export const WORK_QUOTE_STATUSES = Object.freeze(["pending", "accepted"]);
 export const WORK_QUOTE_SOURCES = Object.freeze(["manual", "tiiime_pdf"]);
 export const WORK_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const WORK_INVOICE_STATUSES = Object.freeze(["pending_payment", "paid", "cancelled"]);
+export const WORK_INVOICE_STATUS_LABELS = Object.freeze({
+  pending_payment: "En attente",
+  paid: "Payée",
+  cancelled: "Annulée",
+});
 
 function requiredText(value, message) {
   const normalized = String(value || "").trim();
@@ -101,4 +107,61 @@ export function normalizeQuoteExtraction(value) {
     amount: value.amount === null || value.amount === undefined || value.amount === "" ? "" : String(value.amount),
     customerName: String(value.customerName || "").trim(),
   };
+}
+
+function invoiceOptionalDate(value) {
+  const normalized = String(value || "").trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(normalized) ? normalized : "";
+}
+
+function invoiceOptionalMoney(value) {
+  if (value === "" || value === null || value === undefined) return 0;
+  return nonNegativeNumber(value, "Les montants de la facture doivent être supérieurs ou égaux à 0.");
+}
+
+export function normalizeInvoiceExtraction(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Réponse serveur invalide.");
+  const amount = (field) => value[field] === null || value[field] === undefined || value[field] === "" ? "" : String(value[field]);
+  return {
+    invoiceNumber: String(value.invoiceNumber || "").trim(),
+    invoiceDate: invoiceOptionalDate(value.invoiceDate),
+    dueDate: invoiceOptionalDate(value.dueDate),
+    customerName: String(value.customerName || "").trim(),
+    amountHT: amount("amountHT"), amountVAT: amount("amountVAT"), amountTTC: amount("amountTTC"),
+  };
+}
+
+export function normalizeWorkInvoiceForCreate(payload = {}, { now = new Date() } = {}) {
+  const status = String(payload.status || "pending_payment");
+  if (status !== "pending_payment") throw new Error("Une facture importée doit être en attente de paiement.");
+  return {
+    invoiceNumber: String(payload.invoiceNumber || "").trim(),
+    invoiceDate: invoiceOptionalDate(payload.invoiceDate), dueDate: invoiceOptionalDate(payload.dueDate),
+    thirdPartyId: String(payload.thirdPartyId || "").trim() || null,
+    workProjectId: String(payload.workProjectId || "").trim() || null,
+    amountHT: invoiceOptionalMoney(payload.amountHT), amountVAT: invoiceOptionalMoney(payload.amountVAT), amountTTC: invoiceOptionalMoney(payload.amountTTC),
+    status, pdfPath: requiredText(payload.pdfPath, "Le PDF Tiiime est obligatoire."), source: "tiiime",
+    createdAt: now, updatedAt: now,
+  };
+}
+
+export function findActiveProjectCandidates(thirdPartyId, projects = []) {
+  if (!thirdPartyId) return [];
+  return projects.filter((project) => project.thirdPartyId === thirdPartyId && !project.deletedAt && !["completed", "cancelled"].includes(project.status));
+}
+
+export function suggestWorkProject(thirdPartyId, projects = []) {
+  const candidates = findActiveProjectCandidates(thirdPartyId, projects);
+  return { state: candidates.length === 1 ? "found" : candidates.length > 1 ? "multiple" : "none", candidates, workProjectId: candidates.length === 1 ? candidates[0].id : "" };
+}
+
+export function sortWorkInvoices(invoices = []) {
+  return [...invoices].sort((left, right) => String(right.invoiceDate || "").localeCompare(String(left.invoiceDate || "")));
+}
+
+export function calculateInvoiceMetrics(invoices = []) {
+  const current = invoices.filter((invoice) => invoice.status !== "cancelled" && invoice.isDeleted !== true);
+  const sum = (entries) => Math.round((entries.reduce((total, invoice) => total + Number(invoice.amountTTC || 0), 0) + Number.EPSILON) * 100) / 100;
+  const pending = current.filter((invoice) => invoice.status === "pending_payment");
+  return { billedRevenue: sum(current), receivedRevenue: sum(current.filter((invoice) => invoice.status === "paid")), receivables: sum(pending), invoiceCount: current.length, unpaidInvoiceCount: pending.length };
 }

@@ -18,7 +18,7 @@ export function subscribeToWorkQuotes(onData, onError) {
   const ownerUid = requireCurrentUid(auth);
   return onSnapshot(query(collection(db, QUOTES), where("ownerUid", "==", ownerUid)), (snapshot) => {
     onData(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))
-      .filter((entry) => !entry.deletedAt)
+      .filter((entry) => !entry.deletedAt && entry.isDeleted !== true)
       .sort((a, b) => String(b.issueDate || "").localeCompare(String(a.issueDate || ""))));
   }, onError);
 }
@@ -78,6 +78,11 @@ export function archiveWorkQuote(id, documentId = null) {
   return batch.commit();
 }
 
+
+export function softDeleteWorkQuote(id) {
+  const ownerUid = requireCurrentUid(auth);
+  return updateDoc(doc(db, QUOTES, id), { isDeleted: true, deletedAt: new Date(), deletedBy: ownerUid, updatedAt: new Date() });
+}
 export async function openWorkQuoteDocument(document) {
   if (!document?.storagePath) throw new Error("PDF introuvable.");
   return getDownloadURL(ref(storage, document.storagePath));
@@ -86,6 +91,6 @@ export async function openWorkQuoteDocument(document) {
 export function subscribeToWorkDocuments(onData, onError) {
   const ownerUid = requireCurrentUid(auth);
   return onSnapshot(query(collection(db, DOCUMENTS), where("ownerUid", "==", ownerUid)), (snapshot) => {
-    onData(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).filter((entry) => !entry.deletedAt));
+    onData(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).filter((entry) => !entry.deletedAt && entry.isDeleted !== true));
   }, onError);
 }
