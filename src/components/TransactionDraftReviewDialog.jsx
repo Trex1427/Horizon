@@ -13,6 +13,7 @@ import {
   Stack,
   TextField,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import { getCategoryOptions } from "../constants/transactionCategories";
 import {
@@ -75,6 +76,7 @@ export default function TransactionDraftReviewDialog({
   onConfirm,
   onCreateVehicle,
 }) {
+  const isMobile = useMediaQuery("(max-width:600px)");
   const [form, setForm] = useState(initialDraft || null);
   const [suggestionOpen, setSuggestionOpen] = useState(false);
   const [quickVehicleOpen, setQuickVehicleOpen] = useState(false);
@@ -286,8 +288,8 @@ export default function TransactionDraftReviewDialog({
   }
 
   return (
-    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Verifier le brouillon du ticket</DialogTitle>
+    <Dialog open={open} onClose={submitting ? undefined : onClose} fullWidth fullScreen={isMobile} maxWidth="sm" scroll="paper" aria-labelledby="draft-review-title">
+      <DialogTitle id="draft-review-title">Verifier le brouillon du ticket</DialogTitle>
       <DialogContent sx={{ pt: 1.5, pb: 1, px: { xs: 1.5, sm: 2 } }}>
         <Alert severity="info" sx={{ mb: 1.25, mt: 0.75 }}>
           Vérifiez et corrigez les champs avant de créer la transaction.
@@ -520,7 +522,7 @@ export default function TransactionDraftReviewDialog({
         </Box>
       </DialogContent>
 
-      <DialogActions>
+      <DialogActions sx={{ position: "sticky", bottom: 0, bgcolor: "background.paper", borderTop: "1px solid", borderColor: "divider", px: 2, pb: { xs: 2, sm: 1 } }}>
         <Button onClick={onClose} disabled={submitting} size="small">
           Annuler
         </Button>

@@ -1,4 +1,4 @@
-import { toDateValue } from "../services/financeCalculations.js";
+﻿import { toDateValue } from "../services/financeCalculations.js";
 import { getPeriodRange } from "./analysisDataUtils.js";
 import { normalizeTransactionType } from "./transactionTypeUtils.js";
 
@@ -139,7 +139,12 @@ export function filterTransactionsForView(transactions = [], filters = {}, refer
       return filterTransactionIds.has(transaction.id);
     }
 
-    if (expectedCategoryId !== "all") {
+    if (expectedCategoryId === "__uncategorized__") {
+      const categoryValue = transaction.categoryName || transaction.categorie || transaction.category || "";
+      if (transaction.categoryId || normalizeCategoryName(categoryValue)) {
+        return false;
+      }
+    } else if (expectedCategoryId !== "all") {
       if ((transaction.categoryId || "") !== expectedCategoryId) {
         return false;
       }

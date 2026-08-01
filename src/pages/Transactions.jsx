@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -259,6 +259,7 @@ export default function Transactions({
   onNavigationContextApplied,
 }) {
   const enableDesktopDoubleClickEdit = useMediaQuery("(min-width:900px)");
+  const isMobileTransactionsView = useMediaQuery("(max-width:599.95px)");
   const [form, setForm] = useState(getInitialForm);
   const [transactionEditorInitialForm, setTransactionEditorInitialForm] = useState(getInitialForm);
   const [transactionEditorScrollRestorePosition, setTransactionEditorScrollRestorePosition] = useState(0);
@@ -1259,11 +1260,12 @@ export default function Transactions({
     }
 
     setFiltersDraft((previous) => computeNextFilters(previous));
-    setListFilters((previous) => computeNextFilters(previous));
+  }
 
-    if (name === "period") {
-      setTrendPeriod(value);
-    }
+  function applyFiltersDialog() {
+    setListFilters(filtersDraft);
+    setTrendPeriod(filtersDraft.period || "currentYear");
+    setFiltersDialogOpen(false);
   }
 
   function resetFiltersDialog() {
@@ -2469,9 +2471,17 @@ export default function Transactions({
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ mb: 2, fontWeight: 700 }}>
-        Transactions
-      </Typography>
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: { xs: 1, sm: 2 } }}>
+        <Box>
+          <Typography variant="h5" sx={{ fontWeight: 700 }}>Transactions</Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "block", sm: "none" } }}>
+            {displayedTransactions.length} affichée(s)
+          </Typography>
+        </Box>
+        <Button type="button" variant="contained" onClick={openCreateTransactionDialog} sx={{ display: { xs: "inline-flex", sm: "none" }, minHeight: 44, borderRadius: 999, px: 2 }}>
+          Ajouter
+        </Button>
+      </Stack>
 
       {message && (
         <Alert severity={message.includes("Erreur") ? "error" : "success"} sx={{ mb: 1.25 }}>
@@ -2629,6 +2639,14 @@ export default function Transactions({
               <Button variant="outlined" size="small" startIcon={<Sort />} onClick={openSortDialog} sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}>
                 Tri
               </Button>
+              <Button
+                variant={listFilters.categoryId === "__uncategorized__" ? "contained" : "outlined"}
+                size="small"
+                onClick={() => setListFilters((previous) => ({ ...previous, categoryId: previous.categoryId === "__uncategorized__" ? "all" : "__uncategorized__", categoryName: "all", transactionIds: [] }))}
+                sx={{ minHeight: 44, display: { xs: "inline-flex", sm: "none" } }}
+              >
+                Sans catégorie
+              </Button>
             </Stack>
 
             <Stack
@@ -2642,7 +2660,7 @@ export default function Transactions({
                 size="small"
                 onClick={openCreateTransactionDialog}
                 fullWidth
-                sx={{ minHeight: commandBarControlMinHeight, width: { sm: "auto" }, flexShrink: 0, transition: commandBarTransition }}
+                sx={{ display: { xs: "none", sm: "inline-flex" }, minHeight: commandBarControlMinHeight, width: { sm: "auto" }, flexShrink: 0, transition: commandBarTransition }}
               >
                 Ajouter une transaction
               </Button>
@@ -2773,8 +2791,8 @@ export default function Transactions({
         </Alert>
       )}
 
-      <Dialog open={filtersDialogOpen} onClose={closeFiltersDialog} fullWidth maxWidth="md">
-        <DialogTitle>Filtres</DialogTitle>
+      <Dialog open={filtersDialogOpen} onClose={closeFiltersDialog} fullWidth fullScreen={isMobileTransactionsView} maxWidth="md" scroll="paper" aria-labelledby="transaction-filters-title">
+        <DialogTitle id="transaction-filters-title">Filtres</DialogTitle>
         <DialogContent>
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, mt: 0.5 }}>
             <TextField
@@ -2831,6 +2849,7 @@ export default function Transactions({
               fullWidth
             >
               <MenuItem value="all">Toutes les categories</MenuItem>
+              <MenuItem value="id:__uncategorized__">Sans catégorie</MenuItem>
               {filterCategoryOptions.map((option) => (
                 <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
               ))}
@@ -2897,9 +2916,10 @@ export default function Transactions({
             </TextField>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeFiltersDialog}>Fermer</Button>
+        <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: 2, pt: 1.25, borderTop: "1px solid", borderColor: "divider", position: "sticky", bottom: 0, bgcolor: "background.paper" }}>
+          <Button onClick={closeFiltersDialog}>Annuler</Button>
           <Button onClick={resetFiltersDialog} variant="outlined">Reinitialiser</Button>
+          <Button onClick={applyFiltersDialog} variant="contained">Appliquer</Button>
         </DialogActions>
       </Dialog>
 
