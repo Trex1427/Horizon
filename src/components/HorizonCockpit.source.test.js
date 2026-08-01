@@ -44,13 +44,14 @@ test("HorizonCockpit makes principal cards and trajectory months interactive wit
   assert.equal(content.includes("ButtonBase"), true);
   assert.equal(content.includes("onOpenTransactions"), true);
   assert.equal(content.includes("onOpenAnalysisMonth"), true);
-  assert.equal(content.includes("onOpenOpportunities"), true);
+  assert.equal(content.includes("onOpenQuotes"), true);
+  assert.equal(content.includes("Devis en attente"), true);
   assert.equal(content.includes("scrollIntoView({ behavior: \"smooth\", block: \"center\", inline: \"nearest\" })"), true);
   assert.equal(content.includes("aria-label={`Ouvrir l'analyse du mois de ${monthLabel}`}"), true);
   assert.equal(content.includes("ariaLabel=\"Ouvrir les transactions depuis le solde actuel\""), true);
   assert.equal(content.includes("ariaLabel=\"Ouvrir l'analyse du mois courant\""), true);
   assert.equal(content.includes("ariaLabel=\"Faire défiler la trajectoire jusqu'au mois courant\""), true);
   assert.equal(content.includes("ariaLabel=\"Faire défiler la trajectoire jusqu'à décembre\""), true);
-  assert.equal(content.includes("ariaLabel=\"Ouvrir les opportunités\""), true);
+  assert.equal(content.includes("ariaLabel=\"Ouvrir les devis en attente\""), true);
   assert.equal(content.includes("findFirstProjectedNegativeMonth(trajectoryRows)"), true);
 });

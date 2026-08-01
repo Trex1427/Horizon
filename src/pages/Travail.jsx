@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+﻿import { useMemo, useRef, useState } from "react";
 import {
   Alert, Box, Button, Card, CardActions, CardContent, Chip, CircularProgress, Dialog,
   DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem,
@@ -181,7 +181,9 @@ function ActivitiesSection({ activitiesApi }) {
 }
 
 export default function Travail({ onOpenTransaction }) {
-  const [section, setSection] = useState("dashboard");
+  const initialNavigation = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
+  const requestedSection = initialNavigation.get("section");
+  const [section, setSection] = useState(SECTIONS.some(([key]) => key === requestedSection) ? requestedSection : "dashboard");
   const activitiesApi = useProfessionalActivities();
   const quotesApi = useWorkQuotes();
   const invoicesApi = useWorkInvoices();
@@ -196,7 +198,7 @@ export default function Travail({ onOpenTransaction }) {
   const [notice, setNotice] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState("");
   const [creatingProjectId, setCreatingProjectId] = useState("");
-  const [filters, setFilters] = useState({ status: "all", activity: "all", thirdParty: "all", search: "" });
+  const [filters, setFilters] = useState({ status: initialNavigation.get("status") || "all", activity: "all", thirdParty: "all", search: "" });
   const importRef = useRef(null);
   const activityMap = useMemo(() => new Map(activitiesApi.professionalActivities.map((entry) => [entry.id, entry])), [activitiesApi.professionalActivities]);
   const thirdPartyMap = useMemo(() => new Map(thirdParties.map((entry) => [entry.id, entry])), [thirdParties]);

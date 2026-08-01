@@ -1,4 +1,4 @@
-import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
+﻿import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
 import { useMemo } from "react";
 import HorizonCockpit from "../components/HorizonCockpit.jsx";
 import { CASH_ACCOUNT_NAME, CASH_ACCOUNT_TYPE } from "../constants/cashBalanceConstants.js";
@@ -6,7 +6,9 @@ import { useTransactionsContext } from "../context/TransactionsContext.jsx";
 import { useBudgets } from "../hooks/useBudgets.js";
 import { useDashboard } from "../hooks/useDashboard.js";
 import { useFixedExpenses } from "../hooks/useFixedExpenses.js";
-import { useOpportunities } from "../hooks/useOpportunities.js";
+import { useWorkQuotes } from "../hooks/useWorkQuotes.js";
+import { useWorkInvoices } from "../hooks/useWorkInvoices.js";
+import { calculateProfessionalDashboard } from "../services/professionalDashboardService.js";
 import { useRecurringIncome } from "../hooks/useRecurringIncome.js";
 import { useTransfers } from "../hooks/useTransfers.js";
 import { calculateAnnualTrajectory } from "../services/annualTrajectoryService.js";
@@ -16,12 +18,13 @@ import { selectAccountsForBalanceDisplay } from "../utils/accountBalanceDisplay.
 
 export default function FinancialHome({
   accounts = [], accountsLoading = false, accountsError = null,
-  onOpenTransactions, onOpenAnalysisMonth, onOpenOpportunities,
+  onOpenTransactions, onOpenAnalysisMonth, onOpenForecast, onOpenAccounts, onOpenQuotes, onOpenInvoices, onOpenAnalysis,
 }) {
   const { transactions, loading: transactionsLoading, error: transactionsError } = useTransactionsContext();
   const fixedExpensesApi = useFixedExpenses();
   const recurringIncomeApi = useRecurringIncome();
-  const opportunitiesApi = useOpportunities();
+  const quotesApi = useWorkQuotes({ includeDocuments: false });
+  const invoicesApi = useWorkInvoices();
   const budgetsApi = useBudgets();
   const transfersApi = useTransfers();
   const balanceDisplayAccounts = useMemo(() => selectAccountsForBalanceDisplay(accounts), [accounts]);
@@ -33,18 +36,22 @@ export default function FinancialHome({
     fixedExpenses: fixedExpensesApi.fixedExpenses,
     recurringIncome: recurringIncomeApi.recurringIncome,
     budgets: budgetsApi.budgets,
-    opportunities: opportunitiesApi.opportunities,
   }), [
     accounts, transactions, transfersApi.transfers, fixedExpensesApi.fixedExpenses,
-    recurringIncomeApi.recurringIncome, budgetsApi.budgets, opportunitiesApi.opportunities,
+    recurringIncomeApi.recurringIncome, budgetsApi.budgets,
   ]);
 
   const loading = accountsLoading || transactionsLoading || fixedExpensesApi.loading
-    || recurringIncomeApi.loading || opportunitiesApi.loading || budgetsApi.loading || transfersApi.loading;
+    || recurringIncomeApi.loading || quotesApi.loading || invoicesApi.loading || budgetsApi.loading || transfersApi.loading;
   const currentForecast = annualTrajectory.find((row) => row.status === "current") || null;
   const forecastEndOfMonth = currentForecast?.closingBalance ?? dashboardMetrics.balance;
   const error = accountsError || transactionsError || fixedExpensesApi.error || recurringIncomeApi.error
-    || opportunitiesApi.error || budgetsApi.error || transfersApi.error || null;
+    || quotesApi.error || invoicesApi.error || budgetsApi.error || transfersApi.error || null;
+  const professionalSummary = useMemo(() => calculateProfessionalDashboard({
+    quotes: quotesApi.quotes, invoices: invoicesApi.invoices, projects: [], transactions: [], activities: [], thirdParties: [],
+  }), [quotesApi.quotes, invoicesApi.invoices]);
+  const uncategorizedCount = useMemo(() => transactions.filter((transaction) => transaction?.isDeleted !== true
+    && !transaction?.categoryId && !String(transaction?.categoryName || transaction?.categorie || "").trim()).length, [transactions]);
   const cashAccount = dashboardMetrics.accountBalances.find((account) => (
     account?.type === CASH_ACCOUNT_TYPE || account?.name === CASH_ACCOUNT_NAME
   ));
@@ -72,9 +79,14 @@ export default function FinancialHome({
 
   return <HorizonCockpit
     metrics={{ ...dashboardMetrics, remaining: forecastEndOfMonth, annualTrajectory, annualTrajectoryError: null,
+      pendingQuotes: professionalSummary.alerts.quotesToFollowUp, overdueInvoices: professionalSummary.alerts.overdueInvoices, uncategorizedCount,
       cashBalance: { hasHistory: cashHasHistory, onSubmit: adjustCashBalance } }}
     onOpenTransactions={onOpenTransactions}
     onOpenAnalysisMonth={onOpenAnalysisMonth}
-    onOpenOpportunities={onOpenOpportunities}
+    onOpenForecast={onOpenForecast}
+    onOpenAccounts={onOpenAccounts}
+    onOpenQuotes={onOpenQuotes}
+    onOpenInvoices={onOpenInvoices}
+    onOpenAnalysis={onOpenAnalysis}
   />;
 }

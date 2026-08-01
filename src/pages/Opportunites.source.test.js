@@ -32,5 +32,6 @@ test("HorizonCockpit no longer exposes forecast mode or probability threshold co
   assert.equal(content.includes("forecast-mode-label"), false);
   assert.equal(content.includes("Seuil realiste"), false);
   assert.equal(content.includes("Mode :"), false);
-  assert.equal(content.includes("Opportunités prévues"), true);
+  assert.equal(content.includes("Opportunités prévues"), false);
+  assert.equal(content.includes("Devis en attente"), true);
 });
