@@ -319,7 +319,7 @@ export async function commitValidatedBankImport({ rows = [], fileName = "", form
       ownerUid,
     }));
     await finishBatch.commit();
-  } catch (error) {
+  } catch {
     failedRows.push(...plan.rowsToImport.slice(importedCount + importedTransferCount).map((row) => row.sourceRowIndex));
     const failureBatch = effectiveTransport.createBatch();
     failureBatch.update(bankImportRef, {

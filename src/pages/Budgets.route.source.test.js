@@ -1,4 +1,3 @@
-/* global process */
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -13,7 +12,7 @@ test("App renders the Budgets page that mounts the subcategory-enabled BudgetFor
     source("src/components/BudgetForm.jsx"),
   ]);
 
-  assert.equal(app.includes('import Budgets from "./pages/Budgets"'), true);
+  assert.equal(app.includes('const Budgets = lazy(() => import("./pages/Budgets"))'), true);
   assert.equal(app.includes('{page === PAGES.BUDGETS && <Budgets />}'), true);
   assert.equal(page.includes('import { BudgetForm } from "../components/BudgetForm"'), true);
   assert.equal(page.includes("const { subcategories } = useSubcategories()"), true);

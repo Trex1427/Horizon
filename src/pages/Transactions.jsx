@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -19,11 +19,8 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import FilterList from "@mui/icons-material/FilterList";
-import Mic from "@mui/icons-material/Mic";
 import MoreVert from "@mui/icons-material/MoreVert";
 import Sort from "@mui/icons-material/Sort";
-import Stop from "@mui/icons-material/Stop";
-import UploadFile from "@mui/icons-material/UploadFile";
 import { useTransactions } from "../hooks/useTransactions";
 import { useTransfers } from "../hooks/useTransfers";
 import { useAccounts } from "../hooks/useAccounts";
@@ -39,7 +36,6 @@ import VehicleFormDialog from "../components/VehicleFormDialog.jsx";
 import { sortVehicles } from "../services/vehicleModel.js";
 import { useFixedExpenses } from "../hooks/useFixedExpenses";
 import { getCategoryOptions } from "../constants/transactionCategories";
-import AccountSelector from "../components/AccountSelector";
 import TransactionCard from "../components/TransactionCard";
 import TransactionEditorDialog from "../components/TransactionEditorDialog";
 import TransactionBulkEditDialog from "../components/TransactionBulkEditDialog";
@@ -287,7 +283,7 @@ export default function Transactions({
   const [sortPreferences, setSortPreferences] = useState(getDefaultTransactionSortPreferences);
   const [voiceStatus, setVoiceStatus] = useState("idle");
   const [voiceMessage, setVoiceMessage] = useState("");
-  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [, setVoiceTranscript] = useState("");
   const [filtersDialogOpen, setFiltersDialogOpen] = useState(false);
   const [sortDialogOpen, setSortDialogOpen] = useState(false);
   const [filtersDraft, setFiltersDraft] = useState(getDefaultTransactionsListFilters);

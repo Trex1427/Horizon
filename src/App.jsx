@@ -1,20 +1,20 @@
-﻿import { useCallback, useEffect, useState } from "react";
-import Transactions from "./pages/Transactions";
-import Objectifs from "./pages/Objectifs";
-import FraisFixes from "./pages/FraisFixes";
-import RevenusRecurrents from "./pages/RevenusRecurrents";
-import Opportunites from "./pages/Opportunites";
-import DettesCreances from "./pages/DettesCreances";
-import Budgets from "./pages/Budgets";
-import Analyse from "./pages/Analyse";
-import Previsions from "./pages/Previsions";
-import Categories from "./pages/Categories";
-import Referentiels from "./pages/Referentiels";
-import Parametres from "./pages/Parametres";
-import ImportHistory from "./pages/ImportHistory";
-import Travail from "./pages/Travail";
-import Vehicles from "./pages/Vehicles";
-import FinancialHome from "./pages/FinancialHome";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+const Transactions = lazy(() => import("./pages/Transactions"));
+const Objectifs = lazy(() => import("./pages/Objectifs"));
+const FraisFixes = lazy(() => import("./pages/FraisFixes"));
+const RevenusRecurrents = lazy(() => import("./pages/RevenusRecurrents"));
+const Opportunites = lazy(() => import("./pages/Opportunites"));
+const DettesCreances = lazy(() => import("./pages/DettesCreances"));
+const Budgets = lazy(() => import("./pages/Budgets"));
+const Analyse = lazy(() => import("./pages/Analyse"));
+const Previsions = lazy(() => import("./pages/Previsions"));
+const Categories = lazy(() => import("./pages/Categories"));
+const Referentiels = lazy(() => import("./pages/Referentiels"));
+const Parametres = lazy(() => import("./pages/Parametres"));
+const ImportHistory = lazy(() => import("./pages/ImportHistory"));
+const Travail = lazy(() => import("./pages/Travail"));
+const Vehicles = lazy(() => import("./pages/Vehicles"));
+const FinancialHome = lazy(() => import("./pages/FinancialHome"));
 import { TransactionsProvider } from "./context/TransactionsContext";
 import { RecurringIncomeProvider } from "./context/RecurringIncomeContext";
 import { AuthGate } from "./auth/AuthGate";
@@ -44,6 +44,7 @@ import {
   ListItemText,
   BottomNavigation,
   BottomNavigationAction,
+  CircularProgress,
   Fab,
   IconButton,
   Tooltip,
@@ -337,6 +338,14 @@ function AppContent() {
             p: { xs: 1.25, sm: 2.5 },
           }}
         >
+        <Suspense fallback={
+          <Box role="status" aria-live="polite" sx={{ minHeight: 240, display: "grid", placeItems: "center" }}>
+            <Box sx={{ textAlign: "center" }}>
+              <CircularProgress size={32} />
+              <Typography sx={{ mt: 1 }} color="text.secondary">Chargement de la page...</Typography>
+            </Box>
+          </Box>
+        }>
         {page === PAGES.HOME && (
           <FinancialHome
             accounts={accounts}
@@ -403,6 +412,7 @@ function AppContent() {
         {page === PAGES.PARAMETRES && <Parametres />}
 
         {page === PAGES.IMPORT_HISTORY && <ImportHistory />}
+        </Suspense>
         </Box>
       </Container>
 

@@ -817,3 +817,6 @@ Pour comprendre Horizon rapidement:
 5. Lire `docs/HORIZON_V1_TECHNICAL_STATUS.md` pour le pilotage produit et la priorisation.
 
 Le point cle de l'architecture actuelle est simple: Firestore est la source de verite, les services portent la persistence, les hooks orchestrent, les composants affichent, et la logique metier doit rester centralisee.
+## Chargement des pages V1
+
+Les pages fonctionnelles sont declarees avec `React.lazy` dans `src/App.jsx` et rendues sous un unique `Suspense`. Le layout, l'authentification et les providers globaux restent synchrones; chaque page et ses hooks specifiques ne sont charges qu'a sa premiere ouverture. Le fallback commun porte un statut accessible. Toute nouvelle page doit conserver cette convention et etre ajoutee au catalogue `src/navigation/appNavigation.js`.
