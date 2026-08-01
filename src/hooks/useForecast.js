@@ -1,11 +1,10 @@
-import { useMemo } from "react";
+﻿import { useMemo } from "react";
 import { useAccounts } from "./useAccounts";
 import { useTransactions } from "./useTransactions";
 import { useFixedExpenses } from "./useFixedExpenses";
 import { useRecurringIncome } from "./useRecurringIncome";
 import { useBudgets } from "./useBudgets";
 import { useTransfers } from "./useTransfers";
-import { useOpportunities } from "./useOpportunities";
 import { calculateAnnualTrajectory, selectCurrentMonthForecast } from "../services/annualTrajectoryService";
 
 export function useForecast() {
@@ -15,7 +14,6 @@ export function useForecast() {
   const { recurringIncome, loading: recurringIncomeLoading, error: recurringIncomeError } = useRecurringIncome();
   const { budgets, loading: budgetsLoading, error: budgetsError } = useBudgets();
   const { transfers, loading: transfersLoading, error: transfersError } = useTransfers();
-  const { opportunities, loading: opportunitiesLoading, error: opportunitiesError } = useOpportunities();
 
   const loading =
     accountsLoading ||
@@ -23,8 +21,7 @@ export function useForecast() {
     fixedExpensesLoading ||
     recurringIncomeLoading ||
     budgetsLoading ||
-    transfersLoading ||
-    opportunitiesLoading;
+    transfersLoading;
 
   const error =
     accountsError ||
@@ -33,19 +30,18 @@ export function useForecast() {
     recurringIncomeError ||
     budgetsError ||
     transfersError ||
-    opportunitiesError ||
     null;
 
   const forecast = useMemo(() => {
     const trajectory = calculateAnnualTrajectory({
-      accounts, transactions, transfers, fixedExpenses, recurringIncome, budgets, opportunities,
+      accounts, transactions, transfers, fixedExpenses, recurringIncome, budgets,
     });
     return selectCurrentMonthForecast(trajectory) || {
       currentBalance: 0, expectedRecurringIncome: 0, expectedFixedExpenses: 0,
       remainingBudgets: 0, forecastEndOfMonth: 0, monthStart: null, monthEnd: null,
     };
   }, [
-    accounts, transactions, transfers, fixedExpenses, recurringIncome, budgets, opportunities,
+    accounts, transactions, transfers, fixedExpenses, recurringIncome, budgets,
   ]);
 
   return {

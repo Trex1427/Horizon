@@ -12,7 +12,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import SummaryCard from "./SummaryCard";
 import TransactionList from "./TransactionList";
 import CashBalanceAdjustmentDialog from "./CashBalanceAdjustmentDialog";
 import { useObjectives } from "../hooks/useObjectives";
@@ -27,7 +26,6 @@ import Insights from "@mui/icons-material/Insights";
 import Savings from "@mui/icons-material/Savings";
 import ShowChart from "@mui/icons-material/ShowChart";
 import TrendingDown from "@mui/icons-material/TrendingDown";
-import TrendingFlat from "@mui/icons-material/TrendingFlat";
 import TrendingUp from "@mui/icons-material/TrendingUp";
 import WarningAmber from "@mui/icons-material/WarningAmber";
 
@@ -135,36 +133,6 @@ function getRemainingStatus(remaining, totalRevenue) {
   return { percent, label: "Tension", color: HORIZON_COLORS.red };
 }
 
-function getDecemberTrend(rows = []) {
-  const november = rows[10];
-  const december = rows[11];
-  const delta = Number(december?.closingBalance) - Number(november?.closingBalance);
-  if (!Number.isFinite(delta) || Math.abs(delta) < 0.01) {
-    return { icon: <TrendingFlat fontSize="small" />, label: "Stable", color: HORIZON_COLORS.muted, delta: 0 };
-  }
-  if (delta > 0) {
-    return { icon: <TrendingUp fontSize="small" />, label: "Hausse", color: HORIZON_COLORS.green, delta };
-  }
-  return { icon: <TrendingDown fontSize="small" />, label: "Baisse", color: HORIZON_COLORS.red, delta };
-}
-
-function getExpectedOpportunitiesTotal(rows = []) {
-  return rows.reduce((sum, row) => {
-    const amount = Number(row?.expectedOpportunities);
-    return Number.isFinite(amount) ? sum + amount : sum;
-  }, 0);
-}
-
-function getExpectedOpportunitiesCount(rows = []) {
-  return rows.reduce((sum, row) => {
-    const count = Number(row?.expectedOpportunitiesCount);
-    if (Number.isFinite(count)) return sum + count;
-
-    const amount = Number(row?.expectedOpportunities);
-    return Number.isFinite(amount) && amount > 0 ? sum + 1 : sum;
-  }, 0);
-}
-
 function getFiniteAmount(value) {
   const amount = Number(value);
   return Number.isFinite(amount) ? amount : 0;
@@ -194,6 +162,7 @@ function MetricCard({
   helpText = "",
   onClick = null,
   ariaLabel = "",
+  priority = 0,
 }) {
   const cardContent = (
     <>
@@ -251,7 +220,7 @@ function MetricCard({
     </>
   );
 
-  const sx = { ...CARD_SX, minHeight: large ? { xs: 168, sm: 190 } : 144 };
+  const sx = { ...CARD_SX, order: priority, minHeight: large ? { xs: 168, sm: 190 } : 144 };
 
   if (typeof onClick === "function") {
     return (
@@ -273,103 +242,30 @@ function MetricCard({
   );
 }
 
-function AlertPanel({ error, firstNegativeMonth, firstNegativeMonthLabel, duplicateGroups, onNegativeMonthClick = null }) {
+function AlertPanel({ error, firstNegativeMonth, firstNegativeMonthLabel, duplicateGroups, items = [], onNegativeMonthClick = null }) {
   const alerts = [];
-  if (error) {
-    alerts.push({ level: "error", label: "Erreur", detail: "Erreur de calcul de la trajectoire annuelle." });
-  }
-  if (firstNegativeMonth && firstNegativeMonthLabel) {
-    alerts.push({
-      level: "error",
-      label: "Solde negatif",
-      detail: `${firstNegativeMonthLabel} - ${formatCurrency(firstNegativeMonth.closingBalance)}`,
-    });
-  }
-  if (duplicateGroups.length > 0) {
-    alerts.push({
-      level: "warning",
-      label: "Doublons",
-      detail: duplicateGroups.map((group) => `${group.name} (${group.count})`).join(", "),
-    });
-  }
-  if (alerts.length === 0) {
-    alerts.push({ level: "ok", label: "Prévisions", detail: "Aucune alerte critique détectée." });
-  }
-
+  if (error) alerts.push({ level: "error", label: "Erreur", detail: "Erreur de calcul de la trajectoire annuelle." });
+  if (firstNegativeMonth && firstNegativeMonthLabel) alerts.push({ level: "error", label: "Solde négatif", detail: `${firstNegativeMonthLabel} - ${formatCurrency(firstNegativeMonth.closingBalance)}`, onClick: onNegativeMonthClick });
+  if (duplicateGroups.length > 0) alerts.push({ level: "warning", label: "Doublons", detail: duplicateGroups.map((group) => `${group.name} (${group.count})`).join(", ") });
+  alerts.push(...items);
+  if (alerts.length === 0) alerts.push({ level: "ok", label: "Situation stable", detail: "Aucune alerte critique détectée." });
   return (
-    <Box sx={CARD_SX} role="status" aria-label="Alertes du cockpit">
+    <Box sx={CARD_SX} role="status" aria-label="À surveiller">
       <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 1.25 }}>
-        <Box
-          aria-hidden="true"
-          sx={{
-            width: 36,
-            height: 36,
-            borderRadius: 2,
-            display: "grid",
-            placeItems: "center",
-            color: alerts.some((alert) => alert.level === "error") ? HORIZON_COLORS.red : HORIZON_COLORS.orange,
-            bgcolor: "rgba(217, 119, 6, 0.12)",
-          }}
-        >
-          <WarningAmber />
-        </Box>
-        <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 800, letterSpacing: 0 }}>
-          Alertes
-        </Typography>
+        <Box aria-hidden="true" sx={{ width: 36, height: 36, borderRadius: 2, display: "grid", placeItems: "center", color: alerts.some((alert) => alert.level === "error") ? HORIZON_COLORS.red : HORIZON_COLORS.orange, bgcolor: "rgba(217, 119, 6, 0.12)" }}><WarningAmber /></Box>
+        <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 800, letterSpacing: 0 }}>À surveiller</Typography>
       </Stack>
       <Stack spacing={1}>
         {alerts.map((alert) => {
           const color = alert.level === "error" ? HORIZON_COLORS.red : alert.level === "warning" ? HORIZON_COLORS.orange : HORIZON_COLORS.green;
-          const isNegativeBalanceAlert = alert.label === "Solde negatif" && typeof onNegativeMonthClick === "function";
-          const alertSx = {
-            border: "1px solid",
-            borderColor: `${color}33`,
-            borderRadius: 2,
-            px: 1.25,
-            py: 1,
-            bgcolor: `${color}0f`,
-            ...(isNegativeBalanceAlert ? CLICKABLE_SX : {}),
-          };
-
-          const content = (
-            <>
-              <Typography variant="body2" sx={{ fontWeight: 800, color }}>
-                {alert.label}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {alert.detail}
-              </Typography>
-            </>
-          );
-
-          if (isNegativeBalanceAlert) {
-            return (
-              <ButtonBase
-                key={`${alert.label}-${alert.detail}`}
-                component="article"
-                onClick={onNegativeMonthClick}
-                aria-label={`Ouvrir le mois en alerte ${firstNegativeMonthLabel}`}
-                sx={alertSx}
-              >
-                {content}
-              </ButtonBase>
-            );
-          }
-
-          return (
-            <Box
-              key={`${alert.label}-${alert.detail}`}
-              sx={alertSx}
-            >
-              {content}
-            </Box>
-          );
+          const content = <><Typography variant="body2" sx={{ fontWeight: 800, color }}>{alert.label}</Typography><Typography variant="body2" color="text.secondary">{alert.detail}</Typography></>;
+          const sx = { border: "1px solid", borderColor: `${color}33`, borderRadius: 2, px: 1.25, py: 1, bgcolor: `${color}0f`, minHeight: 44, ...(alert.onClick ? CLICKABLE_SX : {}) };
+          return alert.onClick ? <ButtonBase key={`${alert.label}-${alert.detail}`} component="article" onClick={alert.onClick} aria-label={`Ouvrir ${alert.label}`} sx={sx}>{content}</ButtonBase> : <Box key={`${alert.label}-${alert.detail}`} sx={sx}>{content}</Box>;
         })}
       </Stack>
     </Box>
   );
 }
-
 function AnnualTrajectorySummary({
   trajectory = [],
   error = null,
@@ -439,7 +335,7 @@ function AnnualTrajectorySummary({
       <Box
         sx={{
           display: "grid",
-          gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(3, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))", lg: "repeat(6, minmax(0, 1fr))" },
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))", lg: "repeat(6, minmax(0, 1fr))" },
           gap: 0.75,
         }}
       >
@@ -530,293 +426,15 @@ function AnnualTrajectorySummary({
   );
 }
 
-function LegacyHorizonCockpit({ metrics = {} }) {
-  const {
-    balance = 0,
-    remaining = 0,
-    totalRevenue = 0,
-    totalExpense = 0,
-    monthlySavings = 0,
-    recentTransactions = [],
-    yearTrend = [],
-    transactionCount = 0,
-    accountBalances = [],
-    monthlyIncomeCategoryData = { catégories: [], total: 0 },
-    annualTrajectory = [],
-    annualTrajectoryError = null,
-    cashBalance = {},
-  } = metrics;
-  const [cashDialogMode, setCashDialogMode] = useState(null);
-
-  const { objectives = [], loading: objectivesLoading } = useObjectives();
-  const objectivesList = Array.isArray(objectives) ? objectives : [];
-  const trendData = Array.isArray(yearTrend) ? yearTrend : [];
-  const transactionsToShow = Array.isArray(recentTransactions) ? recentTransactions : [];
-  const cashAccount = accountBalances.find((account) => (
-    account?.type === CASH_ACCOUNT_TYPE || account?.name === CASH_ACCOUNT_NAME
-  ));
-
-  return (
-    <Box sx={{ display: "grid", gap: 3 }}>
-      <Box
-        sx={{
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 3,
-          p: { xs: 3, md: 4 },
-          background: "linear-gradient(135deg, rgba(25,118,210,0.06), rgba(25,118,210,0.02))",
-        }}
-      >
-        <Typography variant="overline" color="text.secondary">
-          Aujourd’hui
-        </Typography>
-        <Typography variant="h3" sx={{ fontWeight: 700, mb: 1 }}>
-          {formatCurrency(balance)}
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Trésorerie actuelle
-        </Typography>
-
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 2 }}>
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              Argent disponible
-            </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              {formatCurrency(balance)}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography variant="body2" color="text.secondary">
-              Solde prévu fin de mois
-            </Typography>
-            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-              {formatCurrency(remaining)}
-            </Typography>
-          </Box>
-        </Stack>
-      </Box>
-
-      <AnnualTrajectorySummary
-        trajectory={annualTrajectory}
-        error={annualTrajectoryError}
-      />
-
-      <Box
-        sx={{
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 3,
-          p: 2.5,
-        }}
-      >
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-          Soldes par compte
-        </Typography>
-        <Grid container spacing={1.5}>
-          {accountBalances.map((account) => (
-            <Grid item xs={12} sm={6} key={account.id}>
-              <Box sx={{ border: "1px solid", borderColor: "divider", borderRadius: 2, p: 1.5 }}>
-                <Typography variant="body2" color="text.secondary">
-                  {account.icon || "💳"} {account.name}
-                </Typography>
-                <Typography variant="h6" sx={{ fontWeight: 700, mt: 0.5 }}>
-                  {formatCurrency(account.balance)}
-                </Typography>
-                {(account?.type === CASH_ACCOUNT_TYPE || account?.name === CASH_ACCOUNT_NAME) && (
-                  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 1 }}>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => setCashDialogMode(CASH_ADJUSTMENT_KINDS.opening)}
-                    >
-                      Initialiser le solde
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="contained"
-                      onClick={() => setCashDialogMode(CASH_ADJUSTMENT_KINDS.balance)}
-                    >
-                      Ajuster le solde
-                    </Button>
-                  </Stack>
-                )}
-              </Box>
-            </Grid>
-          ))}
-        </Grid>
-      </Box>
-
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={7}>
-          <Box
-            sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 3,
-              p: 2.5,
-            }}
-          >
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-              Ce mois
-            </Typography>
-            <Grid container spacing={2}>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard title="Revenus" value={formatCurrency(totalRevenue)} color="success.main" />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard title="Dépenses" value={formatCurrency(totalExpense)} color="error.main" />
-              </Grid>
-              <Grid item xs={12} sm={4}>
-                <SummaryCard title="Variation du mois" value={formatCurrency(monthlySavings)} color="primary.main" />
-              </Grid>
-            </Grid>
-
-            <Box sx={{ mt: 2 }}>
-              {monthlyIncomeCategoryData?.catégories?.length > 0 ? (
-                <ExpenseCategoryPieChart
-                  data={monthlyIncomeCategoryData.catégories}
-                  total={monthlyIncomeCategoryData.total}
-                  title="Revenus du mois par catégorie"
-                  subtitle="Revenus du mois par catégorie"
-                  totalLabel="Total des revenus"
-                  emptyMessage="Aucun revenu sur cette période"
-                  valueLabel="Revenus"
-                  entityLabelSingular="revenu"
-                  entityLabelPlural="revenus"
-                />
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  Aucun revenu sur cette période
-                </Typography>
-              )}
-            </Box>
-          </Box>
-        </Grid>
-
-        <Grid item xs={12} md={5}>
-          <Box
-            sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 3,
-              p: 2.5,
-            }}
-          >
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-              Cette année
-            </Typography>
-            <Stack direction="row" spacing={1} alignItems="flex-end" sx={{ height: 130 }}>
-              {trendData.map((month) => {
-                const height = Math.max(18, Math.min(110, 30 + Math.abs(month.net) / 12));
-                const color = month.net >= 0 ? "success.main" : "error.main";
-
-                return (
-                  <Box key={month.label} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <Box
-                      sx={{
-                        width: "100%",
-                        height: `${height}px`,
-                        borderRadius: "999px 999px 0 0",
-                        bgcolor: color,
-                        opacity: month.net === 0 ? 0.35 : 0.9,
-                      }}
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                      {month.label}
-                    </Typography>
-                  </Box>
-                );
-              })}
-            </Stack>
-            <Chip label={`${transactionCount} transactions ce mois`} size="small" sx={{ mt: 1.5 }} />
-          </Box>
-        </Grid>
-      </Grid>
-
-      <Grid container spacing={2}>
-        <Grid item xs={12} md={7}>
-          <Box
-            sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 3,
-              p: 2.5,
-            }}
-          >
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-              Objectifs
-            </Typography>
-            {objectivesLoading ? (
-              <Typography variant="body2" color="text.secondary">
-                Chargement des objectifs...
-              </Typography>
-            ) : objectivesList.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
-                Aucun objectif actif pour le moment.
-              </Typography>
-            ) : (
-              <Stack spacing={2}>
-                {objectivesList.map((goal) => {
-                  const current = Number(goal.currentAmount) || 0;
-                  const target = Number(goal.targetAmount) || 0;
-                  const progress = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
-                  const title = goal.name || goal.label || "Objectif";
-
-                  return (
-                    <Box key={goal.id || title}>
-                      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
-                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                          {title}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {progress}%
-                        </Typography>
-                      </Box>
-                      <LinearProgress variant="determinate" value={progress} sx={{ height: 8, borderRadius: 999 }} />
-                    </Box>
-                  );
-                })}
-              </Stack>
-            )}
-          </Box>
-        </Grid>
-
-        <Grid item xs={12} md={5}>
-          <Box
-            sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 3,
-              p: 2.5,
-            }}
-          >
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-              Dernières transactions
-            </Typography>
-            <TransactionList transactions={transactionsToShow} />
-          </Box>
-        </Grid>
-      </Grid>
-
-      <CashBalanceAdjustmentDialog
-        open={Boolean(cashDialogMode)}
-        mode={cashDialogMode || CASH_ADJUSTMENT_KINDS.balance}
-        account={cashAccount}
-        currentBalance={cashAccount?.balance || 0}
-        hasHistory={cashBalance.hasHistory === true}
-        onClose={() => setCashDialogMode(null)}
-        onSubmit={cashBalance.onSubmit}
-      />
-    </Box>
-  );
-}
-
 export default function HorizonCockpit({
   metrics = {},
   onOpenTransactions = null,
   onOpenAnalysisMonth = null,
-  onOpenOpportunities = null,
+  onOpenForecast = null,
+  onOpenAccounts = null,
+  onOpenQuotes = null,
+  onOpenInvoices = null,
+  onOpenAnalysis = null,
 }) {
   const {
     balance = 0,
@@ -832,6 +450,9 @@ export default function HorizonCockpit({
     annualTrajectory = [],
     annualTrajectoryError = null,
     cashBalance = {},
+    pendingQuotes = [],
+    overdueInvoices = [],
+    uncategorizedCount = 0,
   } = metrics;
   const [cashDialogMode, setCashDialogMode] = useState(null);
   const trajectoryMonthRefs = useRef({});
@@ -843,13 +464,18 @@ export default function HorizonCockpit({
   const trajectoryRows = Array.isArray(annualTrajectory) ? annualTrajectory : [];
   const trajectoryYear = getTrajectoryYear(trajectoryRows);
   const december = trajectoryRows[11] || null;
-  const decemberTrend = getDecemberTrend(trajectoryRows);
   const remainingStatus = getRemainingStatus(remaining, totalRevenue);
   const duplicateGroups = trajectoryRows[0]?.duplicateFixedExpenseGroups || [];
   const firstNegativeMonth = findFirstProjectedNegativeMonth(trajectoryRows);
   const firstNegativeMonthLabel = formatMonthYear(firstNegativeMonth?.month);
-  const expectedOpportunitiesTotal = getExpectedOpportunitiesTotal(trajectoryRows);
-  const expectedOpportunitiesCount = getExpectedOpportunitiesCount(trajectoryRows);
+  const pendingQuotesTotal = pendingQuotes.reduce((sum, quote) => sum + Number(quote?.amount || 0), 0);
+  const now = new Date();
+  const daysUntilMonthEnd = Math.max(0, Math.ceil((new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999) - now) / 86400000));
+  const remainingMonthVariation = remaining - balance;
+  const attentionItems = [
+    uncategorizedCount > 0 ? { level: "warning", label: "Transactions sans catégorie", detail: `${uncategorizedCount} transaction(s) à classer`, onClick: onOpenTransactions } : null,
+    overdueInvoices.length > 0 ? { level: "error", label: "Factures en retard", detail: `${overdueInvoices.length} facture(s) à relancer`, onClick: onOpenInvoices } : null,
+  ].filter(Boolean);
   const cashAccount = accountBalances.find((account) => (
     account?.type === CASH_ACCOUNT_TYPE || account?.name === CASH_ACCOUNT_NAME
   ));
@@ -876,7 +502,15 @@ export default function HorizonCockpit({
   }, [onOpenAnalysisMonth]);
 
   return (
-    <Box sx={{ display: "grid", gap: { xs: 2, sm: 2.5 }, color: HORIZON_COLORS.ink }}>
+    <Box sx={{ display: "grid", gap: { xs: 2, sm: 2.5 }, color: HORIZON_COLORS.ink, minWidth: 0, overflowX: "hidden" }}>
+      <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" aria-label="Raccourcis financiers">
+        <Button onClick={onOpenTransactions} sx={{ minHeight: 44 }}>Transactions</Button>
+        <Button onClick={onOpenForecast} sx={{ minHeight: 44 }}>Prévisions</Button>
+        <Button onClick={onOpenAnalysis} sx={{ minHeight: 44 }}>Analyse</Button>
+        <Button onClick={onOpenAccounts} sx={{ minHeight: 44 }}>Comptes</Button>
+        <Button onClick={onOpenQuotes} sx={{ minHeight: 44 }}>Devis</Button>
+        <Button onClick={onOpenInvoices} sx={{ minHeight: 44 }}>Factures</Button>
+      </Stack>
       <Box
         sx={{
           display: "grid",
@@ -895,6 +529,7 @@ export default function HorizonCockpit({
           helpText="Total actuel de tous les comptes actifs."
           onClick={onOpenTransactions}
           ariaLabel="Ouvrir les transactions depuis le solde actuel"
+          priority={2}
         >
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: 2 }}>
             <Chip
@@ -915,7 +550,10 @@ export default function HorizonCockpit({
           helpText="Estimation du solde à la fin du mois selon les prévisions actuelles."
           onClick={() => scrollToTrajectoryMonth(currentTrajectoryMonth)}
           ariaLabel="Faire défiler la trajectoire jusqu'au mois courant"
+          priority={1}
         >
+<Typography variant="body2" sx={{ mt: 1, fontWeight: 700 }}>Dans {daysUntilMonthEnd} jour(s)</Typography>
+          <Typography variant="body2" color="text.secondary">{remainingMonthVariation >= 0 ? "+" : ""}{formatCurrency(remainingMonthVariation)} d’ici la fin du mois</Typography>
           <Chip
             icon={remaining >= 0 ? <TrendingUp /> : <TrendingDown />}
             label={remaining >= 0 ? "Solde positif" : "Solde négatif"}
@@ -934,6 +572,7 @@ export default function HorizonCockpit({
           helpText="Projection du solde au dernier jour de l'année."
           onClick={() => scrollToTrajectoryMonth(decemberMonth)}
           ariaLabel="Faire défiler la trajectoire jusqu'à décembre"
+          priority={3}
         >
           <Chip label={Number(december?.closingBalance) < 0 ? "Solde négatif" : "Solde positif"} size="small" sx={{ mt: 2, width: "fit-content", fontWeight: 800 }} />
         </MetricCard>
@@ -966,12 +605,12 @@ export default function HorizonCockpit({
 
         <MetricCard
           icon={<Insights />}
-          title="Opportunités prévues"
-          value={formatCurrency(expectedOpportunitiesTotal)}
-          subtitle={`${expectedOpportunitiesCount} opportunités incluses dans la trajectoire`}
+          title="Devis en attente"
+          value={formatCurrency(pendingQuotesTotal)}
+          subtitle={`${pendingQuotes.length} devis en attente — potentiel commercial non inclus dans la trajectoire`}
           color={HORIZON_COLORS.orange}
-          onClick={onOpenOpportunities}
-          ariaLabel="Ouvrir les opportunités"
+          onClick={onOpenQuotes}
+          ariaLabel="Ouvrir les devis en attente"
         />
 
         <AlertPanel
@@ -980,6 +619,7 @@ export default function HorizonCockpit({
           firstNegativeMonthLabel={firstNegativeMonthLabel}
           duplicateGroups={duplicateGroups}
           onNegativeMonthClick={firstNegativeMonth?.month ? () => scrollToTrajectoryMonth(firstNegativeMonth.month) : null}
+          items={attentionItems}
         />
       </Box>
 

@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -44,9 +44,10 @@ test("Plus has no duplicate summary alias and retains all secondary module entri
   const content = await readFile(appPath, "utf8");
   assert.doesNotMatch(content, /key: "COMPTES"/);
   for (const label of [
-    "Catégories", "Comptes, activités et tiers", "Frais fixes", "Revenus récurrents", "Opportunités",
+    "Catégories", "Comptes, activités et tiers", "Frais fixes", "Revenus récurrents",
     "Dettes et créances", "Objectifs", "Prévisions", "Historique des imports", "Paramètres",
   ]) {
     assert.equal(content.includes(`label: "${label}"`), true, label);
   }
+  assert.equal(content.includes(`label: "Opportunités"`), false);
 });

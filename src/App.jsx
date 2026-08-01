@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useState } from "react";
 import Transactions from "./pages/Transactions";
 import Objectifs from "./pages/Objectifs";
 import FraisFixes from "./pages/FraisFixes";
@@ -97,12 +97,6 @@ const MORE_MENU_PAGES = [
     page: PAGES.VEHICLES,
   },
   {
-    key: PAGES.OPPORTUNITES,
-    label: "Opportunités",
-    icon: <ShowChart />,
-    page: PAGES.OPPORTUNITES,
-  },
-  {
     key: PAGES.DETTES_CREANCES,
     label: "Dettes et créances",
     icon: <AccountBalance />,
@@ -162,6 +156,15 @@ function AppContent() {
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (nextUrl === currentUrl) return;
     window.history[replace ? "replaceState" : "pushState"]({ page: nextPage }, "", nextUrl);
+  }, []);
+  const navigateToWork = useCallback((section = "dashboard", status = "all") => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("page", "travail");
+    params.set("section", section);
+    if (status && status !== "all") params.set("status", status); else params.delete("status");
+    window.history.pushState({ page: PAGES.TRAVAIL }, "", `${window.location.pathname}?${params.toString()}${window.location.hash}`);
+    setPage(PAGES.TRAVAIL);
   }, []);
 
   useEffect(() => {
@@ -341,7 +344,11 @@ function AppContent() {
             accountsError={accountsError}
             onOpenTransactions={() => openTransactionsWithContext(null)}
             onOpenAnalysisMonth={openAnalysisMonth}
-            onOpenOpportunities={() => navigateToPage(PAGES.OPPORTUNITES)}
+            onOpenForecast={() => navigateToPage(PAGES.PREVISIONS)}
+            onOpenAnalysis={() => navigateToPage(PAGES.ANALYSE)}
+            onOpenAccounts={() => navigateToPage(PAGES.REFERENTIELS)}
+            onOpenQuotes={() => navigateToWork("quotes", "pending")}
+            onOpenInvoices={() => navigateToWork("invoices")}
           />
         )}
 
@@ -543,7 +550,6 @@ function AppContent() {
           <BottomNavigationAction label="Revenus récurrents" icon={<ReceiptLong />} />
           <BottomNavigationAction label="Travail" icon={<Work />} />
           <BottomNavigationAction label="Véhicules" icon={<DirectionsCar />} />
-          <BottomNavigationAction label="Opportunités" icon={<ShowChart />} />
           <BottomNavigationAction label="Dettes et créances" icon={<AccountBalance />} />
           <BottomNavigationAction label="Budgets" icon={<PieChart />} />
           <BottomNavigationAction label="Prévisions" icon={<ShowChart />} />

@@ -1,4 +1,4 @@
-export const PAGES = Object.freeze({
+﻿export const PAGES = Object.freeze({
   HOME: "HOME",
   TRANSACTIONS: "TRANSACTIONS",
   OBJECTIFS: "OBJECTIFS",
@@ -25,7 +25,6 @@ export const PAGE_ORDER = Object.freeze([
   PAGES.REVENUS_RECURRENTS,
   PAGES.TRAVAIL,
   PAGES.VEHICLES,
-  PAGES.OPPORTUNITES,
   PAGES.DETTES_CREANCES,
   PAGES.BUDGETS,
   PAGES.PREVISIONS,

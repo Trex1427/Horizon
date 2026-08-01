@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -14,7 +14,8 @@ test("App wires cockpit card actions through existing local navigation state", a
   assert.equal(content.includes("function openAnalysisMonth(monthKey, referenceDate)"), true);
   assert.equal(content.includes("onOpenTransactions={() => openTransactionsWithContext(null)}"), true);
   assert.equal(content.includes("onOpenAnalysisMonth={openAnalysisMonth}"), true);
-  assert.equal(content.includes("onOpenOpportunities={() => navigateToPage(PAGES.OPPORTUNITES)}"), true);
+  assert.equal(content.includes("onOpenQuotes={() => navigateToWork(\"quotes\", \"pending\")}"), true);
+  assert.equal(content.includes("onOpenForecast={() => navigateToPage(PAGES.PREVISIONS)}"), true);
   assert.equal(content.includes("navigationContext={analysisNavigationContext}"), true);
 });
 

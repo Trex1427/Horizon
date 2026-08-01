@@ -681,7 +681,7 @@ export default function Analyse({ onOpenTransactionsFiltered, navigationContext 
 	].filter(Boolean);
 
 	return (
-		<Box>
+		<Box sx={{ minWidth: 0, maxWidth: "100%", overflowX: "hidden", "& .MuiButtonBase-root": { minHeight: 44 }, "& canvas, & svg": { maxWidth: "100%" } }}>
 			<SectionHeader
 				title="Analyse financière"
 				subtitle={`${range.label} • ${range.start.toLocaleDateString("fr-FR")} au ${range.end.toLocaleDateString("fr-FR")}`}
@@ -748,7 +748,7 @@ export default function Analyse({ onOpenTransactionsFiltered, navigationContext 
 				subtitle="Les donnees existantes sont conservées ; seule la lecture est réorganisée."
 				action={<Chip size="small" icon={<PieChart />} label="Répartition et tendance" variant="outlined" />}
 			>
-				<Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, gap: 1.25 }}>
+				<Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "repeat(2, minmax(0, 1fr))" }, gap: 1.25 }}>
 					<ExpenseCategoryPieChart
 						data={snapshot.variableExpenses.segments}
 						total={snapshot.variableExpenses.total}
@@ -769,7 +769,7 @@ export default function Analyse({ onOpenTransactionsFiltered, navigationContext 
 			</SectionShell>
 
 			<SectionShell title="Classements" subtitle="Les plus gros postes passent en cartes avec montant, part et barre de progression.">
-				<Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" }, gap: 1.25 }}>
+				<Box sx={{ display: "grid", gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "repeat(2, minmax(0, 1fr))" }, gap: 1.25 }}>
 					<RankingCards
 						title="Dépenses variables"
 						subtitle="Catégories qui expliquent le plus les sorties variables."
