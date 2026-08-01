@@ -1,8 +1,8 @@
-﻿import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert, Box, Button, Card, CardActions, CardContent, Chip, CircularProgress, Dialog,
   DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem,
-  Stack, Switch, Tab, Tabs, TextField, Typography,
+  Stack, Switch, Tab, Tabs, TextField, Typography, useMediaQuery,
 } from "@mui/material";
 import Add from "@mui/icons-material/Add";
 import Archive from "@mui/icons-material/Archive";
@@ -42,6 +42,7 @@ function WaitingPanel({ children }) {
 const EMPTY_ACTIVITY = { name: "", color: "#2e7d6f", icon: "work", urssafRate: "0", isActive: true };
 
 function QuoteDialog({ open, quote, file, activities, thirdParties, extraction, onFileChange, onClose, onSave, addThirdParty, addProfessionalActivity }) {
+  const isMobile = useMediaQuery("(max-width:600px)");
   const [form, setForm] = useState(quote);
   const [error, setError] = useState("");
   const [quickThirdParty, setQuickThirdParty] = useState("");
@@ -65,8 +66,8 @@ function QuoteDialog({ open, quote, file, activities, thirdParties, extraction, 
     }
   };
   return (
-    <Dialog open fullWidth maxWidth="sm" onClose={onClose} fullScreen={false}>
-      <DialogTitle>{quote.id ? "Modifier le devis" : quote.source === "tiiime_pdf" ? "Valider le devis Tiiime" : "Nouveau devis"}</DialogTitle>
+    <Dialog open fullWidth maxWidth="sm" onClose={onClose} fullScreen={isMobile} scroll="paper" aria-labelledby="quote-dialog-title" PaperProps={{ sx: { overflowX: "hidden" } }}>
+      <DialogTitle id="quote-dialog-title">{quote.id ? "Modifier le devis" : quote.source === "tiiime_pdf" ? "Valider le devis Tiiime" : "Nouveau devis"}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           {extraction && (
@@ -106,7 +107,7 @@ function QuoteDialog({ open, quote, file, activities, thirdParties, extraction, 
           </Button>}
         </Stack>
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{ position: "sticky", bottom: 0, bgcolor: "background.paper", borderTop: "1px solid", borderColor: "divider", px: 2, pb: { xs: 2, sm: 1 } }}>
         <Button onClick={onClose} disabled={submitting}>Annuler</Button>
         <Button variant="contained" onClick={submit} disabled={submitting}>{submitting ? <CircularProgress size={20} /> : "Enregistrer"}</Button>
       </DialogActions>
@@ -143,6 +144,7 @@ function QuoteDialog({ open, quote, file, activities, thirdParties, extraction, 
 }
 
 function ActivitiesSection({ activitiesApi }) {
+  const isMobile = useMediaQuery("(max-width:600px)");
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", color: "#2e7d6f", icon: "work", urssafRate: "0", isActive: true });
   const [error, setError] = useState("");
@@ -164,26 +166,42 @@ function ActivitiesSection({ activitiesApi }) {
           <Typography variant="body2" color="text.secondary">URSSAF : {entry.urssafRate}% · {entry.icon}</Typography></Box>
           <Chip label={entry.isActive === false ? "Inactive" : "Active"} color={entry.isActive === false ? "default" : "success"} size="small" />
         </Stack>
-      </CardContent><CardActions><Button startIcon={<Edit />} onClick={() => open(entry)}>Modifier</Button>
+      </CardContent><CardActions sx={{ flexWrap: "wrap", "& .MuiButtonBase-root": { minHeight: 44 } }}><Button startIcon={<Edit />} onClick={() => open(entry)}>Modifier</Button>
         <FormControlLabel control={<Switch checked={entry.isActive !== false} onChange={(e) => activitiesApi.toggleProfessionalActivity(entry.id, e.target.checked)} />} label="Active" />
       </CardActions></Card>)}
       {!activitiesApi.loading && !activitiesApi.professionalActivities.length && <WaitingPanel>Aucune activité professionnelle. Créez-en une pour enregistrer un devis.</WaitingPanel>}
     </Stack>
-    <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} fullWidth maxWidth="xs"><DialogTitle>{editing?.id ? "Modifier l’activité" : "Nouvelle activité"}</DialogTitle>
+    <Dialog open={Boolean(editing)} onClose={() => setEditing(null)} fullWidth fullScreen={isMobile} maxWidth="xs" scroll="paper"><DialogTitle>{editing?.id ? "Modifier l’activité" : "Nouvelle activité"}</DialogTitle>
       <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>{error && <Alert severity="error">{error}</Alert>}
         <TextField required label="Nom" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <TextField type="number" label="Taux URSSAF (%)" inputProps={{ min: 0, step: "0.01" }} value={form.urssafRate} onChange={(e) => setForm({ ...form, urssafRate: e.target.value })} />
         <TextField label="Couleur" type="color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} />
         <TextField label="Icône" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} />
-      </Stack></DialogContent><DialogActions><Button onClick={() => setEditing(null)}>Annuler</Button><Button variant="contained" onClick={save}>Enregistrer</Button></DialogActions>
+      </Stack></DialogContent><DialogActions sx={{ position: "sticky", bottom: 0, bgcolor: "background.paper", borderTop: "1px solid", borderColor: "divider" }}><Button onClick={() => setEditing(null)}>Annuler</Button><Button variant="contained" onClick={save}>Enregistrer</Button></DialogActions>
     </Dialog>
   </>;
 }
 
 export default function Travail({ onOpenTransaction }) {
+  const isMobile = useMediaQuery("(max-width:600px)");
   const initialNavigation = typeof window === "undefined" ? new URLSearchParams() : new URLSearchParams(window.location.search);
   const requestedSection = initialNavigation.get("section");
   const [section, setSection] = useState(SECTIONS.some(([key]) => key === requestedSection) ? requestedSection : "dashboard");
+  const changeSection = (nextSection, { replace = false } = {}) => {
+    setSection(nextSection);
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    params.set("page", "travail"); params.set("section", nextSection);
+    window.history[replace ? "replaceState" : "pushState"]({ page: "TRAVAIL", section: nextSection }, "", `${window.location.pathname}?${params.toString()}${window.location.hash}`);
+  };
+  useEffect(() => {
+    const onPopState = () => {
+      const next = new URLSearchParams(window.location.search).get("section");
+      setSection(SECTIONS.some(([key]) => key === next) ? next : "dashboard");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const activitiesApi = useProfessionalActivities();
   const quotesApi = useWorkQuotes();
   const invoicesApi = useWorkInvoices();
@@ -215,6 +233,7 @@ export default function Travail({ onOpenTransaction }) {
       && text.includes(filters.search.toLowerCase());
   });
   const openManual = () => { setPdfFile(null); setExtraction(null); setDialog({ ...EMPTY_QUOTE }); };
+  const openQuote = (quote) => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); };
   const importPdf = async (file) => {
     if (!file) return;
     setImporting(true); setNotice("");
@@ -244,7 +263,7 @@ export default function Travail({ onOpenTransaction }) {
   };
   const openProject = (projectId) => {
     setSelectedProjectId(projectId);
-    setSection("sites");
+    changeSection("sites");
   };
   const createProject = async (quote) => {
     if (creatingProjectId) return;
@@ -267,11 +286,17 @@ export default function Travail({ onOpenTransaction }) {
   };
   return <Box sx={{ maxWidth: 1100, mx: "auto", px: { xs: 1, sm: 2 }, py: 2 }}>
     <Typography variant="h4" sx={{ mb: 1 }}>Travail</Typography>
-    <Tabs value={section} onChange={(_, value) => setSection(value)} variant="scrollable" scrollButtons="auto" aria-label="Sections du module Travail" sx={{ mb: 2 }}>
-      {SECTIONS.map(([value, label]) => <Tab key={value} value={value} label={label} />)}
-    </Tabs>
+    {isMobile ? (
+      <TextField select fullWidth label="Section Travail" value={section} onChange={(event) => changeSection(event.target.value)} sx={{ mb: 2, "& .MuiInputBase-root": { minHeight: 48 } }}>
+        {SECTIONS.map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
+      </TextField>
+    ) : (
+      <Tabs value={section} onChange={(_, value) => changeSection(value)} variant="scrollable" scrollButtons="auto" aria-label="Sections du module Travail" sx={{ mb: 2 }}>
+        {SECTIONS.map(([value, label]) => <Tab key={value} value={value} label={label} />)}
+      </Tabs>
+    )}
     {notice && <Alert severity="info" onClose={() => setNotice("")} sx={{ mb: 2 }}>{notice}</Alert>}
-    {section === "dashboard" && <WorkDashboard projects={projectsApi.projects} transactions={linkedTransactionsApi.transactions} invoices={invoicesApi.invoices} loading={projectsApi.loading || linkedTransactionsApi.loading || invoicesApi.loading} error={projectsApi.error || linkedTransactionsApi.error || invoicesApi.error} />}
+    {section === "dashboard" && <WorkDashboard quotes={quotesApi.quotes} projects={projectsApi.projects} transactions={linkedTransactionsApi.transactions} invoices={invoicesApi.invoices} loading={projectsApi.loading || linkedTransactionsApi.loading || invoicesApi.loading} error={projectsApi.error || linkedTransactionsApi.error || invoicesApi.error} />}
     {section === "sites" && <WorkProjectsSection projects={projectsApi.projects} loading={projectsApi.loading} error={projectsApi.error}
       activityMap={activityMap} thirdPartyMap={thirdPartyMap} quoteMap={quoteMap} accountMap={accountMap} transactions={linkedTransactionsApi.transactions} transactionsLoading={linkedTransactionsApi.loading} transactionsError={linkedTransactionsApi.error} invoices={invoicesApi.invoices} onOpenInvoice={openInvoicePdf} selectedProjectId={selectedProjectId} onOpen={openProject} onBack={() => setSelectedProjectId("")} onSave={projectsApi.editProject} onOpenTransaction={onOpenTransaction} />}
     {section === "invoices" && <WorkInvoicesSection invoices={invoicesApi.invoices} projects={projectsApi.projects} thirdParties={thirdParties} activities={activitiesApi.professionalActivities} accounts={accounts} addThirdParty={addThirdParty} createProject={projectsApi.createFromInvoice} thirdPartyMap={thirdPartyMap} projectMap={projectMap} loading={invoicesApi.loading} error={invoicesApi.error} parsePdf={parseTiiimeInvoicePdf} importInvoice={invoicesApi.importInvoice} markPaid={invoicesApi.markPaid} markPaidWithTransaction={invoicesApi.markPaidWithTransaction} markPending={invoicesApi.markPending} inspectDelete={invoicesApi.inspectDelete} deleteInvoice={invoicesApi.deleteInvoice} openPdf={openInvoicePdf} />}
@@ -285,7 +310,9 @@ export default function Travail({ onOpenTransaction }) {
           </Button><Button variant="contained" startIcon={<Add />} onClick={openManual}>Nouveau devis</Button>
         </Stack>
       </Stack>
-      <Stack direction={{ xs: "column", md: "row" }} spacing={1} sx={{ mb: 2 }}>
+      <Box component="details" open={!isMobile} sx={{ mb: 2, border: { xs: "1px solid", md: 0 }, borderColor: "divider", borderRadius: 2, p: { xs: 1, md: 0 } }}>
+      <Box component="summary" sx={{ display: { xs: "flex", md: "none" }, minHeight: 44, alignItems: "center", fontWeight: 700, cursor: "pointer" }}>Filtres</Box>
+      <Stack direction={{ xs: "column", md: "row" }} spacing={1} sx={{ mt: { xs: 1, md: 0 } }}>
         <TextField size="small" label="Recherche" value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} />
         <TextField select size="small" label="Statut" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
           <MenuItem value="all">Tous</MenuItem><MenuItem value="pending">En attente</MenuItem><MenuItem value="accepted">Accepté</MenuItem>
@@ -296,8 +323,10 @@ export default function Travail({ onOpenTransaction }) {
         <TextField select size="small" label="Tiers" value={filters.thirdParty} onChange={(e) => setFilters({ ...filters, thirdParty: e.target.value })}>
           <MenuItem value="all">Tous</MenuItem>{thirdParties.map((entry) => <MenuItem key={entry.id} value={entry.id}>{entry.name}</MenuItem>)}
         </TextField>
+        <Button onClick={() => setFilters({ status: "all", activity: "all", thirdParty: "all", search: "" })} sx={{ minHeight: 44 }}>Réinitialiser</Button>
       </Stack>
-      <Stack spacing={1.5}>{filteredQuotes.map((quote) => <Card variant="outlined" key={quote.id} onDoubleClick={() => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); }}>
+      </Box>
+      <Stack spacing={1.5}>{filteredQuotes.map((quote) => <Card variant="outlined" key={quote.id} role="button" tabIndex={0} onClick={() => { if (isMobile) openQuote(quote); }} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openQuote(quote); } }} onDoubleClick={() => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); }} sx={{ cursor: "pointer", minWidth: 0, overflow: "hidden" }}>
         <CardContent><Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" gap={1}>
           <Box><Typography fontWeight={700}>{quote.quoteNumber || "Devis sans numéro"}</Typography>
             <Typography variant="body2">{quote.issueDate} · {thirdPartyMap.get(quote.thirdPartyId)?.name || "Tiers indisponible"}</Typography>
@@ -305,7 +334,7 @@ export default function Travail({ onOpenTransaction }) {
           <Stack direction="row" spacing={1}><Chip size="small" color={quote.status === "accepted" ? "success" : "warning"} label={quote.status === "accepted" ? "Accepté" : "En attente"} />
             {quote.documentId && <Chip size="small" icon={<Description />} label="PDF" />}</Stack>
         </Stack></CardContent>
-        <CardActions onDoubleClick={(event) => event.stopPropagation()}><IconButton aria-label="Modifier le devis" onClick={() => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); }}><Edit /></IconButton>
+        <CardActions onClick={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} sx={{ flexWrap: "wrap", "& .MuiButtonBase-root": { minHeight: 44 } }}><IconButton aria-label="Modifier le devis" onClick={() => { setPdfFile(null); setExtraction(null); setDialog({ ...quote }); }}><Edit /></IconButton>
           {quote.documentId && <Button onClick={() => openPdf(quote)} startIcon={<Description />}>PDF</Button>}
           {quote.status === "accepted" && <Button onClick={() => createProject(quote)} startIcon={<FolderOpen />}
             disabled={creatingProjectId === quote.id}>
