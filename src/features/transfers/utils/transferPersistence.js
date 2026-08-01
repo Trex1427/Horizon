@@ -14,7 +14,8 @@ export function buildTransferCreatePayload(payload = {}) {
 
 export function buildTransferUpdatePayload(payload = {}) {
   const normalized = normalizeTransferPayload(sanitizeUserPayload(payload, { removeSystemFields: true }));
-  const { createdAt, ...updatePayload } = normalized;
+  const updatePayload = { ...normalized };
+  delete updatePayload.createdAt;
 
   return {
     ...updatePayload,

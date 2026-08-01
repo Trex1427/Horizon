@@ -11,7 +11,7 @@ export function subcategoryBelongsToCategory(subcategory = null, categoryId = ""
   return normalizeId(subcategory.categoryId) === normalizedCategoryId;
 }
 
-export function inferCategoryFromThirdParty(_thirdParty, _knownMappings = []) {
+export function inferCategoryFromThirdParty() {
   // Third-party only data must never force a category automatically.
   return null;
 }

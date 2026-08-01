@@ -63,7 +63,7 @@ test("Previsions is reachable from the existing navigation without business logi
   const navigation = await readFile(new URL("../navigation/appNavigation.js", import.meta.url), "utf8");
   const previsions = await readFile(files.previsions, "utf8");
 
-  assert.equal(app.includes("import Previsions from \"./pages/Previsions\";"), true);
+  assert.equal(app.includes('const Previsions = lazy(() => import("./pages/Previsions"))'), true);
   assert.equal(navigation.includes("PREVISIONS: \"PREVISIONS\""), true);
   assert.equal(navigation.includes("PAGES.PREVISIONS"), true);
   assert.equal(app.includes("{page === PAGES.PREVISIONS && <Previsions />}"), true);

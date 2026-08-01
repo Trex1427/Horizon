@@ -85,7 +85,7 @@ export async function bulkUpdateTransactions({
     try {
       await batch.commit();
       updatedCount += batchItems.length;
-    } catch (error) {
+    } catch {
       batchItems.forEach(({ transactionId }) => failedIds.add(transactionId));
     }
   }
@@ -132,7 +132,7 @@ export async function bulkDeleteTransactions({
     try {
       await batch.commit();
       updatedCount += batchIds.length;
-    } catch (error) {
+    } catch {
       batchIds.forEach((transactionId) => failedIds.add(transactionId));
     }
   }

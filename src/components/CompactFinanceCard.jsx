@@ -98,8 +98,6 @@ export default function CompactFinanceCard({
   titleField = "",
   categoryIconField = "",
   amountSegments = [],
-  metaPrimarySegments = [],
-  metaSecondarySegments = [],
   detailsSegments = [],
   amount,
   amountColor,

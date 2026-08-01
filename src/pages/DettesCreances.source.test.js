@@ -10,7 +10,7 @@ test("navigation exposes and renders Dettes et créances without global loading"
   assert.match(app, /label: "Dettes et créances"/);
   assert.match(app, /page === PAGES\.DETTES_CREANCES[\s\S]*<DettesCreances[\s\S]*accounts=\{accounts\}[\s\S]*defaultAccount=\{defaultAccount\}[\s\S]*accountsLoading=\{accountsLoading\}[\s\S]*accountsError=\{accountsError\}/);
   assert.equal(app.includes("useDebtsReceivables"), false);
-  assert.match(app, /import DettesCreances from "\.\/pages\/DettesCreances"/);
+  assert.match(app, /const DettesCreances = lazy\(\(\) => import\("\.\/pages\/DettesCreances"\)\)/);
 });
 test("page presents summaries, CRUD actions, empty state and confirmation", async () => {
   const page = await readFile(resolve(process.cwd(), "src/pages/DettesCreances.jsx"), "utf8");
