@@ -1,4 +1,4 @@
-import { Box, Divider, FormControlLabel, MenuItem, Switch, TextField } from "@mui/material";
+﻿import { Box, Divider, FormControlLabel, MenuItem, Switch, TextField } from "@mui/material";
 import AccountSelector from "./AccountSelector";
 import { getSafeCategoryLabel } from "../utils/displayTextUtils";
 import {
@@ -52,6 +52,7 @@ export default function TransactionFormFields({
         fullWidth
         size="small"
         InputLabelProps={{ shrink: true }}
+        sx={{ order: 3 }}
       />
 
       <TextField
@@ -62,13 +63,14 @@ export default function TransactionFormFields({
         onChange={onChange}
         fullWidth
         size="small"
+        sx={{ order: 1 }}
       >
         <MenuItem value="depense">Dépense</MenuItem>
         <MenuItem value="revenu">Revenu</MenuItem>
       </TextField>
 
       {form.type === "depense" && (
-        <Box sx={{ display: "flex", alignItems: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", order: 8 }}>
           <FormControlLabel
             control={(
               <Switch
@@ -92,7 +94,7 @@ export default function TransactionFormFields({
           onChange={onChange}
           fullWidth
           size="small"
-          sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
+          sx={{ order: 8, gridColumn: { xs: "auto", sm: "1 / -1" } }}
           helperText="Choisir un frais fixe existant ou en créer un"
         >
           <MenuItem value="">Sélectionner</MenuItem>
@@ -117,7 +119,7 @@ export default function TransactionFormFields({
         onChange={onChange}
         fullWidth
         size="small"
-        sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
+        sx={{ order: 2, gridColumn: { xs: "auto", sm: "1 / -1" } }}
       />
 
       <TextField
@@ -128,6 +130,7 @@ export default function TransactionFormFields({
         onChange={onChange}
         fullWidth
         size="small"
+        sx={{ order: 6 }}
       >
         <MenuItem value="">Sans catégorie</MenuItem>
         {categoryOptions.map((category) => (
@@ -150,6 +153,7 @@ export default function TransactionFormFields({
         fullWidth
         size="small"
         disabled={Boolean(form.categoryId) === false}
+        sx={{ order: 7 }}
         helperText={!form.categoryId ? "Choisir une catégorie d'abord" : subcategoryHelperText}
       >
         <MenuItem value="">Aucune</MenuItem>
@@ -164,108 +168,114 @@ export default function TransactionFormFields({
         </MenuItem>
       </TextField>
 
-      <TextField
-        label="Activité"
-        name="activityId"
-        select
-        value={form.activityId || ""}
-        onChange={onChange}
-        fullWidth
-        size="small"
-      >
-        <MenuItem value="">Aucune</MenuItem>
-        {activities.map((activity) => (
-          <MenuItem key={activity.id} value={activity.id}>
-            {activity.name}
-          </MenuItem>
-        ))}
-        <Divider />
-        <MenuItem value={CREATE_ACTIVITY_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
-          + Créer une nouvelle activité
-        </MenuItem>
-      </TextField>
+      <Box component="details" open={Boolean(form.activityId || form.thirdPartyId || form.projectId || form.vehicleId || form.workProjectId)} sx={{ order: 9, gridColumn: "1 / -1", border: "1px solid", borderColor: "divider", borderRadius: 2, p: 1 }}>
+        <Box component="summary" sx={{ cursor: "pointer", minHeight: 44, display: "flex", alignItems: "center", fontWeight: 700 }}>Plus de détails</Box>
+        <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, pt: 1 }}>
+          <TextField
+            label="Activité"
+            name="activityId"
+            select
+            value={form.activityId || ""}
+            onChange={onChange}
+            fullWidth
+            size="small"
+          >
+            <MenuItem value="">Aucune</MenuItem>
+            {activities.map((activity) => (
+              <MenuItem key={activity.id} value={activity.id}>
+                {activity.name}
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem value={CREATE_ACTIVITY_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
+              + Créer une nouvelle activité
+            </MenuItem>
+          </TextField>
 
-      <TextField
-        label="Tiers"
-        name="thirdPartyId"
-        select
-        value={form.thirdPartyId || ""}
-        onChange={onChange}
-        fullWidth
-        size="small"
-      >
-        <MenuItem value="">Aucun</MenuItem>
-        {thirdParties.map((thirdParty) => (
-          <MenuItem key={thirdParty.id} value={thirdParty.id}>
-            {thirdParty.name}
-          </MenuItem>
-        ))}
-        <Divider />
-        <MenuItem value={CREATE_THIRD_PARTY_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
-          + Créer un nouveau tiers
-        </MenuItem>
-      </TextField>
+          <TextField
+            label="Tiers"
+            name="thirdPartyId"
+            select
+            value={form.thirdPartyId || ""}
+            onChange={onChange}
+            fullWidth
+            size="small"
+          >
+            <MenuItem value="">Aucun</MenuItem>
+            {thirdParties.map((thirdParty) => (
+              <MenuItem key={thirdParty.id} value={thirdParty.id}>
+                {thirdParty.name}
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem value={CREATE_THIRD_PARTY_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
+              + Créer un nouveau tiers
+            </MenuItem>
+          </TextField>
 
-      <TextField
-        label="Projet"
-        name="projectId"
-        select
-        value={form.projectId || ""}
-        onChange={onChange}
-        fullWidth
-        size="small"
-        helperText={form.activityId ? "Projets lies a l'activite en tete de liste" : "Facultatif"}
-      >
-        <MenuItem value="">Aucun</MenuItem>
-        {prioritizedProjectOptions.map((project) => (
-          <MenuItem key={project.id} value={project.id}>
-            {project.name}
-          </MenuItem>
-        ))}
-        <Divider />
-        <MenuItem value={CREATE_PROJECT_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
-          + Créer un nouveau projet
-        </MenuItem>
-      </TextField>
+          <TextField
+            label="Projet"
+            name="projectId"
+            select
+            value={form.projectId || ""}
+            onChange={onChange}
+            fullWidth
+            size="small"
+            helperText={form.activityId ? "Projets lies a l'activite en tete de liste" : "Facultatif"}
+          >
+            <MenuItem value="">Aucun</MenuItem>
+            {prioritizedProjectOptions.map((project) => (
+              <MenuItem key={project.id} value={project.id}>
+                {project.name}
+              </MenuItem>
+            ))}
+            <Divider />
+            <MenuItem value={CREATE_PROJECT_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
+              + Créer un nouveau projet
+            </MenuItem>
+          </TextField>
 
 
-      <TextField
-        label="Véhicule"
-        name="vehicleId"
-        select
-        value={form.vehicleId || ""}
-        onChange={onChange}
-        fullWidth
-        size="small"
-        helperText="Facultatif"
-      >
-        <MenuItem value="">Aucun</MenuItem>
-        {vehicles.map((vehicle) => <MenuItem key={vehicle.id} value={vehicle.id}>{vehicle.name}</MenuItem>)}
-        <Divider />
-        <MenuItem value={CREATE_VEHICLE_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>+ Ajouter un véhicule</MenuItem>
-      </TextField>
+          <TextField
+            label="Véhicule"
+            name="vehicleId"
+            select
+            value={form.vehicleId || ""}
+            onChange={onChange}
+            fullWidth
+            size="small"
+            helperText="Facultatif"
+          >
+            <MenuItem value="">Aucun</MenuItem>
+            {vehicles.map((vehicle) => <MenuItem key={vehicle.id} value={vehicle.id}>{vehicle.name}</MenuItem>)}
+            <Divider />
+            <MenuItem value={CREATE_VEHICLE_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>+ Ajouter un véhicule</MenuItem>
+          </TextField>
 
-      <TextField
-        label="Dossier"
-        name="workProjectId"
-        select
-        value={form.workProjectId || ""}
-        onChange={onChange}
-        fullWidth
-        size="small"
-        helperText="Dossier Travail associé"
-      >
-        <MenuItem value="">Aucun</MenuItem>
-        {workProjects.map((workProject) => (
-          <MenuItem key={workProject.id} value={workProject.id}>{workProject.name}</MenuItem>
-        ))}
-      </TextField>      <AccountSelector
+          <TextField
+            label="Dossier"
+            name="workProjectId"
+            select
+            value={form.workProjectId || ""}
+            onChange={onChange}
+            fullWidth
+            size="small"
+            helperText="Dossier Travail associé"
+          >
+            <MenuItem value="">Aucun</MenuItem>
+            {workProjects.map((workProject) => (
+              <MenuItem key={workProject.id} value={workProject.id}>{workProject.name}</MenuItem>
+            ))}
+          </TextField>
+        </Box>
+      </Box>
+      <AccountSelector
         value={form.accountId}
         onChange={onChange}
         accounts={accounts}
         label="Compte source"
         size="small"
-        sx={{ mb: 0 }}
+        sx={{ mb: 0, order: 5 }}
         createOptionValue={CREATE_ACCOUNT_VALUE}
         createOptionLabel="+ Créer un nouveau compte"
       />
@@ -277,7 +287,8 @@ export default function TransactionFormFields({
         onChange={onChange}
         fullWidth
         size="small"
-        sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
+        sx={{ order: 4, gridColumn: { xs: "auto", sm: "1 / -1" } }}
+        inputProps={{ autoComplete: "off" }}
       />
     </Box>
   );

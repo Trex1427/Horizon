@@ -1,4 +1,4 @@
-﻿import { Card, CardContent, Box, IconButton, Typography, Checkbox, Chip, Tooltip } from "@mui/material";
+import { Card, CardContent, Box, IconButton, Typography, Checkbox, Chip, Tooltip } from "@mui/material";
 import MoreVert from "@mui/icons-material/MoreVert";
 
 const TYPE_STYLES = {
@@ -357,7 +357,7 @@ export default function CompactFinanceCard({
                 onDoubleClick={(event) => {
                   event.stopPropagation();
                 }}
-                sx={{ p: 0.35 }}
+                sx={{ p: 1, minWidth: 44, minHeight: 44 }}
               >
                 <MoreVert fontSize="small" />
               </IconButton>
