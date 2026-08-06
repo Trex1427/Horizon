@@ -1,26 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Box,
   Button,
   Card,
   CardContent,
-  Chip,
+  Checkbox,
+  Divider,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
+  FormControlLabel,
   Menu,
   MenuItem,
   TextField,
   Typography,
   Stack,
   useMediaQuery,
-} from "@mui/material";
-import FilterList from "@mui/icons-material/FilterList";
-import MoreVert from "@mui/icons-material/MoreVert";
-import Sort from "@mui/icons-material/Sort";
+} from "../components/ui/foundations/MuiPrimitives";
+import {
+  Add,
+  CheckBoxOutlined,
+  Close,
+  Delete,
+  Edit,
+  FilterList,
+  Label,
+  LinkIcon,
+  Sort,
+} from "../components/ui/icons/MuiIcons";
 import { useTransactions } from "../hooks/useTransactions";
 import { useTransfers } from "../hooks/useTransfers";
 import { useAccounts } from "../hooks/useAccounts";
@@ -97,7 +105,23 @@ import {
   buildTransactionClassificationSuggestion,
   findSimilarTransactions,
 } from "../utils/similarTransactionClassification";
-
+import {
+  AppFilterDialog,
+  AppAlert,
+  AppHeader,
+  AppKpiGrid,
+  AppSortDialog,
+  AppStickyPanel,
+  AppToolbarSearchField,
+  ActionBar,
+  CompactToolbarLayout,
+  DangerButton,
+  LoadingMessageCard,
+  PrimaryButton,
+  ResultsEmptyCard,
+  SecondaryButton,
+} from "../components/ui";
+import { breakpoints, colors, radius, spacing, transitions } from "../components/ui/foundations";
 const TRANSACTION_PERIOD_LABELS = {
   currentMonth: "Mois courant",
   previousMonth: "Mois précédent",
@@ -139,6 +163,36 @@ function formatSummaryAmount(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(Number(value || 0));
+}
+
+function buildTransactionsSummary(transactions = []) {
+  return transactions.reduce((summary, transaction) => {
+    const amount = Math.abs(Number(transaction?.montant ?? transaction?.amount ?? 0));
+    const normalizedType = normalizeTransactionType(transaction?.type);
+
+    if (normalizedType === "depense") {
+      return {
+        ...summary,
+        expenses: summary.expenses + amount,
+        net: summary.net - amount,
+      };
+    }
+
+    if (normalizedType === "revenu") {
+      return {
+        ...summary,
+        revenues: summary.revenues + amount,
+        net: summary.net + amount,
+      };
+    }
+
+    return summary;
+  }, {
+    count: transactions.length,
+    expenses: 0,
+    revenues: 0,
+    net: 0,
+  });
 }
 
 function getInitialForm() {
@@ -254,8 +308,8 @@ export default function Transactions({
   navigationContext = null,
   onNavigationContextApplied,
 }) {
-  const enableDesktopDoubleClickEdit = useMediaQuery("(min-width:900px)");
-  const isMobileTransactionsView = useMediaQuery("(max-width:599.95px)");
+  const enableDesktopDoubleClickEdit = useMediaQuery(breakpoints.up.md);
+  const isMobileTransactionsView = useMediaQuery(breakpoints.down.sm);
   const [form, setForm] = useState(getInitialForm);
   const [transactionEditorInitialForm, setTransactionEditorInitialForm] = useState(getInitialForm);
   const [transactionEditorScrollRestorePosition, setTransactionEditorScrollRestorePosition] = useState(0);
@@ -308,11 +362,16 @@ export default function Transactions({
   const [quickProjectForm, setQuickProjectForm] = useState({ name: "", activityId: "", startDate: "", endDate: "", notes: "" });
   const [quickProjectError, setQuickProjectError] = useState("");
   const [quickFixedExpenseOpen, setQuickFixedExpenseOpen] = useState(false);
+  const [quickFixedExpenseSourceForm, setQuickFixedExpenseSourceForm] = useState(getInitialForm);
+  const [quickFixedExpenseSourceTransactionIds, setQuickFixedExpenseSourceTransactionIds] = useState([]);
+  const [quickFixedExpenseApplyClassificationToSource, setQuickFixedExpenseApplyClassificationToSource] = useState(true);
   const [quickVehicleOpen, setQuickVehicleOpen] = useState(false);
   const [quickFixedExpenseForm, setQuickFixedExpenseForm] = useState({ name: "", frequency: "monthly", startDate: "", endDate: "", description: "" });
+  const [quickFixedExpenseAutoFocusSelector, setQuickFixedExpenseAutoFocusSelector] = useState('input[name="quick-fixed-expense-name"]');
   const [quickFixedExpenseError, setQuickFixedExpenseError] = useState("");
   const [quickFixedExpenseSubmitting, setQuickFixedExpenseSubmitting] = useState(false);
   const quickFixedExpenseSubmittingRef = useRef(false);
+  const quickFixedExpenseCreateResolverRef = useRef(null);
   const importQuickCreateRef = useRef(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [bulkEditMode, setBulkEditMode] = useState("advanced");
@@ -323,12 +382,13 @@ export default function Transactions({
   const [similarClassificationSuggestion, setSimilarClassificationSuggestion] = useState(null);
   const [similarClassificationLoading, setSimilarClassificationLoading] = useState(false);
   const similarClassificationSubmittingRef = useRef(false);
-  const [isCommandBarCompact, setIsCommandBarCompact] = useState(false);
   const [secondaryActionsAnchor, setSecondaryActionsAnchor] = useState(null);
+  const [periodMenuAnchor, setPeriodMenuAnchor] = useState(null);
   const [receiptUploaderDialogOpen, setReceiptUploaderDialogOpen] = useState(false);
   const [importHistoryDialogOpen, setImportHistoryDialogOpen] = useState(false);
   const [transfersDialogOpen, setTransfersDialogOpen] = useState(false);
   const [legacyReviewDialogOpen, setLegacyReviewDialogOpen] = useState(false);
+  const [smartHeaderCollapseProgress, setSmartHeaderCollapseProgress] = useState(0);
   const recognitionRef = useRef(null);
   const transcriptCapturedRef = useRef(false);
   const transactionEditorScrollRestoreTimeoutRef = useRef(null);
@@ -416,37 +476,6 @@ export default function Transactions({
     if (transactionEditorScrollRestoreTimeoutRef.current !== null && typeof window !== "undefined") {
       window.clearTimeout(transactionEditorScrollRestoreTimeoutRef.current);
     }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
-    }
-
-    const compactThreshold = 180;
-    let isAnimationFramePending = false;
-
-    const syncCompactState = () => {
-      isAnimationFramePending = false;
-      const nextCompactState = getCurrentScrollY() >= compactThreshold;
-      setIsCommandBarCompact((previous) => (previous === nextCompactState ? previous : nextCompactState));
-    };
-
-    const handleScroll = () => {
-      if (isAnimationFramePending) {
-        return;
-      }
-
-      isAnimationFramePending = true;
-      window.requestAnimationFrame(syncCompactState);
-    };
-
-    syncCompactState();
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
   }, []);
 
   const activeSubcategories = useMemo(
@@ -645,6 +674,97 @@ export default function Transactions({
     ];
   }, [activeProjects, form.activityId, form.projectId, form.projectName, projectMap]);
 
+  const quickFixedExpenseCategoryOptions = useMemo(() => {
+    const depenseCategories = categories
+      .filter((category) => category.type === "depense")
+      .map((category) => ({ id: category.id, name: category.name }))
+      .filter((category) => Boolean(String(category.name || "").trim()));
+
+    const fallbackName = String(quickFixedExpenseSourceForm.categoryName || quickFixedExpenseSourceForm.categorie || "").trim();
+    if (
+      quickFixedExpenseSourceForm.categoryId
+      && !depenseCategories.some((category) => category.id === quickFixedExpenseSourceForm.categoryId)
+    ) {
+      depenseCategories.unshift({
+        id: quickFixedExpenseSourceForm.categoryId,
+        name: fallbackName || "Categorie",
+      });
+    }
+
+    if (!quickFixedExpenseSourceForm.categoryId && fallbackName && !depenseCategories.some((category) => category.name === fallbackName)) {
+      depenseCategories.unshift({ id: "", name: fallbackName });
+    }
+
+    return depenseCategories;
+  }, [categories, quickFixedExpenseSourceForm.categoryId, quickFixedExpenseSourceForm.categoryName, quickFixedExpenseSourceForm.categorie]);
+
+  const quickFixedExpenseSubcategoryOptions = useMemo(() => {
+    const filteredSubcategories = activeSubcategories.filter((subcategory) => subcategory.categoryId === quickFixedExpenseSourceForm.categoryId);
+    if (!quickFixedExpenseSourceForm.subcategoryId || filteredSubcategories.some((subcategory) => subcategory.id === quickFixedExpenseSourceForm.subcategoryId)) {
+      return filteredSubcategories;
+    }
+
+    return [
+      {
+        id: quickFixedExpenseSourceForm.subcategoryId,
+        name: quickFixedExpenseSourceForm.subcategoryName || subcategoryMap.get(quickFixedExpenseSourceForm.subcategoryId)?.name || "Sous-categorie",
+        categoryId: quickFixedExpenseSourceForm.categoryId,
+      },
+      ...filteredSubcategories,
+    ];
+  }, [activeSubcategories, quickFixedExpenseSourceForm.categoryId, quickFixedExpenseSourceForm.subcategoryId, quickFixedExpenseSourceForm.subcategoryName, subcategoryMap]);
+
+  const quickFixedExpenseActivityOptions = useMemo(() => {
+    if (!quickFixedExpenseSourceForm.activityId || activeActivities.some((activity) => activity.id === quickFixedExpenseSourceForm.activityId)) {
+      return activeActivities;
+    }
+
+    return [
+      {
+        id: quickFixedExpenseSourceForm.activityId,
+        name: quickFixedExpenseSourceForm.activityName || activityMap.get(quickFixedExpenseSourceForm.activityId)?.name || "Activite",
+      },
+      ...activeActivities,
+    ];
+  }, [activeActivities, quickFixedExpenseSourceForm.activityId, quickFixedExpenseSourceForm.activityName, activityMap]);
+
+  const quickFixedExpenseThirdPartyOptions = useMemo(() => {
+    if (!quickFixedExpenseSourceForm.thirdPartyId || activeThirdParties.some((thirdParty) => thirdParty.id === quickFixedExpenseSourceForm.thirdPartyId)) {
+      return activeThirdParties;
+    }
+
+    return [
+      {
+        id: quickFixedExpenseSourceForm.thirdPartyId,
+        name: quickFixedExpenseSourceForm.thirdPartyName || thirdPartyMap.get(quickFixedExpenseSourceForm.thirdPartyId)?.name || "Tiers",
+      },
+      ...activeThirdParties,
+    ];
+  }, [activeThirdParties, quickFixedExpenseSourceForm.thirdPartyId, quickFixedExpenseSourceForm.thirdPartyName, thirdPartyMap]);
+
+  const quickFixedExpenseProjectOptions = useMemo(() => {
+    const sourceActivityId = quickFixedExpenseSourceForm.activityId;
+    const sortedProjects = !sourceActivityId
+      ? activeProjects
+      : [
+          ...activeProjects.filter((project) => project.activityId === sourceActivityId),
+          ...activeProjects.filter((project) => project.activityId !== sourceActivityId),
+        ];
+
+    if (!quickFixedExpenseSourceForm.projectId || sortedProjects.some((project) => project.id === quickFixedExpenseSourceForm.projectId)) {
+      return sortedProjects;
+    }
+
+    return [
+      {
+        id: quickFixedExpenseSourceForm.projectId,
+        name: quickFixedExpenseSourceForm.projectName || projectMap.get(quickFixedExpenseSourceForm.projectId)?.name || "Projet",
+        activityId: sourceActivityId || null,
+      },
+      ...sortedProjects,
+    ];
+  }, [activeProjects, quickFixedExpenseSourceForm.activityId, quickFixedExpenseSourceForm.projectId, quickFixedExpenseSourceForm.projectName, projectMap]);
+
   const subcategoryFilterOptions = useMemo(() => {
     const seen = new Set();
     const options = [];
@@ -812,35 +932,7 @@ export default function Transactions({
     [searchedTransactions, sortPreferences, accounts]
   );
 
-  const displayedTransactionsSummary = useMemo(() => (
-    displayedTransactions.reduce((summary, transaction) => {
-      const amount = Math.abs(Number(transaction?.montant ?? transaction?.amount ?? 0));
-      const normalizedType = normalizeTransactionType(transaction?.type);
-
-      if (normalizedType === "depense") {
-        return {
-          ...summary,
-          expenses: summary.expenses + amount,
-          net: summary.net - amount,
-        };
-      }
-
-      if (normalizedType === "revenu") {
-        return {
-          ...summary,
-          revenues: summary.revenues + amount,
-          net: summary.net + amount,
-        };
-      }
-
-      return summary;
-    }, {
-      count: displayedTransactions.length,
-      expenses: 0,
-      revenues: 0,
-      net: 0,
-    })
-  ), [displayedTransactions]);
+  const displayedTransactionsSummary = useMemo(() => buildTransactionsSummary(displayedTransactions), [displayedTransactions]);
 
   const displayedTransactionIdSet = useMemo(
     () => new Set(displayedTransactions.map((transaction) => transaction.id)),
@@ -855,7 +947,12 @@ export default function Transactions({
     () => resolveVisibleSelectedTransactions(visibleSelectedTransactionIds, displayedTransactions),
     [displayedTransactions, visibleSelectedTransactionIds]
   );
+  const displayedTransactionsCount = displayedTransactions.length;
   const selectedTransactionsCount = visibleSelectedTransactionIds.length;
+  const isSelectionEmpty = selectedTransactionsCount === 0;
+  const isSelectionComplete = displayedTransactionsCount > 0 && selectedTransactionsCount === displayedTransactionsCount;
+  const isSelectionPartial = !isSelectionEmpty && !isSelectionComplete;
+  const selectedTransactionsSummary = useMemo(() => buildTransactionsSummary(selectedTransactions), [selectedTransactions]);
 
   const trendData = useMemo(
     () => buildIncomeExpenseTrendData(filteredTransactions, trendPeriod),
@@ -923,6 +1020,46 @@ export default function Transactions({
 
     setBankImportOpen(true);
   }, [openBankImportRequestId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    let animationFrameId = null;
+    let ticking = false;
+    const collapseStart = 24;
+    const collapseDistance = 160;
+
+    const updateCollapseProgress = () => {
+      const scrollY = getCurrentScrollY();
+      const nextProgress = Math.max(0, Math.min(1, (scrollY - collapseStart) / collapseDistance));
+      setSmartHeaderCollapseProgress((previous) => (Math.abs(previous - nextProgress) < 0.01 ? previous : nextProgress));
+      ticking = false;
+    };
+
+    const handleScroll = () => {
+      if (ticking) {
+        return;
+      }
+
+      ticking = true;
+      animationFrameId = window.requestAnimationFrame(updateCollapseProgress);
+    };
+
+    updateCollapseProgress();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectionMode) {
@@ -1032,7 +1169,7 @@ export default function Transactions({
     }
 
     if (name === "fixedExpenseId" && value === CREATE_FIXED_EXPENSE_VALUE) {
-      openQuickFixedExpenseDialog();
+      openQuickFixedExpenseDialog([], oldForm);
       return;
     }
 
@@ -1541,6 +1678,23 @@ export default function Transactions({
     setTransactionEditorError("");
     setMessage("");
   }
+
+  useEffect(() => {
+    if (!navigationContext || navigationContext.source !== "card-explorer" || !navigationContext.openTransactionId) {
+      return;
+    }
+
+    const transaction = transactions.find((item) => item.id === navigationContext.openTransactionId);
+    if (!transaction) {
+      return;
+    }
+
+    handleEdit(transaction, {
+      focusTarget: navigationContext.openMode === "edit" ? "description" : "",
+    });
+    setMessage("Transaction ouverte depuis une carte ✅");
+    onNavigationContextApplied?.();
+  }, [navigationContext, onNavigationContextApplied, transactions]);
 
   function openSelectionMode() {
     setSelectionMode(true);
@@ -2275,54 +2429,280 @@ export default function Transactions({
     setQuickProjectOpen(true);
   }
 
-  function openQuickCategoryFromBulk(type = "depense") {
-    setBulkEditDialogOpen(false);
-    openQuickCategoryDialog(type);
+  function openQuickCategoryFromBulk(payload = {}) {
+    const normalizedPayload = typeof payload === "string" ? { type: payload } : payload;
+    openImportQuickCreate("category", normalizedPayload || {});
   }
 
-  function openQuickSubcategoryFromBulk(categoryId = "", type = "depense") {
-    setBulkEditDialogOpen(false);
-    openQuickSubcategoryDialog(categoryId, type);
+  function openQuickSubcategoryFromBulk(payload = {}) {
+    if (typeof payload === "string") {
+      openImportQuickCreate("subcategory", { categoryId: payload, type: "depense" });
+      return;
+    }
+
+    openImportQuickCreate("subcategory", payload || {});
   }
 
-  function openQuickActivityFromBulk() {
-    setBulkEditDialogOpen(false);
-    openQuickActivityDialog();
+  function openQuickActivityFromBulk(payload = {}) {
+    openImportQuickCreate("activity", payload || {});
   }
 
-  function openQuickThirdPartyFromBulk() {
-    setBulkEditDialogOpen(false);
-    openQuickThirdPartyDialog();
+  function openQuickThirdPartyFromBulk(payload = {}) {
+    openImportQuickCreate("thirdParty", payload || {});
   }
 
-  function openQuickProjectFromBulk(activityId = "") {
-    setBulkEditDialogOpen(false);
-    openQuickProjectDialog(activityId);
+  function openQuickProjectFromBulk(payload = {}) {
+    if (typeof payload === "string") {
+      openImportQuickCreate("project", { activityId: payload });
+      return;
+    }
+
+    openImportQuickCreate("project", payload || {});
   }
 
-  function openQuickAccountFromBulk() {
-    setBulkEditDialogOpen(false);
-    openQuickAccountDialog();
+  function openQuickAccountFromBulk(payload = {}) {
+    openImportQuickCreate("account", payload || {});
   }
 
-  function openQuickFixedExpenseDialog() {
+  function openQuickFixedExpenseDialog(sourceTransactions = [], sourceForm = null) {
+    const selectedSourceForm = sourceForm || buildFixedExpenseDraftFromTransactions(sourceTransactions);
+    const sourceTransactionIds = (Array.isArray(sourceTransactions) ? sourceTransactions : []).map((transaction) => transaction?.id).filter(Boolean);
+
+    setQuickFixedExpenseSourceForm({
+      ...getInitialForm(),
+      ...selectedSourceForm,
+      type: "depense",
+      montant: String(selectedSourceForm.initialAmount ?? selectedSourceForm.montant ?? form.montant ?? ""),
+    });
+    setQuickFixedExpenseSourceTransactionIds(sourceTransactionIds);
+    setQuickFixedExpenseApplyClassificationToSource(sourceTransactionIds.length > 0);
+    setQuickFixedExpenseAutoFocusSelector('input[name="quick-fixed-expense-name"]');
     setQuickFixedExpenseForm({
-      name: form.description || "",
-      frequency: "monthly",
-      startDate: form.date || new Date().toISOString().slice(0, 10),
-      endDate: "",
-      description: "",
+      name: selectedSourceForm.name || form.description || "",
+      frequency: selectedSourceForm.frequency || "monthly",
+      startDate: selectedSourceForm.startDate || form.date || new Date().toISOString().slice(0, 10),
+      endDate: selectedSourceForm.endDate || "",
+      description: selectedSourceForm.description || "",
     });
     setQuickFixedExpenseError("");
     setQuickFixedExpenseOpen(true);
   }
 
+  function buildQuickFixedExpenseClassificationPatch(source = quickFixedExpenseSourceForm) {
+    const categoryName = String(source.categoryName || source.categorie || "").trim();
+    const patch = {
+      subcategoryId: source.subcategoryId || null,
+      subcategoryName: source.subcategoryName || null,
+      thirdPartyId: source.thirdPartyId || null,
+      activityId: source.activityId || null,
+      projectId: source.projectId || null,
+    };
+
+    if (source.categoryId) {
+      patch.categoryId = source.categoryId;
+      patch.categoryName = categoryName;
+      patch.categorie = categoryName;
+    }
+
+    return patch;
+  }
+
+  function requestQuickFixedExpenseReferenceCreate(kind, payload = {}) {
+    const focusSelectorByKind = {
+      category: 'input[name="quick-fixed-expense-category"]',
+      subcategory: 'input[name="quick-fixed-expense-subcategory"]',
+      thirdParty: 'input[name="quick-fixed-expense-third-party"]',
+      activity: 'input[name="quick-fixed-expense-activity"]',
+      project: 'input[name="quick-fixed-expense-project"]',
+    };
+
+    openImportQuickCreate(kind, {
+      ...payload,
+      onCreated: (entity = {}) => {
+        if (kind === "category") {
+          const nextName = entity.name || "";
+          setQuickFixedExpenseSourceForm((previous) => ({
+            ...previous,
+            categoryId: entity.id || "",
+            categoryName: nextName,
+            categorie: nextName,
+            subcategoryId: "",
+            subcategoryName: "",
+          }));
+          setQuickFixedExpenseAutoFocusSelector(focusSelectorByKind.subcategory);
+          return;
+        }
+
+        if (kind === "subcategory") {
+          setQuickFixedExpenseSourceForm((previous) => ({
+            ...previous,
+            subcategoryId: entity.id || "",
+            subcategoryName: entity.name || "",
+          }));
+          setQuickFixedExpenseAutoFocusSelector(focusSelectorByKind.subcategory);
+          return;
+        }
+
+        if (kind === "thirdParty") {
+          setQuickFixedExpenseSourceForm((previous) => ({
+            ...previous,
+            thirdPartyId: entity.id || "",
+            thirdPartyName: entity.name || "",
+          }));
+          setQuickFixedExpenseAutoFocusSelector(focusSelectorByKind.thirdParty);
+          return;
+        }
+
+        if (kind === "activity") {
+          setQuickFixedExpenseSourceForm((previous) => {
+            const nextActivityId = entity.id || "";
+            const nextActivityName = entity.name || "";
+            const shouldClearProject = previous.projectId
+              && projectMap.get(previous.projectId)?.activityId
+              && projectMap.get(previous.projectId)?.activityId !== nextActivityId;
+
+            return {
+              ...previous,
+              activityId: nextActivityId,
+              activityName: nextActivityName,
+              ...(shouldClearProject ? { projectId: "", projectName: "" } : {}),
+            };
+          });
+          setQuickFixedExpenseAutoFocusSelector(focusSelectorByKind.activity);
+          return;
+        }
+
+        if (kind === "project") {
+          setQuickFixedExpenseSourceForm((previous) => ({
+            ...previous,
+            projectId: entity.id || "",
+            projectName: entity.name || "",
+          }));
+          setQuickFixedExpenseAutoFocusSelector(focusSelectorByKind.project);
+        }
+      },
+    });
+  }
+
+  function handleQuickFixedExpenseSourceChange(event) {
+    const { name, value } = event.target;
+    const fieldName = {
+      "quick-fixed-expense-category": "categoryId",
+      "quick-fixed-expense-subcategory": "subcategoryId",
+      "quick-fixed-expense-third-party": "thirdPartyId",
+      "quick-fixed-expense-activity": "activityId",
+      "quick-fixed-expense-project": "projectId",
+    }[name] || name;
+
+    if (fieldName === "categoryId" && value === CREATE_CATEGORY_VALUE) {
+      requestQuickFixedExpenseReferenceCreate("category", { type: "depense" });
+      return;
+    }
+
+    if (fieldName === "subcategoryId" && value === CREATE_SUBCATEGORY_VALUE) {
+      if (quickFixedExpenseSourceForm.categoryId) {
+        requestQuickFixedExpenseReferenceCreate("subcategory", {
+          categoryId: quickFixedExpenseSourceForm.categoryId,
+          type: "depense",
+        });
+      }
+      return;
+    }
+
+    if (fieldName === "thirdPartyId" && value === CREATE_THIRD_PARTY_VALUE) {
+      requestQuickFixedExpenseReferenceCreate("thirdParty");
+      return;
+    }
+
+    if (fieldName === "activityId" && value === CREATE_ACTIVITY_VALUE) {
+      requestQuickFixedExpenseReferenceCreate("activity");
+      return;
+    }
+
+    if (fieldName === "projectId" && value === CREATE_PROJECT_VALUE) {
+      requestQuickFixedExpenseReferenceCreate("project", { activityId: quickFixedExpenseSourceForm.activityId || "" });
+      return;
+    }
+
+    setQuickFixedExpenseSourceForm((previous) => {
+      if (fieldName === "categoryId") {
+        const category = quickFixedExpenseCategoryOptions.find((item) => (item.id || item.name) === value);
+        const categoryName = category?.name || "";
+        return {
+          ...previous,
+          categoryId: category?.id || "",
+          categoryName,
+          categorie: categoryName,
+          subcategoryId: "",
+          subcategoryName: "",
+        };
+      }
+
+      if (fieldName === "subcategoryId") {
+        const subcategory = quickFixedExpenseSubcategoryOptions.find((item) => item.id === value);
+        return {
+          ...previous,
+          subcategoryId: value,
+          subcategoryName: subcategory?.name || "",
+        };
+      }
+
+      if (fieldName === "thirdPartyId") {
+        const thirdParty = quickFixedExpenseThirdPartyOptions.find((item) => item.id === value);
+        return {
+          ...previous,
+          thirdPartyId: value,
+          thirdPartyName: thirdParty?.name || "",
+        };
+      }
+
+      if (fieldName === "activityId") {
+        const activity = quickFixedExpenseActivityOptions.find((item) => item.id === value);
+        const shouldClearProject = previous.projectId
+          && projectMap.get(previous.projectId)?.activityId
+          && projectMap.get(previous.projectId)?.activityId !== value;
+
+        return {
+          ...previous,
+          activityId: value,
+          activityName: activity?.name || "",
+          ...(shouldClearProject ? { projectId: "", projectName: "" } : {}),
+        };
+      }
+
+      if (fieldName === "projectId") {
+        const project = quickFixedExpenseProjectOptions.find((item) => item.id === value);
+        return {
+          ...previous,
+          projectId: value,
+          projectName: project?.name || "",
+        };
+      }
+
+      return previous;
+    });
+  }
+
+  function requestQuickFixedExpenseCreation(sourcePayload = []) {
+    const sourceTransactions = Array.isArray(sourcePayload)
+      ? sourcePayload
+      : [sourcePayload?.sourceRow, ...(Array.isArray(sourcePayload?.selectedRows) ? sourcePayload.selectedRows : [])].filter(Boolean);
+    const sourceForm = Array.isArray(sourcePayload) ? null : (sourcePayload?.sourceForm || null);
+
+    return new Promise((resolve) => {
+      quickFixedExpenseCreateResolverRef.current = resolve;
+      openQuickFixedExpenseDialog(sourceTransactions, sourceForm || buildFixedExpenseDraftFromTransactions(sourceTransactions));
+    });
+  }
+
   async function handleQuickFixedExpenseCreate() {
+    console.log("[CREATE FIXED]", "service =", "Transactions");
+    console.log("[CREATE FIXED]", "function =", "handleQuickFixedExpenseCreate");
     if (quickFixedExpenseSubmittingRef.current) {
       return;
     }
 
-    if (form.type !== "depense") {
+    if (quickFixedExpenseSourceForm.type !== "depense") {
       setQuickFixedExpenseError("Un frais fixe ne peut etre cree que pour une depense.");
       return;
     }
@@ -2332,24 +2712,25 @@ export default function Transactions({
       return;
     }
 
-    if (!form.categoryId && !String(form.categoryName || form.categorie || "").trim()) {
+    if (!quickFixedExpenseSourceForm.categoryId && !String(quickFixedExpenseSourceForm.categoryName || quickFixedExpenseSourceForm.categorie || "").trim()) {
       setQuickFixedExpenseError("Sélectionnez une categorie de dépense avant de créer un frais fixe.");
       return;
     }
 
-    if (!String(form.accountId || "").trim()) {
+    if (!String(quickFixedExpenseSourceForm.accountId || "").trim()) {
       setQuickFixedExpenseError("Sélectionnez un compte avant de créer un frais fixe.");
       return;
     }
 
-    if (!(Number(form.montant) > 0)) {
+    if (!(Number(quickFixedExpenseSourceForm.montant) > 0)) {
       setQuickFixedExpenseError("Le montant de la depense doit etre superieur a 0.");
       return;
     }
 
-    const payload = buildQuickFixedExpensePayload(form, quickFixedExpenseForm);
+    const payload = buildQuickFixedExpensePayload(quickFixedExpenseSourceForm, quickFixedExpenseForm);
     quickFixedExpenseSubmittingRef.current = true;
     setQuickFixedExpenseSubmitting(true);
+    console.log("[CREATE FIXED]", "next =", "addFixedExpense(payload)");
     const result = await addFixedExpense(payload);
     quickFixedExpenseSubmittingRef.current = false;
     setQuickFixedExpenseSubmitting(false);
@@ -2367,8 +2748,47 @@ export default function Transactions({
       fixedExpenseId: result.id || previous.fixedExpenseId,
     }));
 
+    if (quickFixedExpenseSourceTransactionIds.length > 0) {
+      await associateTransactionsWithFixedExpense({
+        transactionIds: quickFixedExpenseSourceTransactionIds,
+        fixedExpenseId: result.id,
+      });
+
+      if (quickFixedExpenseApplyClassificationToSource) {
+        const propagationResult = await bulkUpdateTransactions({
+          transactionIds: quickFixedExpenseSourceTransactionIds,
+          patch: buildQuickFixedExpenseClassificationPatch(quickFixedExpenseSourceForm),
+          transactions,
+          catalogs: {
+            categories,
+            categoryMap: new Map(categories.map((category) => [category.id, category])),
+            subcategoryMap,
+            activityMap,
+            thirdPartyMap,
+            projectMap,
+          },
+          clearIncompatibleSubcategories: true,
+        });
+
+        if (propagationResult.failedCount > 0) {
+          setMessage(`Frais fixe créé ✅ Classement appliqué à ${propagationResult.updatedCount} transaction(s), ${propagationResult.failedCount} en échec.`);
+        } else {
+          setMessage(`Frais fixe créé ✅ Classement appliqué à ${propagationResult.updatedCount} transaction(s).`);
+        }
+      }
+    }
+
+    if (quickFixedExpenseCreateResolverRef.current) {
+      quickFixedExpenseCreateResolverRef.current(result.id || "");
+      quickFixedExpenseCreateResolverRef.current = null;
+    }
+
     setQuickFixedExpenseOpen(false);
     setQuickFixedExpenseForm({ name: "", frequency: "monthly", startDate: "", endDate: "", description: "" });
+    setQuickFixedExpenseSourceTransactionIds([]);
+    setQuickFixedExpenseApplyClassificationToSource(true);
+    setQuickFixedExpenseSourceForm(getInitialForm());
+    setQuickFixedExpenseAutoFocusSelector('input[name="quick-fixed-expense-name"]');
     setQuickFixedExpenseError("");
   }
 
@@ -2457,339 +2877,288 @@ export default function Transactions({
     callback?.();
   }
 
-  const commandBarStickyTop = {
-    xs: 62,
-    sm: 68,
-  };
-  const commandBarControlMinHeight = isCommandBarCompact ? 32 : 36;
-  const commandBarTransition = "all 200ms ease";
-  const commandBarSearchRootHeight = isCommandBarCompact ? 36 : 40;
+  function openPeriodMenu(event) {
+    setPeriodMenuAnchor(event.currentTarget);
+  }
+
+  function closePeriodMenu() {
+    setPeriodMenuAnchor(null);
+  }
+
+  function handleQuickPeriodChange(period) {
+    const nextPeriod = period || "currentMonth";
+    setListFilters((previous) => ({
+      ...previous,
+      period: nextPeriod,
+      transactionIds: [],
+    }));
+    setTrendPeriod(nextPeriod);
+    closePeriodMenu();
+  }
+
+  const compactToolbarButtonMinHeight = 44;
+  const commandBarTransition = `opacity ${transitions.fast}, transform ${transitions.fast}`;
+  const smartHeaderKpiOpacity = Math.max(0, 1 - smartHeaderCollapseProgress * 1.35);
+  const smartHeaderKpiMaxHeight = Math.max(0, Math.round(136 * (1 - smartHeaderCollapseProgress)));
+  const selectionSummaryNetTone = selectedTransactionsSummary.net >= 0 ? colors.status.success : colors.status.danger;
+  const compactToolbarActionPaddingX = spacing.sm;
+  const currentPeriodLabel = TRANSACTION_PERIOD_LABELS[listFilters.period] || "Mois courant";
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: { xs: 1, sm: 2 } }}>
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>Transactions</Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: "block", sm: "none" } }}>
-            {displayedTransactions.length} affichée(s)
-          </Typography>
-        </Box>
-        <Button type="button" variant="contained" onClick={openCreateTransactionDialog} sx={{ display: { xs: "inline-flex", sm: "none" }, minHeight: 44, borderRadius: 999, px: 2 }}>
-          Ajouter
-        </Button>
-      </Stack>
+      <AppHeader
+        title="Transactions"
+        mobileCountLabel={`${displayedTransactions.length} affichée(s)`}
+        mobilePrimaryActionLabel="Ajouter"
+        onMobilePrimaryAction={openCreateTransactionDialog}
+      />
 
       {message && (
-        <Alert severity={message.includes("Erreur") ? "error" : "success"} sx={{ mb: 1.25 }}>
+        <AppAlert severity={message.includes("Erreur") ? "error" : "success"} sx={{ mb: 1.25 }}>
           {message}
-        </Alert>
+        </AppAlert>
       )}
 
       {error && (
-        <Alert severity="error" sx={{ mb: 1.25 }}>
+        <AppAlert severity="error" sx={{ mb: 1.25 }}>
           {error}
-        </Alert>
+        </AppAlert>
       )}
 
-      <Box
-        sx={{
-          position: "sticky",
-          top: commandBarStickyTop,
-          zIndex: 1090,
-          mb: isCommandBarCompact ? 0.75 : 1.25,
-          py: isCommandBarCompact ? 0.375 : 0.75,
-          px: 0.5,
-          bgcolor: "rgba(250, 251, 247, 0.96)",
-          borderBottom: "1px solid",
-          borderColor: "rgba(20, 41, 43, 0.12)",
-          boxShadow: isCommandBarCompact ? "0 1px 6px rgba(20, 41, 43, 0.07)" : "0 2px 8px rgba(20, 41, 43, 0.08)",
-          backdropFilter: "blur(6px)",
-          transition: commandBarTransition,
-        }}
-      >
-        {selectionMode ? (
-          <Box
-            sx={{
-              borderRadius: 2,
-              border: "1px solid",
-              borderColor: "divider",
-              bgcolor: "background.paper",
-              p: isCommandBarCompact ? 0.75 : 1,
-              transition: commandBarTransition,
+      <AppStickyPanel
+        ariaLabel="En-tête intelligent des transactions"
+        className="transactions-smart-sticky-header"
+        summary={(
+          <AppKpiGrid
+            ariaHidden={smartHeaderKpiMaxHeight <= 10}
+            wrapperSx={{
+              overflow: "hidden",
+              maxHeight: `${smartHeaderKpiMaxHeight}px`,
+              opacity: smartHeaderKpiOpacity,
+              transform: `translateY(${Math.round(-10 * smartHeaderCollapseProgress)}px)`,
+              transformOrigin: "top center",
+              transition: "max-height 260ms ease, opacity 180ms ease, transform 220ms ease, margin-bottom 220ms ease",
+              mb: smartHeaderKpiMaxHeight > 10 ? 0.8 : 0,
             }}
-          >
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={isCommandBarCompact ? 0.75 : 1}
-              sx={{ alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between", transition: commandBarTransition }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {selectedTransactionsCount} transaction(s) sélectionnée(s)
-              </Typography>
-
-              <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
-                <Button size="small" variant="outlined" onClick={selectDisplayedTransactions} sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}>
-                  Tout sélectionner
-                </Button>
-                <Button size="small" variant="outlined" onClick={deselectAllTransactions} sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}>
-                  Tout désélectionner
-                </Button>
-                <Button
-                  size="small"
-                  variant="contained"
-                  onClick={() => openBulkEditDialog("advanced")}
-                  disabled={bulkOperationLoading || selectedTransactionsCount === 0}
-                  sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}
-                >
-                  Modifier
-                </Button>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={() => openBulkEditDialog("classification")}
-                  disabled={bulkOperationLoading || selectedTransactionsCount === 0}
-                  sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}
-                >
-                  Classer
-                </Button>
-                <Button
-                  size="small"
-                  color="error"
-                  variant="outlined"
-                  onClick={openBulkDeleteDialog}
-                  disabled={bulkOperationLoading || selectedTransactionsCount === 0}
-                  sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}
-                >
-                  Supprimer
-                </Button>
-                <Button
-                  size="small"
-                  variant="text"
-                  onClick={exitSelectionMode}
-                  disabled={bulkOperationLoading}
-                  sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}
-                >
-                  Annuler la sélection
-                </Button>
-              </Stack>
-            </Stack>
-          </Box>
-        ) : (
-          <Stack spacing={isCommandBarCompact ? 0.75 : 1} sx={{ transition: commandBarTransition }}>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={isCommandBarCompact ? 0.75 : 1}
-              sx={{ alignItems: { xs: "stretch", sm: "center" }, transition: commandBarTransition }}
-            >
-              <TextField
-                label="Recherche rapide"
-                name="searchText"
-                size="small"
-                value={listFilters.searchText}
-                onChange={handleListFilterChange}
-                placeholder="Description, categorie, tiers, projet..."
-                fullWidth
-                InputProps={{
-                  sx: {
-                    height: commandBarSearchRootHeight,
-                    transition: commandBarTransition,
-                    "& .MuiOutlinedInput-input": {
-                      py: isCommandBarCompact ? 0.5 : 1.125,
-                      transition: commandBarTransition,
-                    },
-                  },
-                }}
-                sx={{
-                  "& .MuiOutlinedInput-root": {
-                    height: commandBarSearchRootHeight,
-                    transition: commandBarTransition,
-                  },
-                  "& .MuiOutlinedInput-input": {
-                    py: isCommandBarCompact ? 0.75 : 1.125,
-                    transition: commandBarTransition,
-                  },
-                }}
-              />
-              {String(listFilters.searchText || "").trim() ? (
-                <Button
-                  variant="text"
-                  size="small"
-                  onClick={() => setListFilters((previous) => ({ ...previous, searchText: "" }))}
-                  sx={{ minHeight: commandBarControlMinHeight, width: { xs: "100%", sm: "auto" }, whiteSpace: "nowrap", transition: commandBarTransition }}
-                >
-                  Effacer recherche
-                </Button>
-              ) : null}
-            </Stack>
-
-            <Stack direction="row" spacing={isCommandBarCompact ? 0.75 : 1} sx={{ flexWrap: "wrap", transition: commandBarTransition }}>
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<FilterList />}
-                onClick={openFiltersDialog}
-                sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}
-              >
-                {filtersToggleLabel}
-              </Button>
-              <Button variant="outlined" size="small" startIcon={<Sort />} onClick={openSortDialog} sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}>
-                Tri
-              </Button>
-              <Button
-                variant={listFilters.categoryId === "__uncategorized__" ? "contained" : "outlined"}
-                size="small"
-                onClick={() => setListFilters((previous) => ({ ...previous, categoryId: previous.categoryId === "__uncategorized__" ? "all" : "__uncategorized__", categoryName: "all", transactionIds: [] }))}
-                sx={{ minHeight: 44, display: { xs: "inline-flex", sm: "none" } }}
-              >
-                Sans catégorie
-              </Button>
-            </Stack>
-
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={isCommandBarCompact ? 0.75 : 1}
-              sx={{ alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between", transition: commandBarTransition }}
-            >
-              <Button
-                type="button"
-                variant="contained"
-                size="small"
-                onClick={openCreateTransactionDialog}
-                fullWidth
-                sx={{ display: { xs: "none", sm: "inline-flex" }, minHeight: commandBarControlMinHeight, width: { sm: "auto" }, flexShrink: 0, transition: commandBarTransition }}
-              >
-                Ajouter une transaction
-              </Button>
-
-              <Stack
-                direction="row"
-                spacing={0.75}
-                sx={{ justifyContent: { xs: "flex-end", sm: "flex-start" }, width: { xs: "100%", sm: "auto" }, flexWrap: "wrap" }}
-              >
-                <Button variant="outlined" size="small" onClick={openSelectionMode} sx={{ minHeight: commandBarControlMinHeight, transition: commandBarTransition }}>
-                  Sélectionner
-                </Button>
-                <IconButton
-                  aria-label="Actions secondaires"
-                  onClick={openSecondaryActionsMenu}
-                  size="small"
-                  sx={{ p: isCommandBarCompact ? 0.25 : 0.5, transition: commandBarTransition }}
-                >
-                  <MoreVert fontSize="small" />
-                </IconButton>
-              </Stack>
-            </Stack>
-          </Stack>
-        )}
-      </Box>
-
-      {selectionMode && (
-        <Box
-          role="region"
-          aria-label="Actions de selection"
-          sx={{
-            position: "fixed",
-            left: { xs: 12, sm: "50%" },
-            right: { xs: 12, sm: "auto" },
-            bottom: { xs: 14, sm: 20 },
-            transform: { xs: "none", sm: "translateX(-50%)" },
-            zIndex: 1300,
-            maxWidth: { sm: 760 },
-            border: "1px solid rgba(15, 95, 143, 0.18)",
-            borderRadius: 2,
-            boxShadow: "0 18px 44px rgba(23, 42, 47, 0.22)",
-            bgcolor: "rgba(255,255,255,0.98)",
-            backdropFilter: "blur(8px)",
-            px: 1,
-            py: 0.85,
-          }}
-        >
-          <Stack direction={{ xs: "column", sm: "row" }} spacing={0.75} alignItems={{ xs: "stretch", sm: "center" }}>
-            <Chip
-              label={`${selectedTransactionsCount} selectionnee(s)`}
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 800, borderRadius: "999px" }}
-            />
-            <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap", justifyContent: { xs: "center", sm: "flex-start" } }}>
-              <Button size="small" variant="contained" onClick={() => openBulkEditDialog("advanced")} disabled={bulkOperationLoading || selectedTransactionsCount === 0}>
-                Modifier
-              </Button>
-              <Button size="small" variant="outlined" onClick={() => openBulkEditDialog("classification")} disabled={bulkOperationLoading || selectedTransactionsCount === 0}>
-                Classer
-              </Button>
-              <Button size="small" color="error" variant="outlined" onClick={openBulkDeleteDialog} disabled={bulkOperationLoading || selectedTransactionsCount === 0}>
-                Supprimer
-              </Button>
-              <Button size="small" variant="text" onClick={exitSelectionMode} disabled={bulkOperationLoading}>
-                Annuler
-              </Button>
-            </Stack>
-          </Stack>
-        </Box>
-      )}
-
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-        {transactions.length} transaction(s) au total • {displayedTransactions.length} affichee(s) apres filtrage
-      </Typography>
-
-      <Card
-        sx={{
-          mb: 1.25,
-          border: "1px solid",
-          borderColor: "rgba(20, 41, 43, 0.1)",
-          borderRadius: 2,
-          boxShadow: "0 8px 24px rgba(23, 42, 47, 0.08)",
-          bgcolor: "rgba(255,255,255,0.94)",
-        }}
-      >
-        <CardContent sx={{ py: 1, px: { xs: 1, sm: 1.25 }, "&:last-child": { pb: 1 } }}>
-          <Box sx={{ display: "grid", gap: 0.75, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" } }}>
-            {[
+            items={[
               { label: "Transactions", value: displayedTransactionsSummary.count, tone: "#172a2f" },
               { label: "Dépenses", value: formatSummaryAmount(displayedTransactionsSummary.expenses), tone: "#c24135" },
               { label: "Revenus", value: formatSummaryAmount(displayedTransactionsSummary.revenues), tone: "#147d64" },
               { label: "Net", value: formatSummaryAmount(displayedTransactionsSummary.net), tone: displayedTransactionsSummary.net >= 0 ? "#147d64" : "#c24135" },
-            ].map((item) => (
-              <Box
-                key={item.label}
-                sx={{
-                  minWidth: 0,
-                  border: "1px solid",
-                  borderColor: "rgba(20, 41, 43, 0.08)",
-                  borderRadius: 1.5,
-                  px: 1,
-                  py: 0.75,
-                  bgcolor: "rgba(246, 248, 244, 0.72)",
-                }}
+            ]}
+          />
+        )}
+        toolbar={(
+          <CompactToolbarLayout className="v2-card transactions-compact-toolbar transactions-toolbar-core" label="Toolbar transactions reconstruite">
+              <AppToolbarSearchField
+                value={listFilters.searchText}
+                onChange={handleListFilterChange}
+                placeholder="Rechercher une transaction..."
+                ariaLabel="Rechercher une transaction"
+                buttonSize={compactToolbarButtonMinHeight}
+                onOpenSecondaryTools={openSecondaryActionsMenu}
+              />
+
+              {selectionMode ? (
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={0.6}
+                  sx={{ alignItems: { xs: "stretch", sm: "center" }, justifyContent: "space-between" }}
+                >
+                  <SecondaryButton
+                    type="button"
+                    onClick={exitSelectionMode}
+                    disabled={bulkOperationLoading}
+                    aria-label="Annuler le mode sélection"
+                    style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX }}
+                  >
+                    <Close fontSize="small" />
+                    Annuler
+                  </SecondaryButton>
+                  <Typography variant="body2" sx={{ fontWeight: 800, color: "#172a2f" }} aria-live="polite">
+                    {selectedTransactionsCount} transaction(s) sélectionnée(s)
+                  </Typography>
+                </Stack>
+              ) : (
+                <Stack direction="row" spacing={0.6} sx={{ width: "100%" }} aria-label="Actions principales des transactions">
+                  <PrimaryButton
+                    type="button"
+                    onClick={openCreateTransactionDialog}
+                    aria-label="Ajouter une transaction"
+                    style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX, flex: 1 }}
+                  >
+                    <Add fontSize="small" />
+                    Ajouter une transaction
+                  </PrimaryButton>
+                  <SecondaryButton
+                    type="button"
+                    onClick={openSelectionMode}
+                    aria-label="Activer le mode sélection"
+                    style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX, flex: 1 }}
+                  >
+                    <CheckBoxOutlined fontSize="small" />
+                    Sélection
+                  </SecondaryButton>
+                </Stack>
+              )}
+
+              <Stack direction="row" spacing={0.6} sx={{ width: "100%" }} aria-label="Filtres Tri Période">
+                <SecondaryButton
+                  type="button"
+                  onClick={openFiltersDialog}
+                  aria-label="Ouvrir les filtres"
+                  style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX, flex: 1 }}
+                >
+                  <FilterList fontSize="small" />
+                  {filtersToggleLabel}
+                </SecondaryButton>
+                <SecondaryButton
+                  type="button"
+                  onClick={openSortDialog}
+                  aria-label="Ouvrir le tri"
+                  style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX, flex: 1 }}
+                >
+                  <Sort fontSize="small" />
+                  Tri
+                </SecondaryButton>
+                <SecondaryButton
+                  type="button"
+                  onClick={openPeriodMenu}
+                  aria-label={`Choisir la période (${currentPeriodLabel})`}
+                  style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX, flex: 1 }}
+                >
+                  {isMobileTransactionsView ? "Période" : `Période: ${currentPeriodLabel}`}
+                </SecondaryButton>
+              </Stack>
+          </CompactToolbarLayout>
+        )}
+        footer={selectionMode ? (
+          <ActionBar className="v2-card transactions-compact-toolbar-actions" unstyled label="Actions de sélection des transactions">
+            <Stack spacing={0.85} sx={{ width: "100%", transition: commandBarTransition }}>
+              <Card
+                variant="outlined"
+                sx={{ borderRadius: `${radius.sm}px`, borderColor: "rgba(15, 118, 110, 0.25)", bgcolor: "rgba(240, 253, 250, 0.6)" }}
+                aria-live="polite"
+                aria-label="Résumé de la sélection"
               >
-                <Typography variant="caption" sx={{ color: "#61777b", fontWeight: 800, textTransform: "uppercase", letterSpacing: 0 }}>
-                  {item.label}
-                </Typography>
-                <Typography sx={{ color: item.tone, fontWeight: 900, fontSize: { xs: "1rem", sm: "1.12rem" }, lineHeight: 1.12, fontVariantNumeric: "tabular-nums" }}>
-                  {item.value}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-        </CardContent>
-      </Card>
+                <CardContent sx={{ py: 0.85, px: 1.1, "&:last-child": { pb: 0.85 } }}>
+                  <Stack direction={{ xs: "column", sm: "row" }} spacing={{ xs: 0.3, sm: 1.2 }} sx={{ flexWrap: "wrap" }}>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: "#0f3f3c" }}>
+                      {selectedTransactionsSummary.count} transaction(s) sélectionnée(s)
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: colors.status.danger }}>
+                      Dépenses: {formatSummaryAmount(selectedTransactionsSummary.expenses)}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700, color: colors.status.success }}>
+                      Revenus: {formatSummaryAmount(selectedTransactionsSummary.revenues)}
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: selectionSummaryNetTone }}>
+                      Net: {formatSummaryAmount(selectedTransactionsSummary.net)}
+                    </Typography>
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={0.6}
+                sx={{ width: "100%" }}
+                aria-label="Actions de sélection rapides"
+              >
+                {(isSelectionEmpty || isSelectionPartial) && (
+                  <SecondaryButton
+                    type="button"
+                    onClick={selectDisplayedTransactions}
+                    disabled={bulkOperationLoading || displayedTransactionsCount === 0}
+                    aria-label="Tout sélectionner les transactions affichées"
+                    style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX }}
+                  >
+                    Tout sélectionner
+                  </SecondaryButton>
+                )}
+
+                {(isSelectionPartial || isSelectionComplete) && (
+                  <SecondaryButton
+                    type="button"
+                    onClick={deselectAllTransactions}
+                    disabled={bulkOperationLoading || displayedTransactionsCount === 0}
+                    aria-label="Tout désélectionner les transactions affichées"
+                    style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX }}
+                  >
+                    Tout désélectionner
+                  </SecondaryButton>
+                )}
+              </Stack>
+
+              <Stack direction="row" spacing={0.6} sx={{ flexWrap: "wrap", width: "100%" }}>
+                <SecondaryButton
+                  type="button"
+                  onClick={() => openBulkEditDialog("advanced")}
+                  disabled={bulkOperationLoading || selectedTransactionsCount === 0}
+                  aria-label="Modifier les transactions sélectionnées"
+                  style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX }}
+                >
+                  <Edit fontSize="small" />
+                  Modifier
+                </SecondaryButton>
+                <SecondaryButton
+                  type="button"
+                  onClick={() => openBulkEditDialog("classification")}
+                  disabled={bulkOperationLoading || selectedTransactionsCount === 0}
+                  aria-label="Classer les transactions sélectionnées"
+                  style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX }}
+                >
+                  <Label fontSize="small" />
+                  Classer
+                </SecondaryButton>
+                <SecondaryButton
+                  type="button"
+                  onClick={() => openQuickFixedExpenseDialog(resolveVisibleSelectedTransactions(selectedTransactionIds, displayedTransactions))}
+                  disabled={bulkOperationLoading || selectedTransactionsCount === 0}
+                  aria-label="Créer un frais fixe depuis la sélection"
+                  style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX }}
+                >
+                  <LinkIcon fontSize="small" />
+                  Créer un frais fixe
+                </SecondaryButton>
+                <DangerButton
+                  type="button"
+                  onClick={openBulkDeleteDialog}
+                  disabled={bulkOperationLoading || selectedTransactionsCount === 0}
+                  aria-label="Supprimer les transactions sélectionnées"
+                  style={{ minHeight: compactToolbarButtonMinHeight, paddingInline: compactToolbarActionPaddingX }}
+                >
+                  <Delete fontSize="small" />
+                  Supprimer
+                </DangerButton>
+              </Stack>
+            </Stack>
+          </ActionBar>
+        ) : null}
+      />
 
       {legacyTransactionsCount > 0 && (
-        <Alert severity="warning" sx={{ mb: 1.25 }}>
+        <AppAlert severity="warning" sx={{ mb: 1.25 }}>
           {legacyTransactionsCount} transaction(s) legacy avec un type non supporte (ex: virement/transfer/transfert) detectee(s). Elles sont conservees, affichees et a revoir, mais exclues des analyses revenus/depenses.
-        </Alert>
+        </AppAlert>
       )}
 
       {showFilterTransactionIdsHint && (
-        <Alert severity="info" sx={{ mb: 1.25 }}>
+        <AppAlert severity="info" sx={{ mb: 1.25 }}>
           Filtre affine par transactions correspondantes applique.
-        </Alert>
+        </AppAlert>
       )}
 
-      <Dialog open={filtersDialogOpen} onClose={closeFiltersDialog} fullWidth fullScreen={isMobileTransactionsView} maxWidth="md" scroll="paper" aria-labelledby="transaction-filters-title">
-        <DialogTitle id="transaction-filters-title">Filtres</DialogTitle>
-        <DialogContent>
+      <AppFilterDialog
+        open={filtersDialogOpen}
+        onClose={closeFiltersDialog}
+        fullScreen={isMobileTransactionsView}
+        maxWidth="md"
+        ariaLabelledby="transaction-filters-title"
+        onCancel={closeFiltersDialog}
+        onReset={resetFiltersDialog}
+        onApply={applyFiltersDialog}
+      >
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" }, mt: 0.5 }}>
             <TextField
               label="Periode"
@@ -2911,17 +3280,14 @@ export default function Transactions({
               ))}
             </TextField>
           </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: { xs: 2, sm: 3 }, pb: 2, pt: 1.25, borderTop: "1px solid", borderColor: "divider", position: "sticky", bottom: 0, bgcolor: "background.paper" }}>
-          <Button onClick={closeFiltersDialog}>Annuler</Button>
-          <Button onClick={resetFiltersDialog} variant="outlined">Reinitialiser</Button>
-          <Button onClick={applyFiltersDialog} variant="contained">Appliquer</Button>
-        </DialogActions>
-      </Dialog>
+      </AppFilterDialog>
 
-      <Dialog open={sortDialogOpen} onClose={closeSortDialog} fullWidth maxWidth="xs">
-        <DialogTitle>Tri</DialogTitle>
-        <DialogContent>
+      <AppSortDialog
+        open={sortDialogOpen}
+        onClose={closeSortDialog}
+        onCloseAction={closeSortDialog}
+        onReset={resetSortDialog}
+      >
           <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "1fr", mt: 0.5 }}>
             <TextField
               label="Trier par"
@@ -2953,39 +3319,10 @@ export default function Transactions({
               <MenuItem value="asc">Croissant</MenuItem>
             </TextField>
           </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={closeSortDialog}>Fermer</Button>
-          <Button onClick={resetSortDialog} variant="outlined">Reinitialiser</Button>
-        </DialogActions>
-      </Dialog>
+      </AppSortDialog>
 
       {!selectionMode && (
         <Box sx={{ mb: 1.5 }}>
-        <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: "wrap" }}>
-          <Button
-            size="small"
-            variant={trendPeriod === "currentMonth" ? "contained" : "outlined"}
-            onClick={() => setTrendPeriod("currentMonth")}
-          >
-            Mois courant
-          </Button>
-          <Button
-            size="small"
-            variant={trendPeriod === "previousMonth" ? "contained" : "outlined"}
-            onClick={() => setTrendPeriod("previousMonth")}
-          >
-            Mois precedent
-          </Button>
-          <Button
-            size="small"
-            variant={trendPeriod === "currentYear" ? "contained" : "outlined"}
-            onClick={() => setTrendPeriod("currentYear")}
-          >
-            Annee en cours
-          </Button>
-        </Stack>
-
         {!loading && hasTrendValues && (
           <IncomeExpenseTrendChart
             data={trendData}
@@ -2998,40 +3335,23 @@ export default function Transactions({
         )}
 
         {!loading && !hasTrendValues && (
-          <Alert severity="info" sx={{ py: 0.5 }}>
+          <AppAlert severity="info" sx={{ py: 0.5 }}>
             Aucune donnée suffisante pour afficher l'evolution sur cette periode.
-          </Alert>
+          </AppAlert>
         )}
         </Box>
       )}
 
       {loading && (
-        <Card sx={{ mb: 1.25, borderRadius: 2, border: "1px solid rgba(20, 41, 43, 0.1)", boxShadow: "0 8px 24px rgba(23, 42, 47, 0.08)" }}>
-          <CardContent sx={{ py: 1.25, "&:last-child": { pb: 1.25 } }}>
-            <Typography sx={{ fontWeight: 800, color: "#172a2f" }}>
-              Chargement des transactions...
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Preparation de la liste et des filtres.
-            </Typography>
-          </CardContent>
-        </Card>
+        <LoadingMessageCard
+          title="Chargement des transactions..."
+          description="Preparation de la liste et des filtres."
+        />
       )}
 
-      {!loading && displayedTransactions.length === 0 && (
-        <Card sx={{ mb: 1.25, borderRadius: 2, border: "1px solid rgba(15, 95, 143, 0.14)", boxShadow: "0 8px 24px rgba(23, 42, 47, 0.08)" }}>
-          <CardContent sx={{ py: 1.25, "&:last-child": { pb: 1.25 } }}>
-            <Typography sx={{ fontWeight: 900, color: "#0f5f8f" }}>
-              Aucune transaction a afficher
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Ajustez la recherche ou les filtres pour retrouver des mouvements.
-            </Typography>
-          </CardContent>
-        </Card>
-      )}
+      {!loading && displayedTransactions.length === 0 && <ResultsEmptyCard title="Aucune transaction a afficher" description="Ajustez la recherche ou les filtres pour retrouver des mouvements." />}
 
-      <Box>
+      <Box sx={{ pt: selectionMode ? { xs: 1.5, sm: 2 } : 0 }}>
         {displayedTransactions.map((transaction) => (
           <TransactionCard
             key={transaction.id}
@@ -3123,6 +3443,27 @@ export default function Transactions({
             Revue des transactions legacy
           </MenuItem>
         )}
+      </Menu>
+
+      <Menu
+        anchorEl={periodMenuAnchor}
+        open={Boolean(periodMenuAnchor)}
+        onClose={closePeriodMenu}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+      >
+        <MenuItem selected={listFilters.period === "currentMonth"} onClick={() => handleQuickPeriodChange("currentMonth")}>
+          Mois courant
+        </MenuItem>
+        <MenuItem selected={listFilters.period === "previousMonth"} onClick={() => handleQuickPeriodChange("previousMonth")}>
+          Mois précédent
+        </MenuItem>
+        <MenuItem selected={listFilters.period === "currentYear"} onClick={() => handleQuickPeriodChange("currentYear")}>
+          Année en cours
+        </MenuItem>
+        <MenuItem selected={listFilters.period === "last3Months"} onClick={() => handleQuickPeriodChange("last3Months")}>
+          3 derniers mois
+        </MenuItem>
       </Menu>
 
       <Dialog open={receiptUploaderDialogOpen} onClose={() => setReceiptUploaderDialogOpen(false)} fullWidth maxWidth="sm">
@@ -3574,6 +3915,14 @@ export default function Transactions({
         onClose={() => {
           setQuickFixedExpenseOpen(false);
           setQuickFixedExpenseError("");
+          setQuickFixedExpenseSourceTransactionIds([]);
+          setQuickFixedExpenseApplyClassificationToSource(true);
+          setQuickFixedExpenseSourceForm(getInitialForm());
+          setQuickFixedExpenseAutoFocusSelector('input[name="quick-fixed-expense-name"]');
+          if (quickFixedExpenseCreateResolverRef.current) {
+            quickFixedExpenseCreateResolverRef.current("");
+            quickFixedExpenseCreateResolverRef.current = null;
+          }
         }}
         onSubmit={handleQuickFixedExpenseCreate}
         formId="quick-fixed-expense-form"
@@ -3581,20 +3930,31 @@ export default function Transactions({
         submitLabel="Creer"
         submitting={quickFixedExpenseSubmitting}
         maxWidth="sm"
-        isDirty={Boolean(quickFixedExpenseForm.name || quickFixedExpenseForm.startDate || quickFixedExpenseForm.endDate || quickFixedExpenseForm.description)}
-        autoFocusSelector='input[name="quick-fixed-expense-name"]'
+        isDirty={Boolean(
+          quickFixedExpenseForm.name
+          || quickFixedExpenseForm.startDate
+          || quickFixedExpenseForm.endDate
+          || quickFixedExpenseForm.description
+          || quickFixedExpenseSourceForm.categoryId
+          || quickFixedExpenseSourceForm.subcategoryId
+          || quickFixedExpenseSourceForm.thirdPartyId
+          || quickFixedExpenseSourceForm.activityId
+          || quickFixedExpenseSourceForm.projectId
+        )}
+        autoFocusSelector={quickFixedExpenseAutoFocusSelector}
       >
         <form id="quick-fixed-expense-form" onSubmit={(event) => {
           event.preventDefault();
           handleQuickFixedExpenseCreate();
         }}>
-          <Box sx={{ display: "grid", gap: 1, mt: 0.5 }}>
+          <Box sx={{ display: "grid", gap: 1, mt: 0.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" } }}>
             <TextField
               label="Nom"
               name="quick-fixed-expense-name"
               size="small"
               value={quickFixedExpenseForm.name}
               onChange={(event) => setQuickFixedExpenseForm((previous) => ({ ...previous, name: event.target.value }))}
+              sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
               fullWidth
             />
             <TextField
@@ -3611,10 +3971,103 @@ export default function Transactions({
             <TextField
               label="Montant du modele"
               size="small"
-              value={`${Number(form.montant || 0).toFixed(2)} €`}
+              value={`${Number(quickFixedExpenseSourceForm.montant || 0).toFixed(2)} €`}
               fullWidth
               disabled
             />
+            <TextField
+              label="Catégorie"
+              name="quick-fixed-expense-category"
+              select
+              size="small"
+              value={quickFixedExpenseSourceForm.categoryId || quickFixedExpenseSourceForm.categoryName || quickFixedExpenseSourceForm.categorie || ""}
+              onChange={handleQuickFixedExpenseSourceChange}
+              sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
+              fullWidth
+            >
+              <MenuItem value="">Aucune</MenuItem>
+              {quickFixedExpenseCategoryOptions.map((category) => (
+                <MenuItem key={`${category.id || "legacy"}:${category.name}`} value={category.id || category.name}>{category.name}</MenuItem>
+              ))}
+              <Divider />
+              <MenuItem value={CREATE_CATEGORY_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
+                Créer cette catégorie
+              </MenuItem>
+            </TextField>
+            <TextField
+              label="Sous-catégorie"
+              name="quick-fixed-expense-subcategory"
+              select
+              size="small"
+              value={quickFixedExpenseSourceForm.subcategoryId || ""}
+              onChange={handleQuickFixedExpenseSourceChange}
+              disabled={!quickFixedExpenseSourceForm.categoryId}
+              fullWidth
+            >
+              <MenuItem value="">Aucune</MenuItem>
+              {quickFixedExpenseSubcategoryOptions.map((subcategory) => (
+                <MenuItem key={subcategory.id} value={subcategory.id}>{subcategory.name}</MenuItem>
+              ))}
+              <Divider />
+              <MenuItem value={CREATE_SUBCATEGORY_VALUE} sx={{ color: "primary.main", fontWeight: 600 }} disabled={!quickFixedExpenseSourceForm.categoryId}>
+                Créer cette sous-catégorie
+              </MenuItem>
+            </TextField>
+            <TextField
+              label="Tiers"
+              name="quick-fixed-expense-third-party"
+              select
+              size="small"
+              value={quickFixedExpenseSourceForm.thirdPartyId || ""}
+              onChange={handleQuickFixedExpenseSourceChange}
+              fullWidth
+            >
+              <MenuItem value="">Aucun</MenuItem>
+              {quickFixedExpenseThirdPartyOptions.map((thirdParty) => (
+                <MenuItem key={thirdParty.id} value={thirdParty.id}>{thirdParty.name}</MenuItem>
+              ))}
+              <Divider />
+              <MenuItem value={CREATE_THIRD_PARTY_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
+                Créer ce tiers
+              </MenuItem>
+            </TextField>
+            <TextField
+              label="Activité"
+              name="quick-fixed-expense-activity"
+              select
+              size="small"
+              value={quickFixedExpenseSourceForm.activityId || ""}
+              onChange={handleQuickFixedExpenseSourceChange}
+              fullWidth
+            >
+              <MenuItem value="">Aucune</MenuItem>
+              {quickFixedExpenseActivityOptions.map((activity) => (
+                <MenuItem key={activity.id} value={activity.id}>{activity.name}</MenuItem>
+              ))}
+              <Divider />
+              <MenuItem value={CREATE_ACTIVITY_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
+                Créer cette activité
+              </MenuItem>
+            </TextField>
+            <TextField
+              label="Projet"
+              name="quick-fixed-expense-project"
+              select
+              size="small"
+              value={quickFixedExpenseSourceForm.projectId || ""}
+              onChange={handleQuickFixedExpenseSourceChange}
+              sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
+              fullWidth
+            >
+              <MenuItem value="">Aucun</MenuItem>
+              {quickFixedExpenseProjectOptions.map((project) => (
+                <MenuItem key={project.id} value={project.id}>{project.name}</MenuItem>
+              ))}
+              <Divider />
+              <MenuItem value={CREATE_PROJECT_VALUE} sx={{ color: "primary.main", fontWeight: 600 }}>
+                Créer ce projet
+              </MenuItem>
+            </TextField>
             <TextField
               label="Date de debut"
               type="date"
@@ -3638,8 +4091,29 @@ export default function Transactions({
               size="small"
               value={quickFixedExpenseForm.description}
               onChange={(event) => setQuickFixedExpenseForm((previous) => ({ ...previous, description: event.target.value }))}
+              sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
               fullWidth
             />
+            {quickFixedExpenseSourceTransactionIds.length > 0 && (
+              <FormControlLabel
+                sx={{
+                  gridColumn: { xs: "auto", sm: "1 / -1" },
+                  ml: 0,
+                  mr: 0,
+                  minHeight: 44,
+                  alignItems: "flex-start",
+                  "& .MuiFormControlLabel-label": { mt: 0.25 },
+                }}
+                control={(
+                  <Checkbox
+                    name="quick-fixed-expense-propagate-selection"
+                    checked={quickFixedExpenseApplyClassificationToSource}
+                    onChange={(event) => setQuickFixedExpenseApplyClassificationToSource(event.target.checked)}
+                  />
+                )}
+                label="Appliquer immédiatement ce classement aux transactions sélectionnées"
+              />
+            )}
           </Box>
         </form>
       </EntityDialog>
@@ -3661,6 +4135,8 @@ export default function Transactions({
         onCreateVehicle={addVehicle}
       />
 
+      {console.log("TRANSACTIONS accounts =", accounts)}
+      {console.log("TRANSACTIONS length =", accounts?.length)}
       <BankingImportWizard
         open={bankImportOpen}
         onClose={() => setBankImportOpen(false)}
@@ -3678,6 +4154,7 @@ export default function Transactions({
         onRequestCreateThirdParty={(payload) => openImportQuickCreate("thirdParty", payload)}
         onRequestCreateProject={(payload) => openImportQuickCreate("project", payload)}
         onRequestCreateAccount={(payload) => openImportQuickCreate("account", payload)}
+        onRequestCreateFixedExpense={requestQuickFixedExpenseCreation}
         onImportCompleted={(result) => {
           setBankImportOpen(false);
           setMessage(`Import CSV termine ✅ (${result.importedCount} operation(s), ${result.importedTransferCount || 0} transfert(s), ${result.skippedCount} ignoree(s))`);
@@ -3702,9 +4179,9 @@ export default function Transactions({
         </DialogTitle>
         <DialogContent>
           {legacyTransferSource && (
-            <Alert severity="info" sx={{ mb: 1.25 }}>
+            <AppAlert severity="info" sx={{ mb: 1.25 }}>
               Cette conversion ne supprime pas automatiquement les donnees: la transaction legacy est archivee (soft delete) apres creation du transfert.
-            </Alert>
+            </AppAlert>
           )}
 
           <TransferForm

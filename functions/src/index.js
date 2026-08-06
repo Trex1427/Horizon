@@ -1,10 +1,11 @@
-import { onRequest } from "firebase-functions/v2/https";
+import { onCall, onRequest } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { parseReceiptWithVision } from "./parseReceipt.js";
 import { parseTiiimeQuoteRequest } from "./parseTiiimeQuote.js";
 import { parseTiiimeInvoiceRequest } from "./parseTiiimeInvoice.js";
 import { cleanupOrphanQuotePdfRequest } from "./cleanupOrphanQuotePdf.js";
+import { resetUserDataCallable } from "./resetUserData.js";
 
 if (!getApps().length) initializeApp();
 
@@ -67,4 +68,13 @@ export const cleanupOrphanQuotePdf = onRequest(
   async (req, res) => {
     await cleanupOrphanQuotePdfRequest(req, res);
   }
+);
+
+export const resetUserData = onCall(
+  {
+    region: "europe-west1",
+    timeoutSeconds: 120,
+    memory: "256MiB",
+  },
+  async (request) => resetUserDataCallable(request)
 );

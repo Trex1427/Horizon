@@ -9,4 +9,6 @@ export const DEFAULT_CATEGORY_DEFINITIONS = [
   { name: "Salaire", type: "revenu", icon: "work", color: "#4CAF50", displayOrder: 8 },
   { name: "Remboursement", type: "revenu", icon: "account_balance_wallet", color: "#8BC34A", displayOrder: 9 },
   { name: "Autre revenu", type: "revenu", icon: "payments", color: "#2196F3", displayOrder: 10 },
+  { name: "Revenus professionnels", type: "revenu", icon: "business_center", color: "#2E7D32", displayOrder: 11 },
+  { name: "Aides et prestations", type: "revenu", icon: "volunteer_activism", color: "#558B2F", displayOrder: 12 },
 ];

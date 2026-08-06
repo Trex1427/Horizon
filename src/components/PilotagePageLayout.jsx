@@ -15,9 +15,9 @@ export const PILOTAGE_COLORS = {
 export const PILOTAGE_CARD_SX = {
   border: "1px solid",
   borderColor: PILOTAGE_COLORS.line,
-  borderRadius: 2,
-  background: "rgba(255,255,255,0.95)",
-  boxShadow: "0 10px 24px rgba(20, 41, 43, 0.07)",
+  borderRadius: 2.5,
+  background: "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(246,248,244,0.96))",
+  boxShadow: "0 12px 28px rgba(20, 41, 43, 0.08)",
 };
 
 export const PILOTAGE_PROGRESS_SX = {
@@ -33,7 +33,7 @@ export const PILOTAGE_PROGRESS_SX = {
 
 export function PilotagePageShell({ children }) {
   return (
-    <Box sx={{ display: "grid", gap: { xs: 1.5, sm: 2 }, color: PILOTAGE_COLORS.ink }}>
+    <Box sx={{ display: "grid", gap: { xs: 2, sm: 2.5, lg: 3 }, color: PILOTAGE_COLORS.ink }}>
       {children}
     </Box>
   );
@@ -57,8 +57,14 @@ export function PilotageHeader({
       sx={{
         display: "grid",
         gridTemplateColumns: { xs: "1fr", md: hasSearch ? "minmax(0, 1fr) minmax(220px, 320px) auto" : "minmax(0, 1fr) auto" },
-        gap: 1,
+        gap: 1.25,
         alignItems: "center",
+        p: { xs: 1.25, sm: 1.5 },
+        border: "1px solid",
+        borderColor: PILOTAGE_COLORS.line,
+        borderRadius: 2.5,
+        background: "linear-gradient(135deg, rgba(255,255,255,0.96), rgba(246,248,244,0.92))",
+        boxShadow: "0 12px 28px rgba(20, 41, 43, 0.08)",
       }}
     >
       <Box sx={{ minWidth: 0 }}>
@@ -76,6 +82,7 @@ export function PilotageHeader({
               fontWeight: 900,
               lineHeight: 1.15,
               color: PILOTAGE_COLORS.ink,
+              fontSize: { xs: "1.5rem", sm: "1.75rem" },
               minWidth: 0,
               maxWidth: "100%",
             }}
@@ -106,7 +113,7 @@ export function PilotageHeader({
           )}
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-          Pilotage financier
+          Horizon V2 · Pilotage financier
         </Typography>
       </Box>
 
@@ -118,6 +125,12 @@ export function PilotageHeader({
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
           fullWidth
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 1.75,
+              bgcolor: "rgba(255,255,255,0.9)",
+            },
+          }}
         />
       )}
 
@@ -143,7 +156,7 @@ export function PilotageSummary({ items = [] }) {
       sx={{
         display: "grid",
         gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
-        gap: 1,
+        gap: 1.15,
       }}
     >
       {items.map((item) => (
@@ -151,8 +164,8 @@ export function PilotageSummary({ items = [] }) {
           key={item.label}
           sx={{
             ...PILOTAGE_CARD_SX,
-            p: { xs: 1.25, sm: 1.5 },
-            minHeight: 92,
+            p: { xs: 1.4, sm: 1.7 },
+            minHeight: 104,
           }}
         >
           <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 800 }}>
@@ -189,7 +202,7 @@ export function PilotageSection({ title, subtitle = "", action = null, children 
         spacing={1}
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", sm: "center" }}
-        sx={{ mb: 1 }}
+        sx={{ mb: 1.15 }}
       >
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 900, color: PILOTAGE_COLORS.ink }}>

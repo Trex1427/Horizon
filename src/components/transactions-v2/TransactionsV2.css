@@ -1,0 +1,127 @@
+.transactions-v2 { --income: #18745e; --expense: #bd554c; }
+.transactions-v2-main { padding-top: 40px; }
+.transactions-v2-header { margin-bottom: 26px; }
+.transactions-v2-engine { min-width: 0; }
+.transactions-v2-engine > .MuiBox-root > .MuiStack-root:first-child { display: none; }
+.transactions-v2-engine > .MuiBox-root { display: flex; min-width: 0; flex-direction: column; }
+/* KPI first, then the live command bar. Selectors rely on stable semantic controls, not generated MUI classes. */
+.transactions-v2-engine > .MuiBox-root > .MuiCard-root { order: -30; }
+.transactions-v2-engine > .MuiBox-root > .MuiBox-root:has(input[name="searchText"]) { order: -20; }
+.transactions-v2-engine .MuiAlert-root,
+.transactions-v2-engine .MuiCard-root { border-radius: var(--radius); font-family: inherit; }
+.transactions-v2-engine .MuiCard-root { border-color: var(--line); box-shadow: var(--shadow); }
+.transactions-v2-engine .MuiButton-root { min-height: 42px; border-radius: 12px; font-family: inherit; font-weight: 720; text-transform: none; box-shadow: none; }
+.transactions-v2-engine .MuiButton-contained { background: var(--teal); }
+.transactions-v2-engine .MuiButton-contained:hover { background: var(--teal-dark); }
+.transactions-v2-engine .MuiButton-outlined { border-color: var(--line); color: var(--ink); background: #fff; }
+.transactions-v2-engine .MuiOutlinedInput-root { border-radius: 12px; background: #fff; }
+.transactions-v2-engine .MuiInputLabel-root { font-family: inherit; }
+.transactions-v2-engine .MuiChip-root { font-family: inherit; }
+.transactions-v2-engine .hui-button--primary { color: #fff; background: #0f766e; border-color: #0f766e; }
+.transactions-v2-engine .hui-button--primary:hover { background: #115e59; border-color: #115e59; }
+.transactions-v2-engine .transactions-smart-sticky-header { overflow: clip; }
+.transactions-v2-engine .transactions-smart-sticky-header .MuiStack-root,
+.transactions-v2-engine .transactions-smart-sticky-header .MuiBox-root,
+.transactions-v2-engine .transactions-smart-sticky-header .MuiTypography-root { min-width: 0; }
+.transactions-v2-engine .transactions-compact-toolbar,
+.transactions-v2-engine .transactions-compact-toolbar-actions {
+  padding: 0;
+  margin: 0;
+}
+.transactions-v2-engine .transactions-toolbar-core { border-radius: 14px; }
+.transactions-v2-engine .transactions-toolbar-search-shell {
+  padding: 6px;
+  border: 1px solid rgba(20, 41, 43, 0.12);
+  border-radius: 12px;
+  background: #f6faf8;
+}
+.transactions-v2-engine .transactions-compact-toolbar .MuiOutlinedInput-root {
+  background: #f8faf9;
+  border-color: rgba(20, 41, 43, 0.12);
+}
+.transactions-v2-engine .transactions-compact-toolbar .MuiInputBase-input::placeholder {
+  color: #6a7f83;
+  opacity: 1;
+}
+.transactions-v2-engine .transactions-compact-toolbar .MuiInputLabel-root {
+  color: #5a6b6d;
+}
+.transactions-v2-engine .transactions-compact-toolbar .hui-button--secondary {
+  font-weight: 760;
+  background: #fff;
+  border-color: rgba(23, 42, 47, 0.2);
+}
+.transactions-v2-engine .transactions-compact-toolbar .hui-button--secondary:hover {
+  background: #f3f7f6;
+  border-color: rgba(23, 42, 47, 0.3);
+}
+.transactions-v2-engine .transactions-compact-toolbar .hui-button,
+.transactions-v2-engine .transactions-compact-toolbar-actions .hui-button {
+  justify-content: center;
+}
+.transactions-v2-engine .transactions-compact-toolbar .MuiIconButton-root:hover {
+  background: #eef5f2;
+}
+.transactions-v2-engine button:focus-visible,
+.transactions-v2-engine .hui-button:focus-visible,
+.transactions-v2-engine .MuiButtonBase-root:focus-visible {
+  outline: 3px solid rgba(15, 118, 110, 0.35);
+  outline-offset: 2px;
+}
+.transactions-v2-engine .MuiOutlinedInput-root.Mui-focused {
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .transactions-v2-engine .transactions-smart-sticky-header,
+  .transactions-v2-engine .transactions-smart-sticky-header * {
+    transition-duration: 0ms !important;
+    animation: none !important;
+  }
+}
+
+/* Desktop: compact premium rows with stable columns and complete wrapping. */
+@media (min-width: 861px) {
+  .transactions-v2-engine .MuiBox-root:has(> .MuiCard-root[role="button"]) { display: grid; gap: 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-shadow: var(--shadow); }
+  .transactions-v2-engine .MuiBox-root:has(> .MuiCard-root[role="button"])::before { display: block; padding: 12px 18px; border-bottom: 1px solid var(--line); color: #879596; background: #f8faf9; content: "TRANSACTION  ·  CATÉGORIE  ·  COMPTE  ·  DATE  ·  MONTANT"; font-size: 11px; font-weight: 700; letter-spacing: .08em; word-spacing: 1.2em; }
+  .transactions-v2-engine .MuiCard-root[role="button"] { margin-bottom: 8px; border: 1px solid var(--line); border-left: 3px solid var(--teal); border-radius: 12px; box-shadow: 0 3px 14px rgba(24,58,57,.045); }
+  .transactions-v2-engine .MuiBox-root:has(> .MuiCard-root[role="button"]) > .MuiCard-root[role="button"] { margin: 0; border-width: 0 0 1px 3px; border-radius: 0; box-shadow: none; }
+  .transactions-v2-engine .MuiBox-root:has(> .MuiCard-root[role="button"]) > .MuiCard-root[role="button"]:last-child { border-bottom: 0; }
+  .transactions-v2-engine .MuiCard-root[role="button"]:hover { border-color: rgba(15,92,94,.24); box-shadow: 0 8px 22px rgba(24,58,57,.09); transform: translateY(-1px); }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiCardContent-root { padding: 14px 16px; }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiTypography-root { overflow: visible !important; font-family: inherit; text-overflow: clip !important; white-space: normal !important; -webkit-line-clamp: unset !important; }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiChip-root { max-width: none; }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiChip-label { overflow: visible; text-overflow: clip; white-space: normal; }
+}
+
+@media (max-width: 860px) {
+  .transactions-v2-main { padding: 28px 16px 112px; }
+  .transactions-v2-header { margin-bottom: 22px; }
+  .transactions-v2-engine .transactions-smart-sticky-header { border-radius: 14px; }
+  .transactions-v2-engine .MuiCard-root[role="button"] { margin-bottom: 12px; border: 1px solid var(--line); border-left: 4px solid var(--teal); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiCardContent-root { padding: 15px; }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiBox-root { min-width: 0; }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiTypography-root { overflow: visible; text-overflow: clip; white-space: normal; -webkit-line-clamp: unset; }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiChip-root { max-width: 100%; height: auto; min-height: 24px; }
+  .transactions-v2-engine .MuiCard-root[role="button"] .MuiChip-label { display: block; padding-block: 4px; overflow: visible; text-overflow: clip; white-space: normal; }
+  .transactions-v2-engine .MuiBox-root:has(> .MuiCard-root[role="button"])::before { display: none; }
+}
+
+@media (max-width: 620px) {
+  .transactions-v2-header .v2-header-actions { display: none; }
+  .transactions-v2-engine .MuiButton-root { min-height: 44px; }
+  .transactions-v2-engine .transactions-toolbar-search-shell {
+    padding: 5px;
+  }
+  .transactions-v2-engine .transactions-compact-toolbar .MuiInputBase-input {
+    font-size: 0.92rem;
+  }
+  .transactions-v2-engine .transactions-smart-sticky-header .MuiButton-root,
+  .transactions-v2-engine .transactions-smart-sticky-header .hui-button { width: 100%; }
+  .transactions-v2-engine .transactions-toolbar-core .MuiStack-root[aria-label="Actions principales des transactions"],
+  .transactions-v2-engine .transactions-toolbar-core .MuiStack-root[aria-label="Filtres Tri Période"] {
+    flex-direction: column;
+  }
+  .transactions-v2-engine .MuiCard-root[role="button"] > .MuiCardContent-root > .MuiBox-root { align-items: flex-start; flex-wrap: wrap; }
+  .transactions-v2-engine .MuiCard-root[role="button"] > .MuiCardContent-root > .MuiBox-root > .MuiBox-root:last-child { width: 100%; justify-content: space-between; margin-top: 10px; }
+}

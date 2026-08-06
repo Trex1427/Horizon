@@ -1,5 +1,21 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 const Transactions = lazy(() => import("./pages/Transactions"));
+const TransactionsV2 = lazy(() => import("./components/transactions-v2/TransactionsV2.jsx"));
+const AccountsV2 = lazy(() => import("./components/accounts-v2/AccountsV2.jsx"));
+const BudgetsV2 = lazy(() => import("./components/budgets-v2/BudgetsV2.jsx"));
+const ForecastV2 = lazy(() => import("./components/forecast-v2/ForecastV2.jsx"));
+const AnalyseV2 = lazy(() => import("./components/analyse-v2/AnalyseV2.jsx"));
+const ObjectivesV2 = lazy(() => import("./components/objectives-v2/ObjectivesV2.jsx"));
+const RecurringIncomeV2 = lazy(() => import("./components/recurring-income-v2/RecurringIncomeV2.jsx"));
+const FixedExpensesV2 = lazy(() => import("./components/fixed-expenses-v2/FixedExpensesV2.jsx"));
+const DebtsClaimsV2 = lazy(() => import("./components/debts-claims-v2/DebtsClaimsV2.jsx"));
+const ReportsV2 = lazy(() => import("./components/reports-v2/ReportsV2.jsx"));
+const VehiclesV2 = lazy(() => import("./components/vehicles-v2/VehiclesV2.jsx"));
+const WorkV2 = lazy(() => import("./components/work-v2/WorkV2.jsx"));
+const QuotesV2 = lazy(() => import("./components/quotes-v2/QuotesV2.jsx"));
+const InvoicesV2 = lazy(() => import("./components/invoices-v2/InvoicesV2.jsx"));
+const SettingsV2 = lazy(() => import("./components/settings-v2/SettingsV2.jsx"));
+const ImportHistoryV2 = lazy(() => import("./components/import-history-v2/ImportHistoryV2.jsx"));
 const Objectifs = lazy(() => import("./pages/Objectifs"));
 const FraisFixes = lazy(() => import("./pages/FraisFixes"));
 const RevenusRecurrents = lazy(() => import("./pages/RevenusRecurrents"));
@@ -65,6 +81,26 @@ import UploadFile from "@mui/icons-material/UploadFile";
 import Logout from "@mui/icons-material/Logout";
 import Work from "@mui/icons-material/Work";
 import DirectionsCar from "@mui/icons-material/DirectionsCar";
+
+function getCurrentUrlSnapshot() {
+  if (typeof window === "undefined") {
+    return { href: "", pathname: "", search: "", hash: "" };
+  }
+  return {
+    href: window.location.href,
+    pathname: window.location.pathname,
+    search: window.location.search,
+    hash: window.location.hash,
+  };
+}
+
+function traceNav(event, details = {}) {
+  if (typeof window === "undefined") return;
+  console.log("[NAV_TRACE]", new Date().toISOString(), `AppContent:${event}`, {
+    ...getCurrentUrlSnapshot(),
+    ...details,
+  });
+}
 
 const MORE_MENU_PAGES = [
   {
@@ -141,22 +177,73 @@ const MORE_MENU_PAGES = [
   },
 ];
 
+function normalizeHomePage(nextPage) {
+  return nextPage === PAGES.HOME ? PAGES.DASHBOARD_V2 : nextPage;
+}
+
 function AppContent() {
   const { logout, showLocalDiagnostic, uid, user } = useAuth();
-  const [page, setPage] = useState(() => getPageFromLocation(typeof window === "undefined" ? null : window.location));
+  const [page, setPage] = useState(() => {
+    if (typeof window === "undefined") return getPageFromLocation(null);
+    traceNav("init:before-getPageFromLocation");
+    const initialPage = getPageFromLocation(window.location);
+    const normalized = normalizeHomePage(initialPage);
+    traceNav("init:resolved-page", { initialPage, normalizedPage: normalized });
+    return normalized;
+  });
   const [moreDrawerOpen, setMoreDrawerOpen] = useState(false);
+  const [mobilePlusDiagnostics, setMobilePlusDiagnostics] = useState({
+    plusClick: false,
+    openRequested: false,
+    stateDrawer: false,
+    drawerRender: false,
+    drawerMounted: false,
+    onCloseCalled: false,
+    closeReason: "",
+  });
   const [receiptImportRequestId, setReceiptImportRequestId] = useState(0);
   const [bankImportRequestId, setBankImportRequestId] = useState(0);
   const [transactionsNavigationContext, setTransactionsNavigationContext] = useState(null);
   const [analysisNavigationContext, setAnalysisNavigationContext] = useState(null);
+  const { accounts, defaultAccount, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
+  const isMobile = useMediaQuery(MOBILE_NAVIGATION_MEDIA_QUERY);
+
+  useEffect(() => {
+    console.log("[DRAWER] state =", moreDrawerOpen);
+    setMobilePlusDiagnostics((previous) => ({
+      ...previous,
+      stateDrawer: moreDrawerOpen,
+    }));
+  }, [moreDrawerOpen]);
+
+  useEffect(() => {
+    setMobilePlusDiagnostics((previous) => ({
+      ...previous,
+      drawerRender: Boolean(isMobile),
+    }));
+  }, [isMobile]);
+
   const navigateToPage = useCallback((nextPage, { replace = false } = {}) => {
-    if (!PAGE_ORDER.includes(nextPage)) return;
-    setPage(nextPage);
+    const normalizedPage = normalizeHomePage(nextPage);
+    traceNav("navigateToPage:called", {
+      nextPage,
+      replace,
+      normalizedPage,
+    });
+    if (!PAGE_ORDER.includes(normalizedPage)) return;
+    setPage(normalizedPage);
     if (typeof window === "undefined") return;
-    const nextUrl = buildPageUrl(nextPage, window.location);
+    const nextUrl = buildPageUrl(normalizedPage, window.location);
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    traceNav("navigateToPage:resolved-url", { currentUrl, nextUrl, normalizedPage, replace });
     if (nextUrl === currentUrl) return;
-    window.history[replace ? "replaceState" : "pushState"]({ page: nextPage }, "", nextUrl);
+    traceNav("history:write-request", {
+      api: replace ? "replaceState" : "pushState",
+      state: { page: normalizedPage },
+      title: "",
+      nextUrl,
+    });
+    window.history[replace ? "replaceState" : "pushState"]({ page: normalizedPage }, "", nextUrl);
   }, []);
   const navigateToWork = useCallback((section = "dashboard", status = "all") => {
     if (typeof window === "undefined") return;
@@ -164,24 +251,112 @@ function AppContent() {
     params.set("page", "travail");
     params.set("section", section);
     if (status && status !== "all") params.set("status", status); else params.delete("status");
-    window.history.pushState({ page: PAGES.TRAVAIL }, "", `${window.location.pathname}?${params.toString()}${window.location.hash}`);
+    const nextUrl = `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+    traceNav("navigateToWork:called", { section, status, nextUrl });
+    traceNav("history:write-request", {
+      api: "pushState",
+      state: { page: PAGES.TRAVAIL },
+      title: "",
+      nextUrl,
+    });
+    window.history.pushState({ page: PAGES.TRAVAIL }, "", nextUrl);
     setPage(PAGES.TRAVAIL);
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
+    const originalPushState = window.history.pushState.bind(window.history);
+    const originalReplaceState = window.history.replaceState.bind(window.history);
+
+    window.history.pushState = (state, title, url) => {
+      traceNav("history.pushState:called", {
+        state,
+        title,
+        url: String(url ?? ""),
+      });
+      const result = originalPushState(state, title, url);
+      traceNav("history.pushState:after", {
+        state,
+        title,
+        url: String(url ?? ""),
+      });
+      return result;
+    };
+
+    window.history.replaceState = (state, title, url) => {
+      traceNav("history.replaceState:called", {
+        state,
+        title,
+        url: String(url ?? ""),
+      });
+      const result = originalReplaceState(state, title, url);
+      traceNav("history.replaceState:after", {
+        state,
+        title,
+        url: String(url ?? ""),
+      });
+      return result;
+    };
+
+    traceNav("history:patch-installed");
+
+    return () => {
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+      traceNav("history:patch-removed");
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    traceNav("effect:sync-with-location:start");
     const initialPage = getPageFromLocation(window.location);
-    const canonicalUrl = buildPageUrl(initialPage, window.location);
+    const normalizedInitialPage = normalizeHomePage(initialPage);
+    const canonicalUrl = buildPageUrl(normalizedInitialPage, window.location);
     const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    traceNav("effect:sync-with-location:computed", {
+      initialPage,
+      normalizedInitialPage,
+      canonicalUrl,
+      currentUrl,
+    });
     if (canonicalUrl !== currentUrl) {
-      window.history.replaceState({ page: initialPage }, "", canonicalUrl);
+      traceNav("history:write-request", {
+        api: "replaceState",
+        state: { page: normalizedInitialPage },
+        title: "",
+        nextUrl: canonicalUrl,
+      });
+      window.history.replaceState({ page: normalizedInitialPage }, "", canonicalUrl);
     }
-    const handlePopState = () => setPage(getPageFromLocation(window.location));
+    const handlePopState = () => {
+      const nextPage = getPageFromLocation(window.location);
+      traceNav("popstate", { nextPage });
+      setPage(normalizeHomePage(nextPage));
+    };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
-  const { accounts, defaultAccount, loading: accountsLoading, error: accountsError, addAccount, updateAccount, deleteAccount } = useAccounts();
-  const isMobile = useMediaQuery(MOBILE_NAVIGATION_MEDIA_QUERY);
+  useEffect(() => {
+    traceNav("state", { page, isMobile });
+  }, [isMobile, page]);
+
+  if (typeof window !== "undefined") {
+    console.log("[DIAG][App]", {
+      page,
+      isMobile,
+      pathname: window.location.pathname,
+      search: window.location.search,
+    });
+  }
+
+  const logAppRender = (componentReturned, props = {}) => {
+    console.log("[APP_RENDER]", {
+      page,
+      componentReturned,
+      props,
+    });
+  };
 
   const mobileBottomNavValue = MOBILE_PRIMARY_PAGES.includes(page)
     ? page
@@ -201,6 +376,11 @@ function AppContent() {
     }
 
     if (value === "MORE") {
+      console.log("[PLUS] ouverture demandée");
+      setMobilePlusDiagnostics((previous) => ({
+        ...previous,
+        openRequested: true,
+      }));
       setMoreDrawerOpen(true);
       return;
     }
@@ -234,6 +414,127 @@ function AppContent() {
     });
   }
 
+  const openDashboardV2Destination = useCallback((destination) => {
+    const destinations = {
+      home: PAGES.DASHBOARD_V2,
+      transactions: PAGES.TRANSACTIONS,
+      accounts: PAGES.ACCOUNTS_V2,
+      budgets: PAGES.BUDGETS,
+      "recurring-income": PAGES.RECURRING_INCOME_V2,
+      "fixed-expenses": PAGES.FRAIS_FIXES,
+      debts: PAGES.DEBTS_CLAIMS_V2,
+      forecast: PAGES.FORECAST_V2,
+      goals: PAGES.OBJECTIVES_V2,
+      analysis: PAGES.ANALYSE_V2,
+      reports: PAGES.REPORTS_V2,
+      vehicles: PAGES.VEHICLES_V2,
+      work: PAGES.WORK_V2,
+      quotes: PAGES.QUOTES_V2,
+      invoices: PAGES.INVOICES_V2,
+      "import-history": PAGES.IMPORT_HISTORY,
+      settings: PAGES.SETTINGS_V2,
+      more: PAGES.SETTINGS_V2,
+    };
+    navigateToPage(destinations[destination] || PAGES.DASHBOARD_V2);
+  }, [navigateToPage]);
+
+  if (page === PAGES.DASHBOARD_V2) {
+    console.log("[RENDER] App route PAGES.DASHBOARD_V2");
+    console.log("[DIAG][App] branch => PAGES.DASHBOARD_V2 -> FinancialHome(variant=v2)");
+    logAppRender("FinancialHome", { variant: "v2", source: "PAGES.DASHBOARD_V2" });
+    return (
+      <Suspense fallback={
+        <Box role="status" aria-live="polite" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}>
+          <CircularProgress size={32} />
+        </Box>
+      }>
+        <FinancialHome
+          variant="v2"
+          accounts={accounts}
+          accountsLoading={accountsLoading}
+          accountsError={accountsError}
+          onOpenTransactions={() => openTransactionsWithContext(null)}
+          onNavigateV2={openDashboardV2Destination}
+        />
+      </Suspense>
+    );
+  }
+
+  if (page === PAGES.TRANSACTIONS) {
+    logAppRender("TransactionsV2", { source: "PAGES.TRANSACTIONS" });
+    return (
+      <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}>
+        <TransactionsV2
+          openReceiptImportRequestId={receiptImportRequestId}
+          openBankImportRequestId={bankImportRequestId}
+          navigationContext={transactionsNavigationContext}
+          onNavigationContextApplied={() => setTransactionsNavigationContext(null)}
+          onNavigate={openDashboardV2Destination}
+        />
+      </Suspense>
+    );
+  }
+  if (page === PAGES.ACCOUNTS_V2) {
+    logAppRender("AccountsV2", { source: "PAGES.ACCOUNTS_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><AccountsV2 accounts={accounts} defaultAccount={defaultAccount} addAccount={addAccount} updateAccount={updateAccount} deleteAccount={deleteAccount} onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.BUDGETS_V2) {
+    logAppRender("BudgetsV2", { source: "PAGES.BUDGETS_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><BudgetsV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.FORECAST_V2) {
+    logAppRender("ForecastV2", { source: "PAGES.FORECAST_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><ForecastV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.ANALYSE_V2) {
+    logAppRender("AnalyseV2", { source: "PAGES.ANALYSE_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><AnalyseV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.REPORTS_V2) {
+    logAppRender("ReportsV2", { source: "PAGES.REPORTS_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><ReportsV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.OBJECTIVES_V2) {
+    logAppRender("ObjectivesV2", { source: "PAGES.OBJECTIVES_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><ObjectivesV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.RECURRING_INCOME_V2) {
+    logAppRender("RecurringIncomeV2", { source: "PAGES.RECURRING_INCOME_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><RecurringIncomeV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.FIXED_EXPENSES_V2) {
+    logAppRender("FixedExpensesV2", { source: "PAGES.FIXED_EXPENSES_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><FixedExpensesV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.DEBTS_CLAIMS_V2) {
+    logAppRender("DebtsClaimsV2", { source: "PAGES.DEBTS_CLAIMS_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><DebtsClaimsV2 accounts={accounts} defaultAccount={defaultAccount} onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.VEHICLES_V2) {
+    logAppRender("VehiclesV2", { source: "PAGES.VEHICLES_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><VehiclesV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.WORK_V2) {
+    logAppRender("WorkV2", { source: "PAGES.WORK_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><WorkV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.QUOTES_V2) {
+    logAppRender("QuotesV2", { source: "PAGES.QUOTES_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><QuotesV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.INVOICES_V2) {
+    logAppRender("InvoicesV2", { source: "PAGES.INVOICES_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><InvoicesV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  if (page === PAGES.SETTINGS_V2) {
+    logAppRender("SettingsV2", { source: "PAGES.SETTINGS_V2" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><SettingsV2 onNavigate={openDashboardV2Destination} onLogout={logout} /></Suspense>;
+  }
+  if (page === PAGES.IMPORT_HISTORY) {
+    logAppRender("ImportHistoryV2", { source: "PAGES.IMPORT_HISTORY" });
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><ImportHistoryV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+  }
+  logAppRender("LegacyShell", { source: "fallback-layout" });
   return (
     <Box sx={{ minHeight: "100dvh", overflowX: "hidden", pb: isMobile ? "calc(72px + env(safe-area-inset-bottom, 0px))" : 10 }}>
       <AppBar
@@ -347,18 +648,26 @@ function AppContent() {
           </Box>
         }>
         {page === PAGES.HOME && (
-          <FinancialHome
-            accounts={accounts}
-            accountsLoading={accountsLoading}
-            accountsError={accountsError}
-            onOpenTransactions={() => openTransactionsWithContext(null)}
-            onOpenAnalysisMonth={openAnalysisMonth}
-            onOpenForecast={() => navigateToPage(PAGES.PREVISIONS)}
-            onOpenAnalysis={() => navigateToPage(PAGES.ANALYSE)}
-            onOpenAccounts={() => navigateToPage(PAGES.REFERENTIELS)}
-            onOpenQuotes={() => navigateToWork("quotes", "pending")}
-            onOpenInvoices={() => navigateToWork("invoices")}
-          />
+          (() => {
+            console.log("[RENDER] App route PAGES.HOME");
+            logAppRender("FinancialHome", { variant: "v2", source: "PAGES.HOME" });
+            return (
+              <FinancialHome
+                variant="v2"
+                accounts={accounts}
+                accountsLoading={accountsLoading}
+                accountsError={accountsError}
+                onOpenTransactions={() => openTransactionsWithContext(null)}
+                onNavigateV2={openDashboardV2Destination}
+                onOpenAnalysisMonth={openAnalysisMonth}
+                onOpenForecast={() => navigateToPage(PAGES.PREVISIONS)}
+                onOpenAnalysis={() => navigateToPage(PAGES.ANALYSE)}
+                onOpenAccounts={() => navigateToPage(PAGES.REFERENTIELS)}
+                onOpenQuotes={() => navigateToWork("quotes", "pending")}
+                onOpenInvoices={() => navigateToWork("invoices")}
+              />
+            );
+          })()
         )}
 
         {page === PAGES.TRANSACTIONS && (
@@ -372,7 +681,7 @@ function AppContent() {
 
         {page === PAGES.OBJECTIFS && <Objectifs />}
 
-        {page === PAGES.FRAIS_FIXES && <FraisFixes />}
+        {page === PAGES.FRAIS_FIXES && <FraisFixes onOpenTransactionsFiltered={openTransactionsWithContext} />}
 
         {page === PAGES.REVENUS_RECURRENTS && <RevenusRecurrents />}
 
@@ -391,7 +700,7 @@ function AppContent() {
           />
         )}
 
-        {page === PAGES.BUDGETS && <Budgets />}
+        {page === PAGES.BUDGETS && <Budgets accounts={accounts} onOpenTransactionsFiltered={openTransactionsWithContext} />}
 
         {page === PAGES.PREVISIONS && <Previsions />}
 
@@ -406,12 +715,13 @@ function AppContent() {
         {page === PAGES.CATEGORIES && <Categories />}
 
         {page === PAGES.REFERENTIELS && (
-          <Referentiels accounts={accounts} addAccount={addAccount} updateAccount={updateAccount} deleteAccount={deleteAccount} />
+          <Referentiels accounts={accounts} addAccount={addAccount} updateAccount={updateAccount} deleteAccount={deleteAccount} onOpenTransactionsFiltered={openTransactionsWithContext} />
         )}
 
-        {page === PAGES.PARAMETRES && <Parametres />}
+        {page === PAGES.PARAMETRES && <Parametres onOpenDashboardV2={() => navigateToPage(PAGES.DASHBOARD_V2)} />}
 
         {page === PAGES.IMPORT_HISTORY && <ImportHistory />}
+
         </Suspense>
         </Box>
       </Container>
@@ -438,6 +748,7 @@ function AppContent() {
 
       {isMobile ? (
         <>
+          {console.log("[DRAWER] render", { open: moreDrawerOpen })}
           <BottomNavigation
             value={mobileBottomNavValue}
             onChange={handleMobileNavigationChange}
@@ -472,14 +783,57 @@ function AppContent() {
             <BottomNavigationAction value={PAGES.TRANSACTIONS} label="Transactions" icon={<ReceiptLong />} aria-label="Ouvrir les transactions" />
             <BottomNavigationAction value={PAGES.TRAVAIL} label="Travail" icon={<Work />} aria-label="Ouvrir Travail" />
             <BottomNavigationAction value={PAGES.ANALYSE} label="Analyse" icon={<ShowChart />} aria-label="Ouvrir l’analyse" />
-            <BottomNavigationAction value="MORE" label="Plus" icon={<MoreHoriz />} aria-label="Ouvrir les autres pages" />
+            <BottomNavigationAction
+              value="MORE"
+              label="Plus"
+              icon={<MoreHoriz />}
+              aria-label="Ouvrir les autres pages"
+              onClick={() => {
+                console.log("[PLUS] click");
+                console.log("[PLUS] ouverture demandée");
+                setMobilePlusDiagnostics((previous) => ({
+                  ...previous,
+                  plusClick: true,
+                  openRequested: true,
+                }));
+                setMoreDrawerOpen(true);
+              }}
+            />
           </BottomNavigation>
 
           <Drawer
             anchor="bottom"
             open={moreDrawerOpen}
-            onClose={() => setMoreDrawerOpen(false)}
+            onClose={(event, reason) => {
+              console.log("[DRAWER] onClose", { reason });
+              setMobilePlusDiagnostics((previous) => ({
+                ...previous,
+                onCloseCalled: true,
+                closeReason: String(reason || ""),
+              }));
+              if (reason === "backdropClick") {
+                console.log("[DRAWER] backdropClick");
+              }
+              if (reason === "escapeKeyDown") {
+                console.log("[DRAWER] escapeKeyDown");
+              }
+              setMoreDrawerOpen(false);
+            }}
             PaperProps={{
+              ref: (node) => {
+                if (node) {
+                  console.log("[DRAWER] mounted");
+                  setMobilePlusDiagnostics((previous) => ({
+                    ...previous,
+                    drawerMounted: true,
+                  }));
+                } else {
+                  setMobilePlusDiagnostics((previous) => ({
+                    ...previous,
+                    drawerMounted: false,
+                  }));
+                }
+              },
               sx: {
                 borderTopLeftRadius: 16,
                 borderTopRightRadius: 16,
@@ -533,6 +887,37 @@ function AppContent() {
               </List>
             </Box>
           </Drawer>
+
+          <Box
+            sx={{
+              position: "fixed",
+              left: 8,
+              right: 8,
+              bottom: "calc(72px + env(safe-area-inset-bottom, 0px))",
+              zIndex: 2500,
+              bgcolor: "rgba(16, 24, 28, 0.94)",
+              color: "#f5f7ef",
+              border: "1px solid rgba(255,255,255,0.18)",
+              borderRadius: 1.5,
+              px: 1,
+              py: 0.75,
+              boxShadow: "0 12px 28px rgba(0,0,0,0.35)",
+              fontFamily: "Consolas, monospace",
+            }}
+          >
+            <Typography variant="caption" sx={{ display: "block", fontWeight: 800, mb: 0.25, color: "#d9f99d" }}>
+              DIAG PLUS / DRAWER
+            </Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>PLUS CLICK ............... {mobilePlusDiagnostics.plusClick ? "oui" : "non"}</Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>OUVERTURE DEMANDEE ....... {mobilePlusDiagnostics.openRequested ? "oui" : "non"}</Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>STATE DRAWER ............. {String(mobilePlusDiagnostics.stateDrawer)}</Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>DRAWER RENDER ............ {String(mobilePlusDiagnostics.drawerRender)}</Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>DRAWER MOUNTED ........... {String(mobilePlusDiagnostics.drawerMounted)}</Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>ONCLOSE APPELE ........... {mobilePlusDiagnostics.onCloseCalled ? "oui" : "non"}</Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>RAISON FERMETURE ......... {mobilePlusDiagnostics.closeReason || ""}</Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>mobileBottomNavValue ..... {String(mobileBottomNavValue)}</Typography>
+            <Typography variant="caption" sx={{ display: "block" }}>moreDrawerOpen ........... {String(moreDrawerOpen)}</Typography>
+          </Box>
         </>
       ) : (
         <BottomNavigation

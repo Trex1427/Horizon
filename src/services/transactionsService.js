@@ -29,8 +29,8 @@ function normalizeTransactionPayload(payload = {}) {
   };
 }
 
-export function subscribeToTransactions(onData, onError) {
-  const ownerUid = requireCurrentUid(auth);
+export function subscribeToTransactions(onData, onError, options = {}) {
+  const ownerUid = options.ownerUid || requireCurrentUid(auth);
   return onSnapshot(
     query(collection(db, TRANSACTIONS_COLLECTION), where("ownerUid", "==", ownerUid)),
     (snapshot) => {

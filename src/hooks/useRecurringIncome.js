@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect -- listener lifecycle owns loading state */
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "../auth/useAuth";
 import {
   createRecurringIncome,
   deleteRecurringIncome,
@@ -8,6 +9,7 @@ import {
 } from "../services/recurringIncomeService";
 
 export function useRecurringIncomeStore() {
+  const { uid } = useAuth();
   const [recurringIncome, setRecurringIncome] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,6 +17,11 @@ export function useRecurringIncomeStore() {
   useEffect(() => {
     setLoading(true);
     setError(null);
+
+    if (!uid) {
+      setLoading(false);
+      return undefined;
+    }
 
     const unsubscribe = subscribeToRecurringIncome(
       (data) => {
@@ -25,11 +32,12 @@ export function useRecurringIncomeStore() {
         const message = err?.message || "Erreur lors du chargement des revenus récurrents";
         setError(message);
         setLoading(false);
-      }
+      },
+      { ownerUid: uid }
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [uid]);
 
   const addRecurringIncome = useCallback(async (payload) => {
     try {

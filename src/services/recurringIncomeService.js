@@ -77,8 +77,8 @@ function isMatchingFrequency(income, targetDate) {
   return target >= startDate;
 }
 
-export function subscribeToRecurringIncome(onData, onError) {
-  const ownerUid = requireCurrentUid(auth);
+export function subscribeToRecurringIncome(onData, onError, options = {}) {
+  const ownerUid = options.ownerUid || requireCurrentUid(auth);
   return onSnapshot(
     query(collection(db, RECURRING_INCOME_COLLECTION), where("ownerUid", "==", ownerUid)),
     (snapshot) => {

@@ -14,8 +14,8 @@ const MAX_DOCUMENT_BYTES = Number(import.meta.env.VITE_WORK_DOCUMENT_MAX_BYTES |
 const QUOTES = "workQuotes";
 const DOCUMENTS = "documents";
 
-export function subscribeToWorkQuotes(onData, onError) {
-  const ownerUid = requireCurrentUid(auth);
+export function subscribeToWorkQuotes(onData, onError, options = {}) {
+  const ownerUid = options.ownerUid || requireCurrentUid(auth);
   return onSnapshot(query(collection(db, QUOTES), where("ownerUid", "==", ownerUid)), (snapshot) => {
     onData(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() }))
       .filter((entry) => !entry.deletedAt && entry.isDeleted !== true)
@@ -88,8 +88,8 @@ export async function openWorkQuoteDocument(document) {
   return getDownloadURL(ref(storage, document.storagePath));
 }
 
-export function subscribeToWorkDocuments(onData, onError) {
-  const ownerUid = requireCurrentUid(auth);
+export function subscribeToWorkDocuments(onData, onError, options = {}) {
+  const ownerUid = options.ownerUid || requireCurrentUid(auth);
   return onSnapshot(query(collection(db, DOCUMENTS), where("ownerUid", "==", ownerUid)), (snapshot) => {
     onData(snapshot.docs.map((entry) => ({ id: entry.id, ...entry.data() })).filter((entry) => !entry.deletedAt && entry.isDeleted !== true));
   }, onError);

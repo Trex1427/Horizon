@@ -9,8 +9,8 @@ import {
 
 const TRANSFERS_COLLECTION = "transfers";
 
-export function subscribeToTransfers(onData, onError) {
-  const ownerUid = requireCurrentUid(auth);
+export function subscribeToTransfers(onData, onError, options = {}) {
+  const ownerUid = options.ownerUid || requireCurrentUid(auth);
   return onSnapshot(
     query(collection(db, TRANSFERS_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
     (snapshot) => {

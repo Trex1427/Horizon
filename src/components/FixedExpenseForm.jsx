@@ -1,31 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
-  Box,
-  Button,
-  IconButton,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-} from "@mui/material";
-import Add from "@mui/icons-material/Add";
-import Delete from "@mui/icons-material/Delete";
-import AccountSelector from "./AccountSelector";
-import EntityFormDialog from "./EntityFormDialog";
-import {
   buildFixedExpensePayload,
   getExpenseCategoryOptions,
   validateFixedExpenseForm,
 } from "../services/recurringAndFixedFormPayloads";
 import { getSafeCategoryLabel } from "../utils/displayTextUtils";
+import { buildExpenseCategoryReference, getCanonicalCategoryId } from "../utils/categorySelectionModel";
 import {
   getFixedExpenseSubcategoryOptions,
   resetIncompatibleFixedExpenseSubcategory,
 } from "../utils/fixedExpenseFormUtils";
+import {
+  Card,
+  CurrencyInput,
+  DatePicker,
+  Dialog,
+  ErrorState,
+  Input,
+  PrimaryButton,
+  SecondaryButton,
+  SectionCard,
+  Select,
+} from "./ui";
 
 const defaultForm = {
   name: "",
+  amountType: "fixed",
   categoryId: "",
   categoryName: "",
   category: "",
@@ -66,11 +66,18 @@ export function FixedExpenseForm({
   const [variations, setVariations] = useState([]);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const categoryReference = useMemo(
+    () => buildExpenseCategoryReference(categories, subcategories),
+    [categories, subcategories]
+  );
 
-  const expenseCategories = useMemo(() => getExpenseCategoryOptions(categories), [categories]);
+  const expenseCategories = useMemo(() => {
+    if (categoryReference.categoryOptions.length > 0) return categoryReference.categoryOptions;
+    return getExpenseCategoryOptions(categories);
+  }, [categories, categoryReference]);
   const subcategoryOptions = useMemo(
-    () => getFixedExpenseSubcategoryOptions(subcategories, formData.categoryId),
-    [formData.categoryId, subcategories]
+    () => getFixedExpenseSubcategoryOptions(subcategories, formData.categoryId, categoryReference),
+    [categoryReference, formData.categoryId, subcategories]
   );
 
   // The dialog intentionally rehydrates its local draft whenever the edited entity changes.
@@ -78,15 +85,17 @@ export function FixedExpenseForm({
   useEffect(() => {
     if (initialExpense) {
       const initialCategoryName = initialExpense.categoryName || initialExpense.category || "";
+      const canonicalCategoryId = getCanonicalCategoryId(categoryReference, initialExpense.categoryId || "");
       const selectedCategory =
-        expenseCategories.find((category) => category.id === initialExpense.categoryId) ||
+        expenseCategories.find((category) => category.id === canonicalCategoryId) ||
         expenseCategories.find(
           (category) => normalizeCategoryName(category.name) === normalizeCategoryName(initialCategoryName)
         );
 
       setFormData({
         name: initialExpense.name || "",
-        categoryId: initialExpense.categoryId || selectedCategory?.id || "",
+        amountType: initialExpense.amountType === "variable" ? "variable" : "fixed",
+        categoryId: canonicalCategoryId || selectedCategory?.id || "",
         categoryName: initialExpense.categoryName || selectedCategory?.name || initialCategoryName,
         category: initialExpense.category || selectedCategory?.name || initialCategoryName,
         subcategoryId: initialExpense.subcategoryId || "",
@@ -143,6 +152,8 @@ export function FixedExpenseForm({
   };
 
   const handleSubmit = async () => {
+    console.log("[CREATE FIXED]", "service =", "FixedExpenseForm");
+    console.log("[CREATE FIXED]", "function =", "handleSubmit");
     if (!validate()) return;
 
     const payload = buildFixedExpensePayload({ ...formData, variations }, expenseCategories, initialExpense, subcategories);
@@ -151,6 +162,7 @@ export function FixedExpenseForm({
     setErrors((prev) => ({ ...prev, submit: null }));
     let result;
     try {
+      console.log("[CREATE FIXED]", "next =", "onSubmit(payload)");
       result = await onSubmit(payload);
     } catch (error) {
       result = { success: false, error: error?.message || "Enregistrement impossible" };
@@ -169,207 +181,172 @@ export function FixedExpenseForm({
   };
 
   return (
-    <EntityFormDialog
+    <Dialog
       open={open}
-      title={initialExpense ? "Modifier un frais fixe" : "Ajouter un frais fixe"}
+      title={initialExpense ? "Modifier un frais fixe" : "Créer un frais fixe"}
+      description="Renseignez un référentiel stable, une fréquence et des dates lisibles."
       onClose={onClose}
-      onSubmit={handleSubmit}
-      submitting={isLoading || submitting}
-      submitLabel={initialExpense ? "Enregistrer" : "Créer"}
-      maxWidth="md"
+      size="lg"
+      actions={(
+        <>
+          <SecondaryButton onClick={onClose} disabled={isLoading || submitting}>Annuler</SecondaryButton>
+          <PrimaryButton onClick={handleSubmit} disabled={isLoading || submitting}>
+            {isLoading || submitting ? "Enregistrement..." : (initialExpense ? "Enregistrer" : "Créer")}
+          </PrimaryButton>
+        </>
+      )}
     >
-      <Stack spacing={2} sx={{ mt: 1 }}>
-        {errors.submit && <Alert severity="error">{errors.submit}</Alert>}
-        <TextField
-          label="Nom"
-          name="name"
-          value={formData.name}
-          onChange={handleChange}
-          fullWidth
-          error={Boolean(errors.name)}
-          helperText={errors.name}
-        />
+      <div>
+        {errors.submit ? <ErrorState unstyled as="div" className="hui-feedback hui-feedback--danger">{errors.submit}</ErrorState> : null}
 
-        <TextField
-          label="Catégorie"
-          name="categoryId"
-          select
-          value={formData.categoryId || formData.categoryName || formData.category}
-          onChange={(event) => {
-            const selectedCategory = expenseCategories.find((category) => category.id === event.target.value);
-            const selectedName = selectedCategory?.name || event.target.value;
+        <SectionCard title="Informations" description="Identifiez clairement le frais fixe." className="hui-card--outlined">
+          <Input label="Nom" name="name" value={formData.name} onChange={handleChange} error={errors.name} />
+          <Select
+            label="Catégorie"
+            name="categoryId"
+            value={formData.categoryId}
+            onChange={(event) => {
+              const canonicalCategoryId = getCanonicalCategoryId(categoryReference, event.target.value);
+              const selectedCategory = expenseCategories.find((category) => category.id === canonicalCategoryId);
+              const selectedName = selectedCategory?.name || "";
 
-            setFormData((prev) => ({
-              ...resetIncompatibleFixedExpenseSubcategory(prev, selectedCategory?.id || "", subcategories),
-              categoryName: selectedName,
-              category: selectedName,
-            }));
+              setFormData((prev) => ({
+                ...resetIncompatibleFixedExpenseSubcategory(prev, canonicalCategoryId, subcategories, categoryReference),
+                categoryName: selectedName,
+                category: selectedName,
+              }));
 
-            if (errors.category) {
-              setErrors((prev) => ({ ...prev, category: null }));
-            }
-          }}
-          fullWidth
-          error={Boolean(errors.category)}
-          helperText={errors.category}
-        >
-          {expenseCategories.length > 0
-            ? expenseCategories.map((category) => (
-              <MenuItem key={category.id} value={category.id}>
-                {getSafeCategoryLabel(category.name)}
-              </MenuItem>
-            ))
-            : LEGACY_CATEGORY_OPTIONS.map((categoryName) => (
-              <MenuItem key={categoryName} value={categoryName}>
-                {categoryName}
-              </MenuItem>
-            ))}
-        </TextField>
-
-        <TextField
-          label="Sous-catégorie (optionnelle)"
-          name="subcategoryId"
-          select
-          value={formData.subcategoryId}
-          onChange={(event) => {
-            const selectedSubcategory = subcategoryOptions.find((subcategory) => subcategory.id === event.target.value);
-            setFormData((prev) => ({
-              ...prev,
-              subcategoryId: selectedSubcategory?.id || "",
-              subcategoryName: selectedSubcategory?.name || "",
-            }));
-            setErrors((prev) => ({ ...prev, subcategoryId: null, submit: null }));
-          }}
-          fullWidth
-          disabled={!formData.categoryId}
-          error={Boolean(errors.subcategoryId)}
-          helperText={errors.subcategoryId || (!formData.categoryId ? "Sélectionnez d’abord une catégorie" : "Laisser vide pour un frais fixe de catégorie")}
-        >
-          <MenuItem value="">Aucune — frais fixe de catégorie</MenuItem>
-          {subcategoryOptions.map((subcategory) => (
-            <MenuItem key={subcategory.id} value={subcategory.id}>
-              {subcategory.name}
-            </MenuItem>
-          ))}
-        </TextField>
-        <AccountSelector
-          value={formData.accountId}
-          onChange={handleChange}
-          accounts={accounts}
-          label="Compte associé"
-        />
-
-        <TextField
-          label="Fréquence"
-          name="frequency"
-          select
-          value={formData.frequency}
-          onChange={handleChange}
-          fullWidth
-        >
-          <MenuItem value="monthly">Mensuel</MenuItem>
-          <MenuItem value="annual">Annuel</MenuItem>
-        </TextField>
-
-        <TextField
-          label="Montant initial (€)"
-          name="initialAmount"
-          type="number"
-          value={formData.initialAmount}
-          onChange={handleChange}
-          fullWidth
-          error={Boolean(errors.initialAmount)}
-          helperText={errors.initialAmount}
-          inputProps={{ step: "0.01", min: "0" }}
-        />
-
-        <TextField
-          label="Date de début"
-          name="startDate"
-          type="date"
-          value={formData.startDate}
-          onChange={handleChange}
-          fullWidth
-          error={Boolean(errors.startDate)}
-          helperText={errors.startDate}
-          InputLabelProps={{ shrink: true }}
-        />
-
-        <TextField
-          label="Date de fin (optionnelle)"
-          name="endDate"
-          type="date"
-          value={formData.endDate}
-          onChange={handleChange}
-          fullWidth
-          InputLabelProps={{ shrink: true }}
-        />
-
-        <TextField
-          label="Description"
-          name="description"
-          value={formData.description}
-          onChange={handleChange}
-          fullWidth
-          multiline
-          minRows={2}
-        />
-
-        <Box>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-            <Typography variant="subtitle2">Variations de montant</Typography>
-            <Button startIcon={<Add />} size="small" onClick={addVariation}>
-              Ajouter
-            </Button>
-          </Box>
-
-          {variations.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              Aucune variation ajoutée pour le moment.
-            </Typography>
-          ) : (
-            <Stack spacing={1.5}>
-              {variations.map((variation, index) => (
-                <Box key={`variation-${index}`} sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1, p: 1.5 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography variant="body2" fontWeight={600}>Variation {index + 1}</Typography>
-                    <IconButton size="small" color="error" onClick={() => removeVariation(index)}>
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Box>
-                  <Stack spacing={1.5}>
-                    <TextField
-                      label="Date d’effet"
-                      name="effectiveDate"
-                      type="date"
-                      value={variation.effectiveDate || ""}
-                      onChange={(event) => handleVariationChange(index, event)}
-                      fullWidth
-                      InputLabelProps={{ shrink: true }}
-                    />
-                    <TextField
-                      label="Montant"
-                      name="amount"
-                      type="number"
-                      value={variation.amount || ""}
-                      onChange={(event) => handleVariationChange(index, event)}
-                      fullWidth
-                      inputProps={{ step: "0.01", min: "0" }}
-                    />
-                    <TextField
-                      label="Note"
-                      name="note"
-                      value={variation.note || ""}
-                      onChange={(event) => handleVariationChange(index, event)}
-                      fullWidth
-                    />
-                  </Stack>
-                </Box>
+              if (errors.category) {
+                setErrors((prev) => ({ ...prev, category: null }));
+              }
+            }}
+            error={errors.category}
+          >
+            <option value="">Sélectionner une catégorie</option>
+            {expenseCategories.length > 0
+              ? expenseCategories.map((category) => (
+                <option key={category.id} value={category.id}>{getSafeCategoryLabel(category.name)}</option>
+              ))
+              : LEGACY_CATEGORY_OPTIONS.map((categoryName) => (
+                <option key={categoryName} value={categoryName}>{categoryName}</option>
               ))}
-            </Stack>
-          )}
-        </Box>
-      </Stack>
-    </EntityFormDialog>
+          </Select>
+          <Select
+            label="Sous-catégorie"
+            name="subcategoryId"
+            value={formData.subcategoryId}
+            onChange={(event) => {
+              const selectedSubcategory = subcategoryOptions.find((subcategory) => subcategory.id === event.target.value);
+              setFormData((prev) => ({
+                ...prev,
+                subcategoryId: selectedSubcategory?.id || "",
+                subcategoryName: selectedSubcategory?.name || "",
+              }));
+              setErrors((prev) => ({ ...prev, subcategoryId: null, submit: null }));
+            }}
+            disabled={!formData.categoryId}
+            error={errors.subcategoryId}
+            hint={!formData.categoryId ? "Sélectionnez d’abord une catégorie" : "Laisser vide pour un frais fixe de catégorie"}
+          >
+            <option value="">Aucune</option>
+            {subcategoryOptions.map((subcategory) => (
+              <option key={subcategory.id} value={subcategory.id}>{subcategory.name}</option>
+            ))}
+          </Select>
+        </SectionCard>
+
+        <SectionCard title="Valeurs" description="Paramétrez le type, le montant, la périodicité et le compte." className="hui-card--outlined">
+          <Select label="Type de montant" name="amountType" value={formData.amountType} onChange={handleChange} error={errors.amountType}>
+            <option value="fixed">Montant fixe</option>
+            <option value="variable">Montant variable</option>
+          </Select>
+          <CurrencyInput
+            label="Montant"
+            name="initialAmount"
+            value={formData.initialAmount}
+            onChange={handleChange}
+            error={errors.initialAmount}
+            min="0"
+            step="0.01"
+          />
+          <Select label="Périodicité" name="frequency" value={formData.frequency} onChange={handleChange}>
+            <option value="monthly">Mensuel</option>
+            <option value="annual">Annuel</option>
+          </Select>
+          <Select
+            label="Compte"
+            name="accountId"
+            value={formData.accountId}
+            onChange={handleChange}
+            error={errors.accountId}
+          >
+            <option value="">Sélectionner un compte</option>
+            {accounts.map((account) => (
+              <option key={account.id} value={account.id}>{account.name}</option>
+            ))}
+          </Select>
+        </SectionCard>
+
+        <SectionCard title="Dates" description="Cadrez le démarrage et la fin éventuelle." className="hui-card--outlined">
+          <DatePicker
+            label="Début"
+            name="startDate"
+            value={formData.startDate}
+            onChange={handleChange}
+            error={errors.startDate}
+          />
+          <DatePicker
+            label="Fin"
+            name="endDate"
+            value={formData.endDate}
+            onChange={handleChange}
+            hint="Uniquement si nécessaire"
+          />
+        </SectionCard>
+
+        <details>
+          <summary>Options avancées</summary>
+          <SectionCard title="Options avancées" description="Ajoutez les détails utiles sans surcharger le formulaire." className="hui-card--outlined">
+            <Input
+              label="Description"
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+            />
+            <SecondaryButton onClick={addVariation}>Ajouter une variation</SecondaryButton>
+            {variations.length === 0 ? (
+              <Card className="hui-card--outlined">Aucune variation pour le moment.</Card>
+            ) : (
+              variations.map((variation, index) => (
+                <Card className="hui-card--outlined" key={`variation-${index}`}>
+                  <p>Variation {index + 1}</p>
+                  <DatePicker
+                    label="Date d’effet"
+                    name="effectiveDate"
+                    value={variation.effectiveDate || ""}
+                    onChange={(event) => handleVariationChange(index, event)}
+                  />
+                  <CurrencyInput
+                    label="Montant"
+                    name="amount"
+                    value={variation.amount || ""}
+                    onChange={(event) => handleVariationChange(index, event)}
+                    min="0"
+                    step="0.01"
+                  />
+                  <Input
+                    label="Note"
+                    name="note"
+                    value={variation.note || ""}
+                    onChange={(event) => handleVariationChange(index, event)}
+                  />
+                  <SecondaryButton onClick={() => removeVariation(index)}>Supprimer cette variation</SecondaryButton>
+                </Card>
+              ))
+            )}
+          </SectionCard>
+        </details>
+      </div>
+    </Dialog>
   );
 }

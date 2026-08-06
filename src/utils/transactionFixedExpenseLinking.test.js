@@ -112,6 +112,7 @@ test("buildQuickFixedExpensePayload derives fixed-expense model from transaction
   assert.equal(payload.categoryId, "cat-sub");
   assert.equal(payload.categoryName, "Abonnements");
   assert.equal(payload.accountId, "acc-1");
+  assert.equal(payload.amountType, "fixed");
   assert.equal(payload.initialAmount, 59.9);
   assert.equal(payload.frequency, "monthly");
   assert.equal(payload.startDate, "2026-07-13");
@@ -141,4 +142,30 @@ test("explicit fixedExpenseId remains prioritary and form synchronization copies
   const draft = applyFixedExpenseToTransactionForm({ date: "2026-07-13" }, fixedExpenses[0]);
   assert.equal(draft.subcategoryId, "electricity");
   assert.equal(draft.subcategoryName, "Électricité");
+});
+
+test("variable fixed expenses can match a nearby date with a different amount", () => {
+  const fixedExpenses = [
+    {
+      id: "fx-orange",
+      accountId: "acc-1",
+      name: "Orange",
+      thirdPartyName: "Orange",
+      amountType: "variable",
+      initialAmount: 29.99,
+      startDate: "2026-01-05",
+      isActive: true,
+    },
+  ];
+
+  const transaction = {
+    date: "2026-07-06",
+    type: "depense",
+    montant: 34.99,
+    accountId: "acc-1",
+    merchant: "Orange",
+    description: "ORANGE FACTURE",
+  };
+
+  assert.equal(findMatchingFixedExpenseForTransaction(transaction, fixedExpenses)?.id, "fx-orange");
 });

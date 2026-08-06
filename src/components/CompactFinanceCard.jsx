@@ -107,18 +107,25 @@ export default function CompactFinanceCard({
   selected = false,
   selectionMode = false,
   onSelectionToggle,
+  onOpenClick,
   onEditClick,
   onMenuClick,
   onFieldDoubleClick,
   enableDoubleClickEdit = false,
 }) {
   const detailsText = details || ((metaPrimary || metaSecondary) ? "" : subtitle);
-  const isInteractive = selectionMode ? typeof onSelectionToggle === "function" : typeof onEditClick === "function";
+  const hasOpenAction = typeof onOpenClick === "function";
+  const isInteractive = selectionMode ? typeof onSelectionToggle === "function" : typeof onOpenClick === "function" || typeof onEditClick === "function";
   const typeStyle = TYPE_STYLES[transactionKind] || TYPE_STYLES.expense;
 
   function handlePrimaryAction() {
     if (selectionMode) {
       onSelectionToggle?.();
+      return;
+    }
+
+    if (hasOpenAction) {
+      onOpenClick?.();
       return;
     }
 

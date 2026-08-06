@@ -2,11 +2,16 @@ import {
   buildBudgetFixedExpenseReservationMap,
   findMatchedExpectedItemIds,
   isTransactionMatchingBudgetCategory,
-  matchesExpectedTransaction,
   selectNonOverlappingBudgetsForForecast,
   toDateValue,
 } from "./financeCalculations.js";
 import { getRecurringIncomeApplicableAmount } from "../utils/recurringIncomeAmount.js";
+import {
+  FIXED_EXPENSE_OCCURRENCE_STATES,
+  buildFixedExpenseReconciliationLedger,
+  buildReconciliationTransactionIndex,
+  evaluateFixedExpenseOccurrenceCoverage,
+} from "./reconciliationService.js";
 import {
   isAdjustmentTransactionType,
   isExpenseTransactionType,
@@ -126,6 +131,18 @@ function shouldIncludeForecastOccurrence(item, monthStart, monthEnd, referenceDa
   return true;
 }
 
+function getMonthStatus(monthStart, monthEnd, referenceDate) {
+  if (monthEnd < referenceDate) {
+    return "actual";
+  }
+
+  if (monthStart <= referenceDate && referenceDate <= monthEnd) {
+    return "current";
+  }
+
+  return "forecast";
+}
+
 function getBudgetRangeIntersection(budget, monthStart, monthEnd) {
   const startDate = toValidDate(budget?.startDate);
   const endDate = toValidDate(budget?.endDate);
@@ -210,25 +227,10 @@ function sumTransfersNetImpact(transfers, monthStart, cutoffDate, includedAccoun
   }, 0);
 }
 
-function findExpectedMatch(transactions, item, options) {
-  return transactions.some((transaction) => {
-    if (options.expectedType === "depense" && String(transaction?.fixedExpenseId || "") === String(item?.id || "")) {
-      const transactionDate = toValidDate(transaction?.date || transaction?.createdAt || transaction?.timestamp);
-      return (
-        isExpenseTransactionType(transaction?.type)
-        && transactionDate
-        && transactionDate >= options.monthStart
-        && transactionDate <= options.monthEnd
-      );
-    }
-
-    return matchesExpectedTransaction(transaction, item, options);
-  });
-}
-
 function listForecastOccurrences({
   items,
   transactions,
+  transactionIndex,
   includedAccountIds,
   fallbackAccountId,
   monthStart,
@@ -250,12 +252,18 @@ function listForecastOccurrences({
   }, []);
 
   if (type !== "revenu") {
-    return dueItems.filter((item) => !findExpectedMatch(transactions, item, {
-      expectedType: type,
-      expectedAmount: item.amount,
-      monthStart,
-      monthEnd,
-    }));
+    return dueItems.filter((item) => {
+      const coverage = evaluateFixedExpenseOccurrenceCoverage({
+        fixedExpense: item,
+        transactions,
+        transactionIndex,
+        monthStart,
+        monthEnd,
+        expectedAmount: item.amount,
+      });
+
+      return !coverage.covered;
+    });
   }
 
   const matchedIds = findMatchedExpectedItemIds(dueItems, transactions, (item) => ({
@@ -304,12 +312,6 @@ function sumRemainingBudgets({ budgets, transactions, fixedExpenseOccurrences = 
     const reservedFixedExpenses = fixedExpenseReservations.get(budget) || 0;
     return sum + Math.max(0, toAmount(budget?.amount) - spent - reservedFixedExpenses);
   }, 0);
-}
-
-function getMonthStatus(monthStart, monthEnd, referenceDate) {
-  if (monthEnd < referenceDate) return "actual";
-  if (monthStart <= referenceDate && referenceDate <= monthEnd) return "current";
-  return "forecast";
 }
 
 function shouldIncludeOpportunity(opportunity, {
@@ -491,6 +493,16 @@ export function calculateAnnualTrajectory({
     .filter((transfer) => transfer?.isDeleted !== true);
   const initialBalance = activeAccounts.reduce((sum, account) => sum + toAmount(account?.initialBalance), 0);
   const duplicateFixedExpenseGroups = findFixedExpenseDuplicateGroups(fixedExpenses);
+  const transactionIndex = buildReconciliationTransactionIndex(safeTransactions);
+  const includedFixedExpenses = (fixedExpenses || []).filter((item) => isAccountIncluded(item?.accountId, includedAccountIds, fallbackAccountId));
+  const fixedExpenseLedger = buildFixedExpenseReconciliationLedger({
+    fixedExpenses: includedFixedExpenses,
+    transactions: safeTransactions,
+    transactionIndex,
+    periodStart: new Date(activeYear, 0, 1),
+    periodEnd: new Date(activeYear, 11, 31, 23, 59, 59, 999),
+    referenceDate: safeReferenceDate,
+  });
 
   let runningBalance = initialBalance;
 
@@ -515,18 +527,28 @@ export function calculateAnnualTrajectory({
       referenceDate: safeReferenceDate,
       type: "revenu",
     });
-    const fixedExpenseOccurrences = listForecastOccurrences({
-      items: fixedExpenses,
-      transactions: safeTransactions,
-      includedAccountIds,
-      fallbackAccountId,
-      monthStart,
-      monthEnd,
-      referenceDate: safeReferenceDate,
-      type: "depense",
-    });
-    const expectedFixedExpenses = fixedExpenseOccurrences
-      .reduce((sum, occurrence) => sum + toAmount(occurrence.amount), 0);
+    const reconciledOccurrences = (fixedExpenseLedger.byMonth.get(toMonthKey(monthStart)) || [])
+      .filter((occurrence) => status !== "actual" || occurrence.state !== FIXED_EXPENSE_OCCURRENCE_STATES.FORECAST);
+    const fixedExpenseOccurrences = reconciledOccurrences
+      .filter((occurrence) => occurrence.state === FIXED_EXPENSE_OCCURRENCE_STATES.FORECAST)
+      .map((occurrence) => ({
+        ...occurrence.fixedExpense,
+        amount: occurrence.expectedAmount,
+        montant: occurrence.expectedAmount,
+        occurrenceId: occurrence.id,
+        expectedDate: occurrence.expectedDate,
+      }));
+    const expectedFixedExpenses = status === "actual"
+      ? 0
+      : reconciledOccurrences
+        .filter((occurrence) => occurrence.state === FIXED_EXPENSE_OCCURRENCE_STATES.FORECAST)
+        .reduce((sum, occurrence) => sum + toAmount(occurrence.expectedAmount), 0);
+    const fixedExpenseTransactionCount = reconciledOccurrences
+      .reduce((sum, occurrence) => sum + occurrence.transactionCount, 0);
+    const fixedExpenseForecastCount = reconciledOccurrences
+      .filter((occurrence) => occurrence.state === FIXED_EXPENSE_OCCURRENCE_STATES.FORECAST).length;
+    const fixedExpenseAnomalyCount = reconciledOccurrences
+      .filter((occurrence) => occurrence.state === FIXED_EXPENSE_OCCURRENCE_STATES.ANOMALY).length;
     const remainingBudgets = sumRemainingBudgets({
       budgets,
       transactions: safeTransactions,
@@ -581,6 +603,10 @@ export function calculateAnnualTrajectory({
       monthlyIncome,
       monthlyExpenses,
       monthlyNet,
+      fixedExpenseOccurrences: reconciledOccurrences,
+      fixedExpenseTransactionCount,
+      fixedExpenseForecastCount,
+      fixedExpenseAnomalyCount,
       forecastMode: legacyForecastMode,
       opportunityProbabilityThreshold: legacyProbabilityThreshold,
       duplicateFixedExpenseGroups,

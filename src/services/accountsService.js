@@ -10,17 +10,48 @@ import {
 const ACCOUNTS_COLLECTION = "accounts";
 export { DEFAULT_ACCOUNT_NAME };
 
-export function subscribeToAccounts(onData, onError) {
-  const ownerUid = requireCurrentUid(auth);
+export function subscribeToAccounts(onData, onError, options = {}) {
+  const ownerUid = options.ownerUid || requireCurrentUid(auth);
+  console.log("QUERY ownerUid =", ownerUid);
+
+  const queryFilters = {
+    ownerUid,
+    isActive: true,
+    orderBy: null,
+    where: [
+      { field: "ownerUid", op: "==", value: ownerUid },
+      { field: "isActive", op: "==", value: true },
+    ],
+  };
+  console.log("QUERY details =", queryFilters);
+
+  const accountsQuery = query(
+    collection(db, ACCOUNTS_COLLECTION),
+    where("ownerUid", "==", ownerUid)
+  );
+
   return onSnapshot(
-    query(collection(db, ACCOUNTS_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
+    accountsQuery,
     (snapshot) => {
+      console.log("SNAPSHOT docs =", snapshot.size);
+      console.log("SNAPSHOT raw docs =", snapshot.docs.map((d) => ({
+        id: d.id,
+        ownerUid: d.data().ownerUid,
+        isActive: d.data().isActive,
+        name: d.data().name,
+      })));
+      if (snapshot.size === 0) {
+        console.error("AUCUN COMPTE RETOURNÉ PAR FIRESTORE");
+      }
+
       const data = snapshot.docs
         .map((docSnapshot) => ({
           id: docSnapshot.id,
           ...docSnapshot.data(),
         }))
         .sort((left, right) => (left.displayOrder || 0) - (right.displayOrder || 0));
+
+      console.log("DATA returned =", data);
 
       onData(data);
     },
@@ -37,8 +68,7 @@ export async function createAccount(payload) {
 }
 
 export async function initializeDefaultAccountsIfEmpty(options = {}) {
-  // Explicit onboarding/admin action only. Never call this from a mount,
-  // listener, snapshot callback, offline fallback, or other implicit flow.
+  // Called by the authenticated user-environment bootstrap before subscriptions start.
   return initializeDefaultAccountsIfEmptyWithAdapter({
     hasAnyAccountDocuments,
     commitDefaultAccounts: async (documents) => {

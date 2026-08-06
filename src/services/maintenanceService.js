@@ -10,7 +10,23 @@ const FULL_RESET_COLLECTIONS = [
   "fixedExpenses",
   "recurringIncome",
   "objectives",
+  "vehicles",
+  "workProjects",
+  "workQuotes",
+  "workInvoices",
+  "professionalActivities",
+  "debtsReceivables",
+  "debtReceivablePayments",
+  "opportunities",
+  "transfers",
+  "documents",
+  "categories",
+  "subcategories",
+  "thirdParties",
+  "activities",
+  "projects",
   "bankImports",
+  "receiptDrafts",
   "transactionDrafts",
 ];
 
@@ -58,7 +74,7 @@ function createEmptyCollectionResult(collectionName) {
   };
 }
 
-function buildFinalSummary({ mode, requestedCollections, collectionResults, scanErrors, deleteErrors }) {
+function buildFinalSummary({ mode, requestedCollections, collectionResults, scanErrors, deleteErrors, preservedCollections }) {
   const perCollection = requestedCollections.reduce((accumulator, collectionName) => ({
     ...accumulator,
     [collectionName]: collectionResults[collectionName] || createEmptyCollectionResult(collectionName),
@@ -79,7 +95,7 @@ function buildFinalSummary({ mode, requestedCollections, collectionResults, scan
     mode,
     requestedCollections,
     deletedCollections: requestedCollections,
-    preservedCollections: ["categories", "settings", "preferences", "theme", "version"],
+    preservedCollections,
     perCollection,
     totals,
     errors,
@@ -88,21 +104,14 @@ function buildFinalSummary({ mode, requestedCollections, collectionResults, scan
   };
 }
 
-export function getMaintenanceCollectionsForMode(mode = "full") {
-  return MODE_TO_COLLECTIONS[mode] || MODE_TO_COLLECTIONS.full;
-}
-
-export async function resetHorizonData({
-  mode = "full",
-  additionalCollections = [],
-  batchSize = DEFAULT_BATCH_SIZE,
+async function runResetWithTransport({
+  mode,
+  effectiveCollections,
+  preservedCollections,
+  batchSize,
   onProgress,
-  transport,
-} = {}) {
-  const baseCollections = getMaintenanceCollectionsForMode(mode);
-  const requestedCollections = uniqueCollectionNames([...baseCollections, ...additionalCollections]);
-  const effectiveTransport = transport || await buildDefaultTransport();
-
+  effectiveTransport,
+}) {
   const collectionResults = {};
   const scanErrors = [];
   const deleteErrors = [];
@@ -111,10 +120,10 @@ export async function resetHorizonData({
   onProgress?.({
     phase: "scan-start",
     mode,
-    totalCollections: requestedCollections.length,
+    totalCollections: effectiveCollections.length,
   });
 
-  for (const collectionName of requestedCollections) {
+  for (const collectionName of effectiveCollections) {
     collectionResults[collectionName] = createEmptyCollectionResult(collectionName);
 
     try {
@@ -146,7 +155,7 @@ export async function resetHorizonData({
 
   let globalDeletedCount = 0;
 
-  for (const collectionName of requestedCollections) {
+  for (const collectionName of effectiveCollections) {
     const result = collectionResults[collectionName];
     const refs = Array.isArray(result.refs) ? result.refs : [];
 
@@ -191,10 +200,11 @@ export async function resetHorizonData({
 
   const summary = buildFinalSummary({
     mode,
-    requestedCollections,
+    requestedCollections: effectiveCollections,
     collectionResults,
     scanErrors,
     deleteErrors,
+    preservedCollections,
   });
 
   onProgress?.({
@@ -204,6 +214,63 @@ export async function resetHorizonData({
   });
 
   return summary;
+}
+
+async function callAdminReset({ mode, additionalCollections, excludedCollections, batchSize, onProgress }) {
+  const { app } = await import("../firebase.js");
+  const { getFunctions, httpsCallable } = await import("firebase/functions");
+
+  onProgress?.({ phase: "scan-start", mode });
+
+  const functions = getFunctions(app, "europe-west1");
+  const callable = httpsCallable(functions, "resetUserData");
+  const response = await callable({ mode, additionalCollections, excludedCollections, batchSize });
+  const summary = response?.data || null;
+
+  if (!summary || typeof summary !== "object") {
+    throw new Error("Reinitialisation indisponible: reponse serveur invalide.");
+  }
+
+  onProgress?.({ phase: "done", mode, summary });
+  return summary;
+}
+
+export function getMaintenanceCollectionsForMode(mode = "full") {
+  return MODE_TO_COLLECTIONS[mode] || MODE_TO_COLLECTIONS.full;
+}
+
+export async function resetHorizonData({
+  mode = "full",
+  additionalCollections = [],
+  excludedCollections = [],
+  batchSize = DEFAULT_BATCH_SIZE,
+  onProgress,
+  transport,
+} = {}) {
+  const baseCollections = getMaintenanceCollectionsForMode(mode);
+  const requestedCollections = uniqueCollectionNames([...baseCollections, ...additionalCollections]);
+  const blockedCollections = new Set(uniqueCollectionNames(excludedCollections));
+  const effectiveCollections = requestedCollections.filter((name) => !blockedCollections.has(name));
+
+  if (!transport) {
+    return callAdminReset({
+      mode,
+      additionalCollections,
+      excludedCollections,
+      batchSize,
+      onProgress,
+    });
+  }
+
+  const effectiveTransport = transport || await buildDefaultTransport();
+  return runResetWithTransport({
+    mode,
+    effectiveCollections,
+    preservedCollections: Array.from(blockedCollections),
+    batchSize,
+    onProgress,
+    effectiveTransport,
+  });
 }
 
 export async function exportHorizonDataPlaceholder() {

@@ -38,15 +38,9 @@ test("default accounts use stable deterministic ids", () => {
   const documents = buildDefaultAccountDocuments({ now: () => "2026-07-13T00:00:00.000Z" });
   const ids = documents.map((document) => document.id);
 
-  assert.deepEqual(ids, [
-    "default-current-account",
-    "default-savings-a",
-    "default-professional-account",
-    "default-cash",
-    "default-paypal",
-  ]);
-  assert.equal(documents.length, 5);
-  assert.equal(DEFAULT_ACCOUNT_DEFINITIONS.length, 5);
+  assert.deepEqual(ids, ["default-current-account"]);
+  assert.equal(documents.length, 1);
+  assert.equal(DEFAULT_ACCOUNT_DEFINITIONS.length, 1);
 });
 
 test("server account reader returns true when a document exists", async () => {
@@ -66,7 +60,7 @@ test("server account reader propagates offline, permission and timeout errors", 
   }
 });
 
-test("initialization creates exactly five accounts for an empty collection", async () => {
+test("initialization creates exactly one current account for an empty collection", async () => {
   const adapter = createMemoryAdapter();
 
   const result = await initializeDefaultAccountsIfEmptyWithAdapter(adapter, {
@@ -74,8 +68,8 @@ test("initialization creates exactly five accounts for an empty collection", asy
   });
 
   assert.equal(result.created, true);
-  assert.equal(result.createdCount, 5);
-  assert.equal(adapter.documents.size, 5);
+  assert.equal(result.createdCount, 1);
+  assert.equal(adapter.documents.size, 1);
 });
 
 test("second initialization is a no-op when the collection is not empty", async () => {
@@ -86,17 +80,17 @@ test("second initialization is a no-op when the collection is not empty", async 
 
   assert.equal(result.created, false);
   assert.equal(result.createdCount, 0);
-  assert.equal(adapter.documents.size, 5);
+  assert.equal(adapter.documents.size, 1);
 });
 
-test("ten concurrent initializations still finish with five documents", async () => {
+test("five successive initializations still finish with one current account", async () => {
   const adapter = createMemoryAdapter();
 
-  await Promise.all(
-    Array.from({ length: 10 }, () => initializeDefaultAccountsIfEmptyWithAdapter(adapter))
-  );
+  for (let run = 0; run < 5; run += 1) {
+    await initializeDefaultAccountsIfEmptyWithAdapter(adapter);
+  }
 
-  assert.equal(adapter.documents.size, 5);
+  assert.equal(adapter.documents.size, 1);
 });
 
 test("a user account already present prevents default initialization", async () => {

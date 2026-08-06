@@ -1,4 +1,4 @@
-﻿import { Alert, Box, CircularProgress } from "@mui/material";
+﻿import { Alert, Box, CircularProgress } from "../components/ui/foundations/MuiPrimitives";
 import { formatTargetDate } from "../utils/dateFormatter";
 import { useForecast } from "../hooks/useForecast";
 import ForecastSummaryCard from "../components/ForecastSummaryCard";

@@ -1,5 +1,6 @@
-﻿import { useMemo, useRef, useState } from "react";
-import { Alert, Box, Button, Chip, Divider, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { useMemo, useRef, useState } from "react";
+import { useAuth } from "../../../auth/useAuth.js";
+import { Alert, Box, Button, Checkbox, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControl, FormControlLabel, FormLabel, MenuItem, Radio, RadioGroup, Stack, TextField, Typography } from "@mui/material";
 import {
   CREATE_ACCOUNT_VALUE,
   CREATE_ACTIVITY_VALUE,
@@ -8,6 +9,8 @@ import {
   CREATE_SUBCATEGORY_VALUE,
   CREATE_THIRD_PARTY_VALUE,
 } from "../../../constants/transactionReferenceCreateValues";
+import { applyClassificationToImportRows, describeSimilarImportRowMatch, findFirstUnvalidatedImportRow, findSimilarUnvalidatedImportRows } from "../utils/classificationBatchAssistant.js";
+import { applyClassificationToOwnedHistory, searchOwnedHistoricalTransactions } from "../services/historicalSimilarityService.js";
 
 const FILTER_OPTIONS = [
   { value: "all", label: "Toutes" },
@@ -89,10 +92,24 @@ export default function ImportValidationStep({
   onRequestCreateThirdParty,
   onRequestCreateProject,
   onRequestCreateAccount,
+  onRequestCreateFixedExpense,
   onRowsChange,
 }) {
+  const { uid } = useAuth();
   const [filter, setFilter] = useState("all");
+  const [identicalProposal, setIdenticalProposal] = useState(null);
+  const [checkedIdenticalRows, setCheckedIdenticalRows] = useState(() => new Set());
+  const [similarityScope, setSimilarityScope] = useState("import");
+  const [ignoreAmountDifferences, setIgnoreAmountDifferences] = useState(false);
+  const [sameAccountOnly, setSameAccountOnly] = useState(false);
+  const [sameYearOnly, setSameYearOnly] = useState(false);
+  const [historicalCandidates, setHistoricalCandidates] = useState([]);
+  const [historicalSearchLoading, setHistoricalSearchLoading] = useState(false);
+  const [historicalSearchError, setHistoricalSearchError] = useState("");
   const listRef = useRef(null);
+  const rowRefs = useRef(new Map());
+  const historicalSearchCache = useRef(new Map());
+  const historicalSearchRequestRef = useRef(0);
 
   const filteredRows = useMemo(() => {
     return rows.filter((row) => {
@@ -121,6 +138,18 @@ export default function ImportValidationStep({
       return true;
     });
   }, [filter, rows]);
+  const similarityCriteria = useMemo(() => ({ ignoreAmountDifferences, sameAccountOnly, sameYearOnly }), [ignoreAmountDifferences, sameAccountOnly, sameYearOnly]);
+  const importProposalMatches = useMemo(() => identicalProposal
+    && similarityScope !== "history"
+    ? findSimilarUnvalidatedImportRows(rows, identicalProposal.sourceRow, similarityCriteria).map((row) => ({ ...row, resultSource: "import" }))
+    : [], [identicalProposal, rows, similarityCriteria, similarityScope]);
+  const historicalProposalMatches = useMemo(() => identicalProposal && similarityScope !== "import"
+    ? findSimilarUnvalidatedImportRows(historicalCandidates, identicalProposal.sourceRow, similarityCriteria)
+    : [], [historicalCandidates, identicalProposal, similarityCriteria, similarityScope]);
+  const proposalMatches = useMemo(
+    () => [...importProposalMatches, ...historicalProposalMatches],
+    [importProposalMatches, historicalProposalMatches]
+  );
   const visibleSuggestionRows = useMemo(
     () => rows.filter((row) => row.classificationSuggestionApplied && !row.classificationSuggestionIgnored),
     [rows]
@@ -171,6 +200,7 @@ export default function ImportValidationStep({
     const buildOnCreated = (toPatch) => (created = {}) => {
       updateRow(row, toPatch(created));
       restoreListScroll(scrollPosition);
+      window.requestAnimationFrame(() => rowRefs.current.get(row.sourceRowIndex)?.focus());
     };
 
     if (kind === "category") {
@@ -238,6 +268,179 @@ export default function ImportValidationStep({
     }
   }
 
+  function focusFirstRemainingRow(nextRows) {
+    const nextRow = findFirstUnvalidatedImportRow(nextRows);
+    if (!nextRow) return;
+    window.requestAnimationFrame(() => {
+      const node = rowRefs.current.get(nextRow.sourceRowIndex);
+      node?.scrollIntoView({ block: "nearest" });
+      node?.focus();
+    });
+  }
+
+  function getSimilarityResultKey(row) {
+    return row.resultSource === "history" ? `history:${row.historyTransactionId}` : `import:${row.sourceRowIndex}`;
+  }
+
+  function updateSimilaritySelection(scope = similarityScope, criteria = similarityCriteria, candidates = historicalCandidates) {
+    if (!identicalProposal) return { importMatches: [], historyMatches: [] };
+
+    const importMatches = scope === "history"
+      ? []
+      : findSimilarUnvalidatedImportRows(rows, identicalProposal.sourceRow, criteria).map((row) => ({ ...row, resultSource: "import" }));
+    const historyMatches = scope === "import"
+      ? []
+      : findSimilarUnvalidatedImportRows(candidates, identicalProposal.sourceRow, criteria).map((row) => ({ ...row, resultSource: "history" }));
+
+    setCheckedIdenticalRows(new Set([...importMatches, ...historyMatches].map(getSimilarityResultKey)));
+    return { importMatches, historyMatches };
+  }
+
+  function resetSimilarityAssistant() {
+    setIdenticalProposal(null);
+    setCheckedIdenticalRows(new Set());
+    setSimilarityScope("import");
+    setIgnoreAmountDifferences(false);
+    setSameAccountOnly(false);
+    setSameYearOnly(false);
+    setHistoricalSearchError("");
+  }
+
+  async function completeClassification(sourceRow, selectedKeys = []) {
+    const selected = new Set(selectedKeys);
+    const selectedImportIndexes = importProposalMatches
+      .filter((row) => selected.has(getSimilarityResultKey(row)))
+      .map((row) => row.sourceRowIndex);
+    const selectedHistoryRows = historicalProposalMatches
+      .filter((row) => selected.has(getSimilarityResultKey(row)));
+
+    try {
+      setHistoricalSearchError("");
+      if (selectedHistoryRows.length) {
+        setHistoricalSearchLoading(true);
+        await applyClassificationToOwnedHistory(sourceRow, selectedHistoryRows);
+      }
+      const nextRows = applyClassificationToImportRows(rows, sourceRow, selectedImportIndexes);
+      onRowsChange?.(nextRows);
+      resetSimilarityAssistant();
+      focusFirstRemainingRow(nextRows);
+    } catch (error) {
+      setHistoricalSearchError(error?.message || "Application du classement historique impossible.");
+    } finally {
+      setHistoricalSearchLoading(false);
+    }
+  }
+
+  async function handleRequestCreateFixedExpenseFromSelection() {
+    console.log("[CREATE FIXED]", "service =", "ImportValidationStep");
+    console.log("[CREATE FIXED]", "function =", "handleRequestCreateFixedExpenseFromSelection");
+    if (!identicalProposal || typeof onRequestCreateFixedExpense !== "function") {
+      return;
+    }
+
+    const selectedImportRows = importProposalMatches.filter((row) => checkedIdenticalRows.has(getSimilarityResultKey(row)));
+    const selectedHistoryRows = historicalProposalMatches.filter((row) => checkedIdenticalRows.has(getSimilarityResultKey(row)));
+
+    console.log("[CREATE FIXED]", "next =", "onRequestCreateFixedExpense({...})");
+    await onRequestCreateFixedExpense({
+      sourceRow: identicalProposal.sourceRow,
+      selectedRows: [...selectedImportRows, ...selectedHistoryRows],
+      sourceScope: similarityScope,
+    });
+  }
+
+  function openSimilarityAssistant(row, mode = "manual") {
+    const matches = findSimilarUnvalidatedImportRows(rows, row).map((match) => ({ ...match, resultSource: "import" }));
+    setSimilarityScope("import");
+    setIgnoreAmountDifferences(false);
+    setSameAccountOnly(false);
+    setSameYearOnly(false);
+    setHistoricalSearchError("");
+    setIdenticalProposal({ sourceRow: row, mode });
+    setCheckedIdenticalRows(new Set(matches.map(getSimilarityResultKey)));
+  }
+
+  function validateRowClassification(row) {
+    const merchantMatches = findSimilarUnvalidatedImportRows(rows, row, { ignoreAmountDifferences: true });
+    if (!merchantMatches.length) {
+      completeClassification(row);
+      return;
+    }
+    openSimilarityAssistant(row, "automatic");
+  }
+
+  function updateSimilarityCriteria(patch) {
+    if (!identicalProposal) return;
+    const nextCriteria = { ignoreAmountDifferences, sameAccountOnly, sameYearOnly, ...patch };
+    setIgnoreAmountDifferences(nextCriteria.ignoreAmountDifferences);
+    setSameAccountOnly(nextCriteria.sameAccountOnly);
+    setSameYearOnly(nextCriteria.sameYearOnly);
+    updateSimilaritySelection(similarityScope, nextCriteria, historicalCandidates);
+  }
+
+  async function updateSimilarityScope(nextScope) {
+    setSimilarityScope(nextScope);
+    setHistoricalSearchError("");
+    if (!identicalProposal) return;
+
+    if (nextScope === "import") {
+      setHistoricalSearchLoading(false);
+      updateSimilaritySelection(nextScope, similarityCriteria, historicalCandidates);
+      return;
+    }
+
+    if (!uid) {
+      setHistoricalSearchError("Utilisateur non authentifié.");
+      setSimilarityScope("import");
+      updateSimilaritySelection("import", similarityCriteria, historicalCandidates);
+      return;
+    }
+
+    if (historicalCandidates.length) {
+      updateSimilaritySelection(nextScope, similarityCriteria, historicalCandidates);
+      return;
+    }
+
+    const requestId = historicalSearchRequestRef.current + 1;
+    historicalSearchRequestRef.current = requestId;
+
+    try {
+      setHistoricalSearchLoading(true);
+      const candidates = await searchOwnedHistoricalTransactions(identicalProposal.sourceRow, { cache: historicalSearchCache.current });
+      if (historicalSearchRequestRef.current !== requestId) {
+        return;
+      }
+      setHistoricalCandidates(candidates);
+      updateSimilaritySelection(nextScope, similarityCriteria, candidates);
+    } catch (error) {
+      if (historicalSearchRequestRef.current !== requestId) {
+        return;
+      }
+      setHistoricalSearchError(error?.message || "Recherche dans l’historique impossible.");
+      setSimilarityScope("import");
+      updateSimilaritySelection("import", similarityCriteria, historicalCandidates);
+    } finally {
+      if (historicalSearchRequestRef.current === requestId) {
+        setHistoricalSearchLoading(false);
+      }
+    }
+  }
+
+  function closeSimilarityAssistant() {
+    const sourceRowIndex = identicalProposal?.sourceRow?.sourceRowIndex;
+    resetSimilarityAssistant();
+    if (sourceRowIndex === undefined) return;
+    window.requestAnimationFrame(() => rowRefs.current.get(sourceRowIndex)?.focus());
+  }
+
+  function toggleIdenticalRow(resultKey) {
+    setCheckedIdenticalRows((previous) => {
+      const next = new Set(previous);
+      if (next.has(resultKey)) next.delete(resultKey);
+      else next.add(resultKey);
+      return next;
+    });
+  }
   function ignoreClassificationSuggestion(row) {
     const patch = row.classificationSuggestion?.patch || {};
     updateRowPreservingScroll(row, {
@@ -301,6 +504,11 @@ export default function ImportValidationStep({
           <Box
             data-import-validation-row="true"
             key={`${row.fingerprint}-${row.sourceRowIndex}`}
+            ref={(node) => {
+              if (node) rowRefs.current.set(row.sourceRowIndex, node);
+              else rowRefs.current.delete(row.sourceRowIndex);
+            }}
+            tabIndex={-1}
             sx={{
               border: "1px solid rgba(20, 41, 43, 0.1)",
               borderLeft: "4px solid",
@@ -617,12 +825,109 @@ export default function ImportValidationStep({
               </TextField>
             </Box>
 
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ justifySelf: "start" }}>
+              <Button variant="contained" onClick={() => validateRowClassification(row)}>
+                Valider ce classement
+              </Button>
+              <Button variant="outlined" onClick={() => openSimilarityAssistant(row, "manual")}>
+                🔍 Rechercher des opérations similaires
+              </Button>
+            </Stack>
+
             <Typography variant="caption" color="text.secondary">
               Statut: {row.importStatus} • Doublon: {row.duplicateStatus} • Confiance: {Math.round(Number(row.confidenceScore || 0) * 100)}% • Transfert: {row.transferConfirmed ? "confirme" : row.transferCandidate ? "a confirmer" : "non"}
             </Typography>
           </Box>
         ))}
       </Stack>
+
+      <Dialog open={Boolean(identicalProposal)} onClose={closeSimilarityAssistant} fullWidth maxWidth="sm">
+        <DialogTitle>Rechercher des opérations similaires</DialogTitle>
+        <DialogContent dividers>
+          <FormControl component="fieldset" sx={{ mb: 1.5 }}>
+            <FormLabel component="legend" sx={{ fontWeight: 800, color: "text.primary", mb: 0.75 }}>
+              Portée de la recherche
+            </FormLabel>
+            <RadioGroup
+              value={similarityScope}
+              onChange={(event) => updateSimilarityScope(event.target.value)}
+            >
+              <FormControlLabel value="import" control={<Radio />} label="Cet import uniquement" />
+              <FormControlLabel value="history" control={<Radio />} label="Historique uniquement" />
+              <FormControlLabel value="both" control={<Radio />} label="Cet import + historique" />
+            </RadioGroup>
+          </FormControl>
+
+          <Box sx={{ mb: 1.5, p: 1.25, borderRadius: 2, bgcolor: "rgba(246, 248, 244, 0.72)", border: "1px solid rgba(20, 41, 43, 0.1)" }}>
+            <Typography variant="h6">Résultats</Typography>
+            <Typography variant="body2">{proposalMatches.length} opérations trouvées</Typography>
+            <Typography variant="body2">Import : {importProposalMatches.length}</Typography>
+            <Typography variant="body2">Historique : {historicalProposalMatches.length}</Typography>
+          </Box>
+
+          <Typography variant="body2" sx={{ mb: 1.5 }}>
+            Critère actuel : Même commerçant + {ignoreAmountDifferences ? "montant indifférent" : "même montant"}
+            {sameAccountOnly ? " + même compte" : ""}{sameYearOnly ? " + même année" : ""}
+          </Typography>
+
+          <Stack spacing={0.25} sx={{ mb: 1.5 }}>
+            <FormControlLabel disabled control={<Checkbox checked />} label="Même commerçant (libellé normalisé)" />
+            <FormControlLabel disabled control={<Checkbox checked={!ignoreAmountDifferences} />} label="Même montant" />
+            <FormControlLabel
+              control={<Checkbox checked={ignoreAmountDifferences} onChange={(event) => updateSimilarityCriteria({ ignoreAmountDifferences: event.target.checked })} />}
+              label="Ignorer les différences de montant"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={sameAccountOnly} onChange={(event) => updateSimilarityCriteria({ sameAccountOnly: event.target.checked })} />}
+              label="Même compte uniquement"
+            />
+            <FormControlLabel
+              control={<Checkbox checked={sameYearOnly} onChange={(event) => updateSimilarityCriteria({ sameYearOnly: event.target.checked })} />}
+              label="Même année uniquement"
+            />
+          </Stack>
+
+          {historicalSearchLoading && <Typography color="text.secondary" sx={{ mb: 1 }}>Recherche dans l’historique…</Typography>}
+          {historicalSearchError && <Alert severity="error" sx={{ mb: 1 }}>{historicalSearchError}</Alert>}
+
+          <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+            <Button size="small" onClick={() => setCheckedIdenticalRows(new Set(proposalMatches.map(getSimilarityResultKey)))}>Tout sélectionner</Button>
+            <Button size="small" onClick={() => setCheckedIdenticalRows(new Set())}>Tout désélectionner</Button>
+          </Stack>
+
+          <Stack spacing={0.75}>
+            {proposalMatches.map((match) => {
+              const resultKey = getSimilarityResultKey(match);
+              return (
+                <Box key={resultKey}>
+                  <FormControlLabel
+                    control={<Checkbox checked={checkedIdenticalRows.has(resultKey)} onChange={() => toggleIdenticalRow(resultKey)} />}
+                    label={`${match.operationDate || "Date inconnue"} ${match.rawLabel} · ${formatAmount(match.amount)}`}
+                  />
+                  <Stack direction="row" spacing={1} alignItems="center" sx={{ ml: 4 }}>
+                    <Chip
+                      size="small"
+                      color={match.resultSource === "history" ? "info" : "success"}
+                      label={match.resultSource === "history" ? "Historique" : "Import actuel"}
+                    />
+                    <Typography variant="caption" color="text.secondary">
+                      ✓ {describeSimilarImportRowMatch(identicalProposal.sourceRow, match)}
+                    </Typography>
+                  </Stack>
+                </Box>
+              );
+            })}
+            {!proposalMatches.length && !historicalSearchLoading && <Typography color="text.secondary">Aucune opération trouvée avec ces critères.</Typography>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeSimilarityAssistant} disabled={historicalSearchLoading}>Annuler</Button>
+          <Button variant="outlined" disabled={!identicalProposal || typeof onRequestCreateFixedExpense !== "function"} onClick={handleRequestCreateFixedExpenseFromSelection}>
+            Créer un frais fixe
+          </Button>
+          <Button variant="contained" disabled={historicalSearchLoading} onClick={() => identicalProposal && completeClassification(identicalProposal.sourceRow, [...checkedIdenticalRows])}>Appliquer</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

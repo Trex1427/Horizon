@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState } from "react";
-import { Alert, Box, CircularProgress, Stack, useMediaQuery, useTheme } from "@mui/material";
+import { Alert, Box, CircularProgress, Stack, useMediaQuery, useTheme } from "../components/ui/foundations/MuiPrimitives";
 import { useRecurringIncome } from "../hooks/useRecurringIncome";
 import { useAccounts } from "../hooks/useAccounts";
 import { useCategories } from "../hooks/useCategories";

@@ -14,8 +14,8 @@ import { planWorkInvoiceDeletion } from "./workInvoiceDeletionModel.js";
 const INVOICES = "workInvoices";
 const MAX_BYTES = Number(import.meta.env.VITE_WORK_DOCUMENT_MAX_BYTES || WORK_DOCUMENT_MAX_BYTES);
 
-export function subscribeToWorkInvoices(onData, onError) {
-  const ownerUid = requireCurrentUid(auth);
+export function subscribeToWorkInvoices(onData, onError, options = {}) {
+  const ownerUid = options.ownerUid || requireCurrentUid(auth);
   return onSnapshot(
     query(collection(db, INVOICES), where("ownerUid", "==", ownerUid)),
     (snapshot) => onData(sortWorkInvoices(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })).filter((item) => item.isDeleted !== true))),

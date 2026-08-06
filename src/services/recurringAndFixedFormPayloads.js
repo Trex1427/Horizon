@@ -50,6 +50,11 @@ export function validateFixedExpenseForm(formData = {}) {
     nextErrors.startDate = "La date de début est requise";
   }
 
+  const amountType = toTrimmedString(formData.amountType || "fixed");
+  if (amountType !== "fixed" && amountType !== "variable") {
+    nextErrors.amountType = "Le type de montant est invalide";
+  }
+
   return nextErrors;
 }
 
@@ -58,13 +63,13 @@ export function buildFixedExpensePayload(formData = {}, categories = [], initial
   const normalizedCategory = getNormalizedCategory(selectedCategory, formData.categoryName || formData.category || initialExpense?.categoryName || "");
   const selectedSubcategory = subcategories.find((subcategory) => (
     subcategory.id === formData.subcategoryId
-    && subcategory.categoryId === normalizedCategory.categoryId
     && subcategory.isActive !== false
   ));
 
   return {
     name: toTrimmedString(formData.name),
     ...normalizedCategory,
+    amountType: toTrimmedString(formData.amountType || "fixed") === "variable" ? "variable" : "fixed",
     subcategoryId: selectedSubcategory?.id || null,
     subcategoryName: selectedSubcategory?.name || null,
     accountId: formData.accountId || null,

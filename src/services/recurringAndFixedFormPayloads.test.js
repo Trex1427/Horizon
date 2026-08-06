@@ -34,6 +34,19 @@ test("validateFixedExpenseForm reports required fields", () => {
   assert.equal(errors.startDate, "La date de début est requise");
 });
 
+test("validateFixedExpenseForm rejects invalid amountType", () => {
+  const errors = validateFixedExpenseForm({
+    name: "EDF",
+    categoryId: "dep-1",
+    accountId: "acc-1",
+    initialAmount: "30",
+    startDate: "2026-01-01",
+    amountType: "unexpected",
+  });
+
+  assert.equal(errors.amountType, "Le type de montant est invalide");
+});
+
 test("validateRecurringIncomeForm reports required fields", () => {
   const errors = validateRecurringIncomeForm({});
   assert.equal(errors.name, "Le nom est requis");
@@ -49,6 +62,7 @@ test("buildFixedExpensePayload normalizes values and preserves variations", () =
       name: "  EDF  ",
       categoryId: "dep-1",
       accountId: "acc-1",
+      amountType: "variable",
       frequency: "annual",
       initialAmount: "120.5",
       startDate: "2026-07-01",
@@ -64,6 +78,7 @@ test("buildFixedExpensePayload normalizes values and preserves variations", () =
   assert.equal(payload.categoryId, "dep-1");
   assert.equal(payload.categoryName, "Logement");
   assert.equal(payload.category, "Logement");
+  assert.equal(payload.amountType, "variable");
   assert.equal(payload.description, "facture");
   assert.equal(payload.variations[0].note, "ajustement");
 });
@@ -135,4 +150,5 @@ test("buildFixedExpensePayload keeps legacy category-only fixed expenses compati
 
   assert.equal(payload.subcategoryId, null);
   assert.equal(payload.subcategoryName, null);
+  assert.equal(payload.amountType, "fixed");
 });

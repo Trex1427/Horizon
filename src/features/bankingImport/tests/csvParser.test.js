@@ -224,3 +224,65 @@ test("parseCsvContent keeps categoryId null and source string immutable while in
   assert.equal(result.transactions[0].categoryId, null);
   assert.equal(result.transactions[1].categoryId, null);
 });
+test("parseCsvContent detects every operation in the real Credit Agricole Windows-1252 fixture", async () => {
+  const bytes = await readFile(resolve(fixturesDir, "CA20260803_064845.csv"));
+  const csv = new TextDecoder("windows-1252").decode(bytes);
+  const result = parseCsvContent(csv, {
+    sourceFileName: "CA20260803_064845.csv",
+    accountId: "acc-credit-agricole",
+  });
+
+  assert.equal(result.requiresMapping, false);
+  assert.equal(result.transactions.length, 458);
+  assert.equal(result.transactions[0].operationDate, "2026-08-03");
+  assert.equal(result.rawRows[0].rawLabel, "Avoir\nCARTE X2648 AMAZON EU SARL 31/07 - Amazon");
+  assert.equal(result.rawRows[3].rawLabel, "Paiement par carte\nX2648 U EXPRESS 13 EGUILLE 29/07 - U Express");
+  assert.equal(result.transactions[3].amount, -45.47);
+});
+
+test("parseCsvContent gives the same 458 operations after UTF-8 transcoding of the real fixture", async () => {
+  const windows1252Bytes = await readFile(resolve(fixturesDir, "CA20260803_064845.csv"));
+  const windows1252Content = new TextDecoder("windows-1252").decode(windows1252Bytes);
+  const utf8Bytes = new TextEncoder().encode(windows1252Content);
+  const utf8Content = new TextDecoder("utf-8", { fatal: true }).decode(utf8Bytes);
+  const result = parseCsvContent(utf8Content, {
+    sourceFileName: "CA20260803_064845-utf8.csv",
+    accountId: "acc-credit-agricole",
+  });
+
+  assert.equal(result.requiresMapping, false);
+  assert.equal(result.transactions.length, 458);
+  assert.equal(result.headers.includes("Libell\u00e9"), true);
+});
+
+test("parseCsvContent supports escaped double quotes inside a multiline quoted label", () => {
+  const csv = [
+    "Date;Libell\u00e9;D\u00e9bit euros;Cr\u00e9dit euros;",
+    "03/08/2026;\"Paiement par carte",
+    "X2648 \"\"U EXPRESS\"\"\";45,47;;",
+  ].join("\r\n");
+  const result = parseCsvContent(csv, {
+    sourceFileName: "quoted-multiline.csv",
+    accountId: "acc-credit-agricole",
+  });
+
+  assert.equal(result.transactions.length, 1);
+  assert.equal(result.rawRows[0].rawLabel, 'Paiement par carte\r\nX2648 "U EXPRESS"');
+  assert.equal(result.transactions[0].amount, -45.47);
+});
+
+test("parseCsvContent does not accept an unterminated quoted record as a ready operation", () => {
+  const csv = [
+    "Date;Libell\u00e9;D\u00e9bit euros;Cr\u00e9dit euros;",
+    "03/08/2026;\"Paiement incomplet",
+    "suite sans guillemet;45,47;;",
+  ].join("\n");
+  const result = parseCsvContent(csv, {
+    sourceFileName: "malformed.csv",
+    accountId: "acc-credit-agricole",
+  });
+
+  assert.equal(result.transactions.length, 1);
+  assert.equal(result.transactions[0].importStatus, "review_required");
+  assert.equal(result.transactions[0].warnings.includes("montant_invalide"), true);
+});

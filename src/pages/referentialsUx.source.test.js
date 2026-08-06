@@ -7,10 +7,10 @@ async function source(path) {
   return readFile(resolve(process.cwd(), path), "utf8");
 }
 
-test("Referentiels exposes the six reference surfaces with shared UX controls", async () => {
+test("Referentiels exposes the pilot-center reference surfaces with shared UX controls", async () => {
   const content = await source("src/pages/Referentiels.jsx");
 
-  for (const label of ["Comptes", "Sous-catégories", "Activités", "Tiers", "Projets"]) {
+  for (const label of ["Catégories", "Sous-catégories", "Activités", "Tiers", "Projets", "Frais fixes", "Revenus récurrents"]) {
     assert.equal(content.includes(label), true);
   }
   assert.equal(content.includes("ReferenceHeader"), true);
@@ -19,18 +19,19 @@ test("Referentiels exposes the six reference surfaces with shared UX controls", 
   assert.equal(content.includes("StatusChip"), true);
   assert.equal(content.includes("Effacer la recherche"), true);
   assert.equal(content.includes("Actions "), true);
+  assert.equal(content.includes("ReferentialPilotDrawer"), true);
 });
 
-test("Referentiels keeps local search and status filters without service changes", async () => {
+test("Referentiels keeps local search, status filters and sort controls without engine changes", async () => {
   const content = await source("src/pages/Referentiels.jsx");
 
   assert.equal(content.includes("applySearch"), true);
   assert.equal(content.includes("statusByTab"), true);
-  assert.equal(content.includes("useAccounts"), false);
+  assert.equal(content.includes("sortByTab"), true);
   assert.equal(content.includes("accounts = []"), true);
 });
 
-test("Referentiels connects account CRUD and gives every add action the same focused form behavior", async () => {
+test("Referentiels keeps CRUD entry points and receives the transaction-opening callback", async () => {
   const content = await source("src/pages/Referentiels.jsx");
   const app = await source("src/App.jsx");
 
@@ -47,10 +48,18 @@ test("Referentiels connects account CRUD and gives every add action the same foc
   assert.match(content, /addAccount/);
   assert.match(content, /updateAccount/);
   assert.match(content, /deleteAccount/);
-  assert.doesNotMatch(content, /Lecture seule: aucun éditeur direct dédié/);
   assert.match(app, /<Referentiels/);
   for (const prop of ["accounts", "addAccount", "updateAccount", "deleteAccount"]) {
     assert.match(app, new RegExp(`${prop}=\\{${prop}\\}`));
+  }
+  assert.match(app, /onOpenTransactionsFiltered=\{openTransactionsWithContext\}/);
+});
+
+test("Referentiels pilot center exposes impact preview and cross-reference opening", async () => {
+  const content = await source("src/pages/Referentiels.jsx");
+
+  for (const label of ["Fusionner", "Remplacer par...", "Réactiver", "Désactiver", "openReferenceDetail", "mergePreview", "Aperçu d'impact"]) {
+    assert.equal(content.includes(label), true, label);
   }
 });
 

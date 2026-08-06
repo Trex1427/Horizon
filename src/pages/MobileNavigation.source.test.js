@@ -12,7 +12,7 @@ test("mobile navigation exposes the five M1 actions and safe areas", async () =>
   assert.match(content, /label="Transactions"/);
   assert.match(content, /value=\{PAGES\.TRAVAIL\} label="Travail"/);
   assert.match(content, /value=\{PAGES\.ANALYSE\} label="Analyse"/);
-  assert.match(content, /value="MORE" label="Plus"/);
+  assert.match(content, /value="MORE"[\s\S]*label="Plus"/);
   assert.match(content, /gridTemplateColumns: "repeat\(5, minmax\(0, 1fr\)\)"/);
   assert.match(content, /overflowX: "hidden"/);
   assert.match(content, /safe-area-inset-bottom/);
@@ -23,16 +23,18 @@ test("mobile navigation exposes the five M1 actions and safe areas", async () =>
 test("Plus is active on secondary pages and closes after navigation", async () => {
   const content = await readFile(appPath, "utf8");
   assert.match(content, /MOBILE_SECONDARY_PAGES\.includes\(page\) \? "MORE"/);
+  assert.match(content, /value="MORE"[\s\S]*onClick=\{\(\) => \{[\s\S]*setMoreDrawerOpen\(true\);[\s\S]*\}\}/);
   assert.match(content, /selected=\{item\.page === page/);
   assert.match(content, /navigateToPage\(item\.page\);[\s\S]*setMoreDrawerOpen\(false\);/);
-  assert.match(content, /onClose=\{\(\) => setMoreDrawerOpen\(false\)\}/);
+  assert.match(content, /onClose=\{\(event, reason\) => \{[\s\S]*setMoreDrawerOpen\(false\);[\s\S]*\}\}/);
   assert.match(content, /anchor="bottom"/);
   assert.match(content, /minHeight: 56/);
 });
 
 test("browser history, refresh and back navigation are wired without replacing desktop navigation", async () => {
   const content = await readFile(appPath, "utf8");
-  assert.match(content, /getPageFromLocation\(typeof window/);
+  assert.match(content, /const \[page, setPage\] = useState\(\(\) => \{/);
+  assert.match(content, /normalizeHomePage/);
   assert.match(content, /window\.history\[replace \? "replaceState" : "pushState"\]/);
   assert.match(content, /window\.addEventListener\("popstate", handlePopState\)/);
   assert.match(content, /window\.removeEventListener\("popstate", handlePopState\)/);

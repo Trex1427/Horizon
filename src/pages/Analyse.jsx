@@ -9,13 +9,15 @@ import {
 	Stack,
 	TextField,
 	Typography,
-} from "@mui/material";
-import AccountBalanceWallet from "@mui/icons-material/AccountBalanceWallet";
-import PieChart from "@mui/icons-material/PieChart";
-import Savings from "@mui/icons-material/Savings";
-import TrendingDown from "@mui/icons-material/TrendingDown";
-import TrendingUp from "@mui/icons-material/TrendingUp";
-import WarningAmber from "@mui/icons-material/WarningAmber";
+} from "../components/ui/foundations/MuiPrimitives";
+import {
+	AccountBalanceWallet,
+	PieChart,
+	Savings,
+	TrendingDown,
+	TrendingUp,
+	WarningAmber,
+} from "../components/ui/icons/MuiIcons";
 import { useTransactionsContext } from "../context/TransactionsContext";
 import { useFixedExpenses } from "../hooks/useFixedExpenses";
 import { useRecurringIncome } from "../hooks/useRecurringIncome";

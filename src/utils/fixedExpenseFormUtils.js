@@ -1,17 +1,15 @@
-export function getFixedExpenseSubcategoryOptions(subcategories = [], categoryId = "") {
-  if (!categoryId) return [];
+import { getCanonicalCategoryId, getSubcategoriesForCanonicalCategory } from "./categorySelectionModel.js";
 
-  return subcategories.filter((subcategory) => (
-    subcategory?.isActive !== false
-    && String(subcategory?.categoryId || "") === String(categoryId)
-  ));
+export function getFixedExpenseSubcategoryOptions(subcategories = [], categoryId = "", categoryReference = {}) {
+  return getSubcategoriesForCanonicalCategory(subcategories, categoryId, categoryReference);
 }
 
-export function resetIncompatibleFixedExpenseSubcategory(formData = {}, nextCategoryId = "", subcategories = []) {
-  const compatible = getFixedExpenseSubcategoryOptions(subcategories, nextCategoryId)
+export function resetIncompatibleFixedExpenseSubcategory(formData = {}, nextCategoryId = "", subcategories = [], categoryReference = {}) {
+  const canonicalCategoryId = getCanonicalCategoryId(categoryReference, nextCategoryId);
+  const compatible = getFixedExpenseSubcategoryOptions(subcategories, canonicalCategoryId, categoryReference)
     .some((subcategory) => String(subcategory.id) === String(formData.subcategoryId || ""));
 
   return compatible
-    ? { ...formData, categoryId: nextCategoryId }
-    : { ...formData, categoryId: nextCategoryId, subcategoryId: "", subcategoryName: "" };
+    ? { ...formData, categoryId: canonicalCategoryId }
+    : { ...formData, categoryId: canonicalCategoryId, subcategoryId: "", subcategoryName: "" };
 }

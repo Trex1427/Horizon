@@ -9,7 +9,7 @@ import {
   Stack,
   TextField,
   Typography,
-} from "@mui/material";
+} from "../components/ui/foundations/MuiPrimitives";
 import ImportHistorySection from "../features/bankingImport/components/ImportHistorySection";
 import BetaJournalSection from "../components/BetaJournalSection";
 import {
@@ -18,7 +18,7 @@ import {
   resetHorizonData,
 } from "../services/maintenanceService";
 
-export default function Paramètres() {
+export default function Paramètres({ onOpenDashboardV2 }) {
   const [confirmationValue, setConfirmationValue] = useState("");
   const [maintenanceMessage, setMaintenanceMessage] = useState("");
   const [maintenanceError, setMaintenanceError] = useState("");
@@ -91,6 +91,15 @@ export default function Paramètres() {
       <Typography variant="h5" sx={{ fontWeight: 700 }}>Paramètres</Typography>
 
       <Stack spacing={2} divider={<Divider flexItem />}>
+        <Box sx={{ display: "grid", gap: 1 }}>
+          <Typography variant="h6">Interface expérimentale</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Accès temporaire au nouveau Dashboard V2 pendant sa phase de validation.
+          </Typography>
+          <Button variant="outlined" onClick={onOpenDashboardV2} sx={{ width: "fit-content" }}>
+            Ouvrir Dashboard V2
+          </Button>
+        </Box>
         <Box sx={{ display: "grid", gap: 1 }}>
           <Typography variant="h6">À propos</Typography>
           <Typography variant="body2">Horizon</Typography>

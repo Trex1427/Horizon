@@ -1,8 +1,6 @@
 ﻿import { useMemo, useState } from "react";
-import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField, Typography, useMediaQuery } from "@mui/material";
-import Add from "@mui/icons-material/Add";
-import Clear from "@mui/icons-material/Clear";
-import Search from "@mui/icons-material/Search";
+import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, Stack, TextField, Typography, useMediaQuery } from "../components/ui/foundations/MuiPrimitives";
+import { Add, Clear, Search } from "../components/ui/icons/MuiIcons";
 import { useCategories } from "../hooks/useCategories";
 import { CategoryCard } from "../components/CategoryCard";
 import { CategoryForm } from "../components/CategoryForm";

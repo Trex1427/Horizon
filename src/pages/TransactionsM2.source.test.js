@@ -8,7 +8,7 @@ const read = (path) => readFile(resolve(process.cwd(), path), "utf8");
 test("Transactions M2 exposes compact mobile controls and deferred full-screen filters", async () => {
   const source = await read("src/pages/Transactions.jsx");
   assert.match(source, /isMobileTransactionsView/);
-  assert.match(source, /Ajouter\s*<\/Button>/);
+  assert.match(source, /Ajouter une transaction/);
   assert.match(source, /fullScreen=\{isMobileTransactionsView\}/);
   assert.match(source, /function applyFiltersDialog/);
   assert.match(source, /Filtres \(\$\{activeFiltersCount\}\)/);

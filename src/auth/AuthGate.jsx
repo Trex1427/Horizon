@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Button, CircularProgress, Paper, Stack, TextField, Typography } from "@mui/material";
 import Google from "@mui/icons-material/Google";
 import Logout from "@mui/icons-material/Logout";
@@ -51,6 +51,20 @@ export function AuthGate({ children }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState("");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    console.log("[NAV_TRACE]", new Date().toISOString(), "AuthGate:state", {
+      href: window.location.href,
+      pathname: window.location.pathname,
+      search: window.location.search,
+      hash: window.location.hash,
+      loading,
+      isAuthenticated,
+      isAuthorized,
+      uid,
+    });
+  }, [isAuthenticated, isAuthorized, loading, uid]);
 
   const handleEmailSubmit = async (event) => {
     event.preventDefault();

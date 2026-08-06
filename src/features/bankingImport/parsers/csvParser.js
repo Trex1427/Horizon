@@ -2,45 +2,25 @@ import { detectCsvMapping } from "../detectors/detectCsvMapping.js";
 import { normalizeImportedTransaction } from "../normalizers/normalizeImportedTransaction.js";
 import { parseLocalizedNumber } from "../normalizers/normalizeAmount.js";
 
-function splitCsvLine(line = "", delimiter = ";") {
-  const cells = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const nextChar = line[index + 1];
-
-    if (char === '"') {
-      if (inQuotes && nextChar === '"') {
-        current += '"';
-        index += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-      continue;
-    }
-
-    if (char === delimiter && !inQuotes) {
-      cells.push(current.trim());
-      current = "";
-      continue;
-    }
-
-    current += char;
-  }
-
-  cells.push(current.trim());
-  return cells;
-}
-
-function detectDelimiter(lines = []) {
+function detectDelimiter(content = "") {
   const candidates = [";", ",", "\t"];
   let bestDelimiter = ";";
   let bestScore = -1;
 
   candidates.forEach((delimiter) => {
-    const score = lines.slice(0, 5).reduce((sum, line) => sum + splitCsvLine(line, delimiter).length, 0);
+    const rows = parseDelimitedRows(content, delimiter).slice(0, 30);
+    const headerRowIndex = pickHeaderRow(rows);
+    const headers = rows[headerRowIndex] || [];
+    const sampleRows = rows.slice(headerRowIndex + 1, headerRowIndex + 6);
+    const detected = detectCsvMapping(headers, sampleRows);
+    const mappedCoreFields = [
+      detected.mapping.operationDate,
+      detected.mapping.label,
+      detected.mapping.amount || detected.mapping.debit || detected.mapping.credit,
+    ].filter(Boolean).length;
+    const consistentRows = sampleRows.filter((row) => row.length === headers.length).length;
+    const score = (mappedCoreFields * 1000) + (consistentRows * 10) + headers.length;
+
     if (score > bestScore) {
       bestScore = score;
       bestDelimiter = delimiter;
@@ -49,7 +29,6 @@ function detectDelimiter(lines = []) {
 
   return bestDelimiter;
 }
-
 function parseDelimitedRows(content = "", delimiter = ";") {
   const rows = [];
   let row = [];
@@ -134,11 +113,7 @@ function parseCsvRows(content = "") {
     .replace(/^\uFEFF/, "")
     .replace(/[\u00A0\u202F]/g, " ")
     .replace(/[\r\n]+$/g, "");
-  const lines = sanitized
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0);
-
-  const delimiter = detectDelimiter(lines);
+  const delimiter = detectDelimiter(sanitized);
   const rows = parseDelimitedRows(sanitized, delimiter);
   const headerRowIndex = pickHeaderRow(rows);
 

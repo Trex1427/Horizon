@@ -21,25 +21,28 @@ export default function ImportMappingStep({
   onAccountChange,
   onMappingChange,
 }) {
+  const selectedAccountId = accountId;
+
   return (
     <Box sx={{ display: "grid", gap: 1.5 }}>
       <Typography variant="body2" color="text.secondary">
-        Choisissez le compte Horizon, puis verifiez que les colonnes du releve sont bien reconnues.
+        {accounts.length >= 2 ? "Choisissez le compte Horizon, puis verifiez que les colonnes du releve sont bien reconnues." : "Le compte Horizon disponible est selectionne automatiquement. Verifiez les colonnes du releve."}
       </Typography>
 
-      <TextField
-        select
-        fullWidth
-        label="Compte Horizon"
-        value={accountId}
-        onChange={(event) => onAccountChange?.(event.target.value)}
-        size="small"
-      >
-        {accounts.map((account) => (
-          <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>
-        ))}
-      </TextField>
-
+      {accounts.length >= 2 && (
+        <TextField
+          select
+          fullWidth
+          label="Compte Horizon"
+          value={accountId}
+          onChange={(event) => onAccountChange?.(event.target.value)}
+          size="small"
+        >
+          {accounts.map((account) => (
+            <MenuItem key={account.id} value={account.id}>{account.name}</MenuItem>
+          ))}
+        </TextField>
+      )}
       {format === "pdf" ? (
         <Alert severity="info">
           PDF Revolut reconnu. Les operations peuvent etre verifiees directement.

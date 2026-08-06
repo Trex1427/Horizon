@@ -3,13 +3,8 @@ import {
   Alert, Box, Button, Card, CardActions, CardContent, Chip, CircularProgress, Dialog,
   DialogActions, DialogContent, DialogTitle, FormControlLabel, IconButton, MenuItem,
   Stack, Switch, Tab, Tabs, TextField, Typography, useMediaQuery,
-} from "@mui/material";
-import Add from "@mui/icons-material/Add";
-import Archive from "@mui/icons-material/Archive";
-import Description from "@mui/icons-material/Description";
-import Edit from "@mui/icons-material/Edit";
-import FolderOpen from "@mui/icons-material/FolderOpen";
-import UploadFile from "@mui/icons-material/UploadFile";
+} from "../components/ui/foundations/MuiPrimitives";
+import { Add, Archive, Description, Edit, FolderOpen, UploadFile } from "../components/ui/icons/MuiIcons";
 import { useProfessionalActivities } from "../hooks/useProfessionalActivities.js";
 import { useWorkProjects } from "../hooks/useWorkProjects.js";
 import { useWorkProjectTransactions } from "../hooks/useWorkProjectTransactions.js";

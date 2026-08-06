@@ -62,3 +62,47 @@ test("ImportValidationStep displays and can ignore bank import classification su
   assert.equal(content.includes("classificationSuggestionApplied: false"), true);
   assert.equal(content.includes("Ignorer"), true);
 });
+test("ImportValidationStep keeps the classification context after every reference creation", async () => {
+  const content = await readFile(componentPath, "utf8");
+
+  for (const kind of ["category", "subcategory", "thirdParty", "activity", "project"]) {
+    assert.equal(content.includes(`requestQuickCreate(row, "${kind}")`), true);
+  }
+  assert.equal(content.includes("onCreated: buildOnCreated"), true);
+  assert.equal(content.includes("rowRefs.current.get(row.sourceRowIndex)?.focus()"), true);
+  assert.equal(content.includes("restoreListScroll(scrollPosition)"), true);
+});
+
+test("ImportValidationStep exposes the live similarity search assistant", async () => {
+  const content = await readFile(componentPath, "utf8");
+
+  assert.equal(content.includes("🔍 Rechercher des opérations similaires"), true);
+  assert.equal(content.includes("openSimilarityAssistant(row, \"manual\")"), true);
+  assert.equal(content.includes("Portée de la recherche"), true);
+  assert.equal(content.includes("Cet import uniquement"), true);
+  assert.equal(content.includes("Historique uniquement"), true);
+  assert.equal(content.includes("Cet import + historique"), true);
+  assert.equal(content.includes("value={similarityScope}"), true);
+  assert.equal(content.includes("onChange={(event) => updateSimilarityScope(event.target.value)}"), true);
+  assert.equal(content.includes("Résultats"), true);
+  assert.equal(content.includes("Import : {importProposalMatches.length}"), true);
+  assert.equal(content.includes("Historique : {historicalProposalMatches.length}"), true);
+  assert.equal(content.includes("findSimilarUnvalidatedImportRows"), true);
+  assert.equal(content.includes("proposalMatches.length} opérations trouvées"), true);
+  assert.equal(content.includes("updateSimilarityCriteria"), true);
+  assert.equal(content.includes("updateSimilaritySelection"), true);
+  assert.equal(content.includes("Ignorer les différences de montant"), true);
+  assert.equal(content.includes("Même compte uniquement"), true);
+  assert.equal(content.includes("Même année uniquement"), true);
+  assert.equal(content.includes("Tout sélectionner"), true);
+  assert.equal(content.includes("Tout désélectionner"), true);
+  assert.equal(content.includes("describeSimilarImportRowMatch"), true);
+  assert.equal(content.includes("checked={checkedIdenticalRows.has(resultKey)}"), true);
+  assert.equal(content.includes("focusFirstRemainingRow(nextRows)"), true);
+  assert.equal(content.includes("rowRefs.current.get(sourceRowIndex)?.focus()"), true);
+  assert.equal(content.includes("searchOwnedHistoricalTransactions"), true);
+  assert.equal(content.includes("Import actuel"), true);
+  assert.equal(content.includes("Historique"), true);
+  assert.equal(content.includes("Créer un frais fixe"), true);
+  assert.equal(content.includes("onRequestCreateFixedExpense"), true);
+});

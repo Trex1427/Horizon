@@ -221,6 +221,107 @@ test("fixed expense linked to an actual transaction is not counted twice and kee
   assert.equal(month(result, "2026-08").closingBalance, 942.75);
 });
 
+test("variable fixed expense avoids duplicate forecast when real amount differs", () => {
+  const result = calculateAnnualTrajectory({
+    accounts: [currentAccount],
+    transactions: [
+      { id: "orange-august", accountId: "account-current", date: "2026-08-12", type: "depense", montant: 34.99, merchant: "Orange", accountId: "account-current" },
+    ],
+    fixedExpenses: [
+      {
+        id: "fixed-orange",
+        accountId: "account-current",
+        name: "Orange",
+        thirdPartyName: "Orange",
+        amountType: "variable",
+        startDate: "2026-01-12",
+        frequency: "monthly",
+        initialAmount: 29.99,
+        isActive: true,
+      },
+    ],
+    year: 2026,
+    referenceDate: new Date(2026, 7, 15),
+  });
+
+  assert.equal(month(result, "2026-08").actualExpense, 34.99);
+  assert.equal(month(result, "2026-08").expectedFixedExpenses, 0);
+});
+
+test("two real transactions on one due raise an anomaly and still suppress the forecast", () => {
+  const result = calculateAnnualTrajectory({
+    accounts: [currentAccount],
+    transactions: [
+      { id: "netflix-1", accountId: "account-current", date: "2026-08-05", type: "depense", montant: 29.99, merchant: "Netflix" },
+      { id: "netflix-2", accountId: "account-current", date: "2026-08-06", type: "depense", montant: 29.99, merchant: "Netflix" },
+    ],
+    fixedExpenses: [
+      { id: "fx-netflix", accountId: "account-current", name: "Netflix", thirdPartyName: "Netflix", startDate: "2026-01-05", frequency: "monthly", initialAmount: 29.99, isActive: true },
+    ],
+    year: 2026,
+    referenceDate: new Date(2026, 7, 15),
+  });
+
+  assert.equal(month(result, "2026-08").expectedFixedExpenses, 0);
+  assert.equal(month(result, "2026-08").fixedExpenseAnomalyCount, 1);
+  assert.equal(month(result, "2026-08").fixedExpenseForecastCount, 0);
+});
+
+test("one early transaction cannot cover two consecutive due occurrences", () => {
+  const result = calculateAnnualTrajectory({
+    accounts: [currentAccount],
+    transactions: [
+      { id: "rent-early", accountId: "account-current", date: "2026-03-30", type: "depense", montant: 450, merchant: "Rent" },
+    ],
+    fixedExpenses: [
+      { id: "rent", accountId: "account-current", name: "Rent", thirdPartyName: "Rent", startDate: "2026-01-10", frequency: "monthly", initialAmount: 450, isActive: true },
+    ],
+    year: 2026,
+    referenceDate: new Date(2026, 3, 1),
+  });
+
+  assert.equal(month(result, "2026-03").expectedFixedExpenses, 0);
+  assert.equal(month(result, "2026-04").expectedFixedExpenses, 0);
+  assert.equal(month(result, "2026-03").fixedExpenseForecastCount, 0);
+  assert.equal(month(result, "2026-04").fixedExpenseTransactionCount, 1);
+});
+
+test("annual trajectory scales with several thousand transactions without invalid numbers", () => {
+  const transactions = [];
+  for (let index = 0; index < 6000; index += 1) {
+    transactions.push({
+      id: `tx-${index}`,
+      accountId: "account-current",
+      date: `2026-${String((index % 12) + 1).padStart(2, "0")}-12`,
+      type: index % 2 === 0 ? "depense" : "revenu",
+      montant: (index % 200) + 1,
+      merchant: index % 2 === 0 ? "Netflix" : "Salary",
+    });
+  }
+
+  const result = calculateAnnualTrajectory({
+    accounts: [currentAccount],
+    transactions,
+    fixedExpenses: [
+      {
+        id: "fx-netflix",
+        accountId: "account-current",
+        name: "Netflix",
+        amountType: "variable",
+        initialAmount: 15,
+        startDate: "2026-01-12",
+        frequency: "monthly",
+        isActive: true,
+      },
+    ],
+    year: 2026,
+    referenceDate: new Date(2026, 7, 15),
+  });
+
+  assert.equal(result.length, 12);
+  assert.equal(result.every((entry) => Number.isFinite(Number(entry.closingBalance))), true);
+});
+
 test("unlinked historical fallback matching prevents recurring income double counting", () => {
   const result = calculateAnnualTrajectory({
     accounts: [currentAccount],

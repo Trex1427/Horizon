@@ -195,6 +195,7 @@ export default function BankingImportWizard({
   onRequestCreateThirdParty,
   onRequestCreateProject,
   onRequestCreateAccount,
+  onRequestCreateFixedExpense,
   onImportCompleted,
 }) {
   const isMobile = useMediaQuery("(max-width:600px)");
@@ -224,6 +225,11 @@ export default function BankingImportWizard({
     }
   }, [defaultAccountId, open]);
 
+  useEffect(() => {
+    if (accounts.length === 1 && selectedAccountId !== accounts[0].id) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
   const selectedAccountName = useMemo(
     () => accounts.find((account) => account.id === selectedAccountId)?.name || "",
     [accounts, selectedAccountId]
@@ -249,6 +255,37 @@ export default function BankingImportWizard({
     return hasImportRows && !hasReviewRows && !hasErrorsOnImportRows;
   }, [validationRows]);
   const importStats = useMemo(() => countImportStats(validationRows), [validationRows]);
+
+  async function handleRequestCreateFixedExpense(sourcePayload = {}) {
+    console.log("[CREATE FIXED]", "service =", "BankingImportWizard");
+    console.log("[CREATE FIXED]", "function =", "handleRequestCreateFixedExpense");
+    if (typeof onRequestCreateFixedExpense !== "function") {
+      return "";
+    }
+
+    console.log("[CREATE FIXED]", "next =", "onRequestCreateFixedExpense(sourcePayload)");
+    const fixedExpenseId = await onRequestCreateFixedExpense(sourcePayload);
+    if (!fixedExpenseId) {
+      return "";
+    }
+
+    const affectedRowIndexes = new Set([
+      sourcePayload?.sourceRow?.sourceRowIndex,
+      ...(Array.isArray(sourcePayload?.selectedRows) ? sourcePayload.selectedRows.map((row) => row?.sourceRowIndex) : []),
+    ].filter((value) => value !== undefined && value !== null));
+
+    if (affectedRowIndexes.size > 0) {
+      setValidationRows((previous) => previous.map((row) => (
+        affectedRowIndexes.has(row.sourceRowIndex)
+          ? { ...row, fixedExpenseId }
+          : row
+      )));
+    }
+
+    return fixedExpenseId;
+  }
+
+  console.log("[WIZARD] accounts =", accounts);
 
   async function handleFileSelected(file) {
     logWizardDiagnostic({
@@ -512,6 +549,9 @@ export default function BankingImportWizard({
           )}
 
           {activeStep === STEP_MAPPING && analysisState?.analysis && (
+            <>
+              {console.log("WIZARD accounts =", accounts)}
+              {console.log("WIZARD length =", accounts?.length)}
             <ImportMappingStep
               accounts={accounts}
               accountId={selectedAccountId}
@@ -522,6 +562,7 @@ export default function BankingImportWizard({
               onAccountChange={setSelectedAccountId}
               onMappingChange={handleMappingChange}
             />
+            </>
           )}
 
           {activeStep === STEP_PREVIEW && (
@@ -547,6 +588,7 @@ export default function BankingImportWizard({
               onRequestCreateThirdParty={onRequestCreateThirdParty}
               onRequestCreateProject={onRequestCreateProject}
               onRequestCreateAccount={onRequestCreateAccount}
+              onRequestCreateFixedExpense={handleRequestCreateFixedExpense}
               onRowsChange={setValidationRows}
             />
           )}

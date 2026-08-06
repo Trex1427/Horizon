@@ -13,10 +13,11 @@ test("App renders the Budgets page that mounts the subcategory-enabled BudgetFor
   ]);
 
   assert.equal(app.includes('const Budgets = lazy(() => import("./pages/Budgets"))'), true);
-  assert.equal(app.includes('{page === PAGES.BUDGETS && <Budgets />}'), true);
+  assert.equal(app.includes("page === PAGES.BUDGETS"), true);
+  assert.equal(app.includes("onOpenTransactionsFiltered={openTransactionsWithContext}"), true);
   assert.equal(page.includes('import { BudgetForm } from "../components/BudgetForm"'), true);
   assert.equal(page.includes("const { subcategories } = useSubcategories()"), true);
   assert.equal(page.includes("subcategories={subcategories}"), true);
-  assert.equal(form.includes('label="Sous-catégorie (optionnelle)"'), true);
+  assert.equal(form.includes('label="Sous-catégorie"'), true);
   assert.equal(form.includes('name="subcategoryId"'), true);
 });

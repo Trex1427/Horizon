@@ -3,12 +3,16 @@ import {
   calculateBudgetSpentAmount,
   calculateCurrentAccountsBalance,
   findMatchedExpectedItemIds,
-  isDateInRange,
-  matchesExpectedTransaction,
   selectNonOverlappingBudgetsForForecast,
   toDateValue,
 } from "./financeCalculations.js";
 import { getRecurringIncomeApplicableAmount } from "../utils/recurringIncomeAmount.js";
+import {
+  FIXED_EXPENSE_OCCURRENCE_STATES,
+  buildFixedExpenseReconciliationLedger,
+  buildReconciliationTransactionIndex,
+  evaluateFixedExpenseOccurrenceCoverage,
+} from "./reconciliationService.js";
 
 function toNumber(value) {
   return Number(value) || 0;
@@ -22,10 +26,6 @@ function getMonthBounds(referenceDate = new Date()) {
     start: new Date(year, month, 1),
     end: new Date(year, month + 1, 0, 23, 59, 59, 999),
   };
-}
-
-function isDateInCurrentMonth(targetDate, monthBounds) {
-  return isDateInRange(targetDate, monthBounds.start, monthBounds.end);
 }
 
 function normalizeFrequency(value) {
@@ -159,33 +159,24 @@ export function calculateMonthlyForecast({
     matchedRecurringIncomeIds.has(String(income.id)) ? sum : sum + income.expectedAmount
   ), 0);
 
-  const pendingFixedExpenseOccurrences = (fixedExpenses || [])
-    .filter((fixedExpense) => isRecurringItemDueThisMonth(fixedExpense, monthBounds))
-    .reduce((occurrences, fixedExpense) => {
-      const amount = getApplicableAmount(fixedExpense, monthBounds.end);
-      if (amount <= 0) return occurrences;
-
-      const alreadyRealized = (transactions || []).some((transaction) =>
-        (String(transaction?.fixedExpenseId || "") === String(fixedExpense?.id || "")
-          && transaction?.type === "depense"
-          && isDateInCurrentMonth(toDateValue(transaction?.date), monthBounds))
-        || matchesExpectedTransaction(transaction, fixedExpense, {
-          expectedType: "depense",
-          expectedAmount: amount,
-          monthStart: monthBounds.start,
-          monthEnd: monthBounds.end,
-        })
-      );
-
-      if (!alreadyRealized) {
-        occurrences.push({
-          ...fixedExpense,
-          amount,
-          montant: amount,
-        });
-      }
-      return occurrences;
-    }, []);
+  const transactionIndex = buildReconciliationTransactionIndex(transactions || []);
+  const fixedExpenseLedger = buildFixedExpenseReconciliationLedger({
+    fixedExpenses: fixedExpenses || [],
+    transactions: transactions || [],
+    transactionIndex,
+    periodStart: monthBounds.start,
+    periodEnd: monthBounds.end,
+    referenceDate,
+  });
+  const pendingFixedExpenseOccurrences = (fixedExpenseLedger.byMonth.get(`${monthBounds.start.getFullYear()}-${String(monthBounds.start.getMonth() + 1).padStart(2, "0")}`) || [])
+    .filter((occurrence) => occurrence.state === FIXED_EXPENSE_OCCURRENCE_STATES.FORECAST)
+    .map((occurrence) => ({
+      ...occurrence.fixedExpense,
+      amount: occurrence.expectedAmount,
+      montant: occurrence.expectedAmount,
+      occurrenceId: occurrence.id,
+      expectedDate: occurrence.expectedDate,
+    }));
 
   const expectedFixedExpenses = pendingFixedExpenseOccurrences
     .reduce((sum, occurrence) => sum + toNumber(occurrence.amount), 0);

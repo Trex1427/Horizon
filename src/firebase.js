@@ -60,5 +60,5 @@ if (emulatorEnabled) {
 }
 
 export { db };
-export { auth, googleProvider };
+export { app, auth, googleProvider };
 export const storage = getStorage(app);

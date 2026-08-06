@@ -22,8 +22,8 @@ async function loadActiveOwnerBudgets(ownerUid) {
   return snapshot.docs.map((documentSnapshot) => ({ id: documentSnapshot.id, ...documentSnapshot.data() }));
 }
 
-export function subscribeToBudgets(onData, onError) {
-  const ownerUid = requireCurrentUid(auth);
+export function subscribeToBudgets(onData, onError, options = {}) {
+  const ownerUid = options.ownerUid || requireCurrentUid(auth);
   return onSnapshot(
     query(collection(db, BUDGETS_COLLECTION), where("ownerUid", "==", ownerUid), where("isActive", "==", true)),
     (snapshot) => {

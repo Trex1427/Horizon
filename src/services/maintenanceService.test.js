@@ -9,7 +9,23 @@ const EXPECTED_FULL_COLLECTIONS = [
   "fixedExpenses",
   "recurringIncome",
   "objectives",
+  "vehicles",
+  "workProjects",
+  "workQuotes",
+  "workInvoices",
+  "professionalActivities",
+  "debtsReceivables",
+  "debtReceivablePayments",
+  "opportunities",
+  "transfers",
+  "documents",
+  "categories",
+  "subcategories",
+  "thirdParties",
+  "activities",
+  "projects",
   "bankImports",
+  "receiptDrafts",
   "transactionDrafts",
 ];
 
@@ -61,7 +77,7 @@ function createInMemoryTransport(initialState = {}, options = {}) {
   };
 }
 
-test("full reset removes targeted collections and preserves system collections", async () => {
+test("full reset removes targeted collections", async () => {
   const transport = createInMemoryTransport({
     transactions: ["t1", "t2", "t3"],
     accounts: ["a1", "a2"],
@@ -72,10 +88,6 @@ test("full reset removes targeted collections and preserves system collections",
     transactionDrafts: ["d1"],
     objectives: ["o1"],
     categories: ["cat-system-1", "cat-system-2"],
-    settings: ["settings-main"],
-    preferences: ["pref-main"],
-    theme: ["theme-main"],
-    version: ["version-main"],
   });
 
   const summary = await resetHorizonData({
@@ -106,11 +118,30 @@ test("full reset removes targeted collections and preserves system collections",
     assert.deepEqual(snapshot[collectionName] || [], []);
   });
 
-  assert.deepEqual(snapshot.categories, ["cat-system-1", "cat-system-2"]);
-  assert.deepEqual(snapshot.settings, ["settings-main"]);
-  assert.deepEqual(snapshot.preferences, ["pref-main"]);
-  assert.deepEqual(snapshot.theme, ["theme-main"]);
-  assert.deepEqual(snapshot.version, ["version-main"]);
+  assert.deepEqual(summary.preservedCollections, []);
+  assert.deepEqual(snapshot.categories, []);
+});
+
+test("full reset can preserve selected collections", async () => {
+  const transport = createInMemoryTransport({
+    transactions: ["t1"],
+    categories: ["cat-system-1", "cat-system-2"],
+    subcategories: ["sub-system-1"],
+  });
+
+  const summary = await resetHorizonData({
+    mode: "full",
+    excludedCollections: ["categories", "subcategories"],
+    transport,
+  });
+
+  const snapshot = transport.getStoreSnapshot();
+
+  assert.equal(summary.hadErrors, false);
+  assert.deepEqual(summary.preservedCollections.sort(), ["categories", "subcategories"]);
+  assert.deepEqual(snapshot.transactions, []);
+  assert.deepEqual(snapshot.categories.sort(), ["cat-system-1", "cat-system-2"]);
+  assert.deepEqual(snapshot.subcategories, ["sub-system-1"]);
 });
 
 test("summary reports errors and never marks global success when deletion fails", async () => {

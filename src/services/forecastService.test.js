@@ -114,6 +114,34 @@ test("linked fixed-expense occurrence substitutes forecast even when actual amou
   assert.equal(forecast.expectedFixedExpenses, 0);
 });
 
+test("variable fixed-expense occurrence substitutes forecast without explicit link", () => {
+  const fixedExpense = {
+    id: "fixed-orange",
+    name: "Orange",
+    thirdPartyName: "Orange",
+    accountId: "account-current",
+    amountType: "variable",
+    initialAmount: 29.99,
+    frequency: "monthly",
+    startDate: "2026-01-01",
+    isActive: true,
+  };
+  const forecast = calculateMonthlyForecast({
+    fixedExpenses: [fixedExpense],
+    transactions: [{
+      id: "orange-august",
+      date: "2026-08-10",
+      montant: 34.99,
+      type: "depense",
+      merchant: "Orange",
+      accountId: "account-current",
+    }],
+    referenceDate: new Date(2026, 7, 14),
+  });
+
+  assert.equal(forecast.expectedFixedExpenses, 0);
+});
+
 test("a pending fixed expense reserves its category budget instead of being added twice", () => {
   const fixedExpense = {
     id: "fixed-edf",

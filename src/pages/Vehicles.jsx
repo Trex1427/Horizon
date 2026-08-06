@@ -3,12 +3,8 @@ import {
   Alert, Box, Button, Card, CardContent, Chip, CircularProgress,
   Grid, IconButton, Paper, Stack, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, Typography,
-} from "@mui/material";
-import Add from "@mui/icons-material/Add";
-import ArrowBack from "@mui/icons-material/ArrowBack";
-import Delete from "@mui/icons-material/Delete";
-import DirectionsCar from "@mui/icons-material/DirectionsCar";
-import Edit from "@mui/icons-material/Edit";
+} from "../components/ui/foundations/MuiPrimitives";
+import { Add, ArrowBack, Delete, DirectionsCar, Edit } from "../components/ui/icons/MuiIcons";
 import { useAccounts } from "../hooks/useAccounts.js";
 import { useCategories } from "../hooks/useCategories.js";
 import { useVehicles } from "../hooks/useVehicles.js";

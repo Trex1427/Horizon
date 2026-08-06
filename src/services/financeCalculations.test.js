@@ -51,6 +51,42 @@ test("matchesBudgetPeriod filters transaction within inclusive period", () => {
   assert.equal(matchesBudgetPeriod(budget, { date: "2026-08-01" }), false);
 });
 
+test("matchesBudgetPeriod supports monthly budgets", () => {
+  const budget = { periodicity: "monthly" };
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-07-05" }, { referenceDate: "2026-07-20" }), true);
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-06-30" }, { referenceDate: "2026-07-20" }), false);
+});
+
+test("matchesBudgetPeriod supports quarterly budgets", () => {
+  const budget = { periodicity: "quarterly" };
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-05-01" }, { referenceDate: "2026-06-10" }), true);
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-07-01" }, { referenceDate: "2026-06-10" }), false);
+});
+
+test("matchesBudgetPeriod supports semi-annual budgets", () => {
+  const budget = { periodicity: "semiAnnual" };
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-04-01" }, { referenceDate: "2026-05-10" }), true);
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-10-01" }, { referenceDate: "2026-05-10" }), false);
+});
+
+test("matchesBudgetPeriod supports annual budgets", () => {
+  const budget = { periodicity: "annual" };
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-01-01" }, { referenceDate: "2026-08-10" }), true);
+  assert.equal(matchesBudgetPeriod(budget, { date: "2027-01-01" }, { referenceDate: "2026-08-10" }), false);
+});
+
+test("matchesBudgetPeriod supports custom budgets", () => {
+  const budget = { periodicity: "custom", startDate: "2026-03-01", endDate: "2026-03-31" };
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-03-20" }), true);
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-04-01" }), false);
+});
+
+test("matchesBudgetPeriod supports rolling monthly budgets", () => {
+  const budget = { periodicity: "monthly", rollingPeriod: true };
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-07-16" }, { referenceDate: "2026-08-15" }), true);
+  assert.equal(matchesBudgetPeriod(budget, { date: "2026-07-14" }, { referenceDate: "2026-08-15" }), false);
+});
+
 test("calculateBudgetSpentAmount sums only matching depense transactions", () => {
   const budget = {
     categoryId: "cat-food",

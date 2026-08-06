@@ -17,7 +17,7 @@ test("editable finance pages enable the shared Desktop double-click convention",
   ].map(source));
 
   for (const content of pages) {
-    assert.match(content, /useMediaQuery\("\(min-width:900px\)"\)/);
+    assert.match(content, /useMediaQuery\("\(min-width:900px\)"\)|useMediaQuery\(breakpoints\.up\.md\)/);
     assert.match(content, /enableDoubleClickEdit=\{enableDesktopDoubleClickEdit\}/);
   }
 });
@@ -32,8 +32,8 @@ test("editable cards reuse their existing edit callback on Desktop double-click"
 
   assert.match(category, /if \(enableDoubleClickEdit\) handleEdit\(\)/);
   assert.match(category, /onDoubleClick=\{\(event\) => event\.stopPropagation\(\)\}/);
-  assert.match(fixedExpense, /onEditClick=\{\(\) => onEdit\(fixedExpense\)\}/);
-  assert.match(budget, /onEditClick=\{\(\) => onEdit\(budget\)\}/);
+  assert.match(fixedExpense, /onOpenClick=\{\(\) => onViewTransactions\?\.\(fixedExpense\)\}/);
+  assert.match(budget, /onOpenClick=\{\(\) => onOpenDetails\?\.\(budget\)\}/);
   assert.match(objective, /onEditClick=\{handleEditClick\}/);
 });
 

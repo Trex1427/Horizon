@@ -17,6 +17,7 @@
     "test:accounts-emulator": "firebase emulators:exec --only firestore \"node scripts/integration/default-accounts-idempotency-emulator.mjs\"",
     "test:opportunity-realized": "firebase emulators:exec --only firestore \"node scripts/integration/opportunity-realized-transaction-emulator.mjs\"",
     "test:local-read": "firebase emulators:exec --only firestore \"node scripts/integration/seed-and-local-read-check.mjs\"",
+    "test:e2e:v2-stabilization": "node scripts/e2e/horizon-v2-stabilization-cdp.mjs",
     "test:guard-refusal": "node scripts/integration/verify-guard-refusal.mjs",
     "test:remote-untouched": "node scripts/integration/verify-remote-untouched.mjs",
     "test:e2e": "firebase emulators:exec --only firestore \"node scripts/e2e/playwright-write-safety-check.mjs\"",
@@ -34,6 +35,7 @@
     "inventory:ux-test-data": "node scripts/maintenance/cleanup-ux-test-references.mjs --report-tag=manual",
     "cleanup:ux-test-data": "node scripts/maintenance/cleanup-ux-test-references.mjs --apply --confirm-run --report-tag=manual",
     "lint": "eslint .",
+    "lint:stabilization": "node scripts/validation/verify-eslint-baseline.mjs",
     "preview": "vite preview",
     "test:rules:work-invoices": "firebase emulators:exec --only firestore \"node scripts/integration/work-invoices-rules-emulator.mjs\""
   },
@@ -43,6 +45,7 @@
     "@mui/icons-material": "^9.1.1",
     "@mui/material": "^9.1.2",
     "firebase": "^12.15.0",
+    "lucide-react": "^1.28.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },

@@ -138,6 +138,67 @@ function getFiniteAmount(value) {
   return Number.isFinite(amount) ? amount : 0;
 }
 
+function NetWorthTrendCard({ currentBalance, trajectory = [] }) {
+  const rows = Array.isArray(trajectory) ? trajectory : [];
+  const decemberBalance = getFiniteAmount(rows[11]?.closingBalance);
+  const safeCurrentBalance = getFiniteAmount(currentBalance);
+  const projectionChange = safeCurrentBalance
+    ? ((decemberBalance - safeCurrentBalance) / Math.abs(safeCurrentBalance)) * 100
+    : 0;
+  const chartValues = rows.map((row) => getFiniteAmount(
+    row?.status === "current" ? row?.balanceAtReferenceDate : row?.closingBalance
+  ));
+  const values = chartValues.length > 0 ? chartValues : [0];
+  const minValue = Math.min(...values);
+  const maxValue = Math.max(...values);
+  const valueRange = Math.max(maxValue - minValue, 1);
+  const points = chartValues.map((value, index) => ({
+    x: chartValues.length > 1 ? (index / (chartValues.length - 1)) * 100 : 0,
+    y: 54 - ((value - minValue) / valueRange) * 46,
+    status: rows[index]?.status,
+  }));
+  const firstProjectedIndex = points.findIndex((point) => point.status === "current" || point.status === "forecast");
+  const actualEndIndex = firstProjectedIndex >= 0 ? firstProjectedIndex : points.length - 1;
+  const actualPoints = points.slice(0, actualEndIndex + 1).map((point) => `${point.x},${point.y}`).join(" ");
+  const projectedPoints = points.slice(Math.max(actualEndIndex, 0)).map((point) => `${point.x},${point.y}`).join(" ");
+  const formattedChange = new Intl.NumberFormat("fr-FR", {
+    style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1, signDisplay: "exceptZero",
+  }).format(projectionChange / 100);
+
+  return (
+    <Box sx={{ ...CARD_SX, minHeight: { xs: 330, sm: 350 } }}>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <ShowChart fontSize="small" sx={{ color: HORIZON_COLORS.green }} />
+        <Typography variant="h6" sx={{ fontWeight: 800 }}>Évolution du patrimoine net</Typography>
+      </Stack>
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>Patrimoine actuel</Typography>
+        <Typography sx={{ mt: 0.25, color: HORIZON_COLORS.ink, fontSize: { xs: "1.65rem", sm: "1.9rem" }, fontWeight: 900 }}>{formatCurrency(currentBalance)}</Typography>
+      </Box>
+      <Box sx={{ mt: 2, pt: 2, borderTop: "1px solid", borderColor: HORIZON_COLORS.line }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+          <Box>
+            <Typography variant="caption" sx={{ display: "block", color: HORIZON_COLORS.muted, fontWeight: 800 }}>Projection au 31 décembre</Typography>
+            <Typography sx={{ mt: 0.25, color: HORIZON_COLORS.green, fontSize: { xs: "1.2rem", sm: "1.35rem" }, fontWeight: 900 }}>{formatCurrency(decemberBalance)}</Typography>
+          </Box>
+          <Chip label={formattedChange} size="small" variant="outlined" sx={{ color: HORIZON_COLORS.green, borderColor: `${HORIZON_COLORS.green}55`, fontWeight: 800 }} />
+        </Stack>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.75 }}>Prévision basée sur la trajectoire annuelle</Typography>
+      </Box>
+      <Box sx={{ mt: 1.5 }}>
+        <Box component="svg" viewBox="0 0 100 60" role="img" aria-label="Historique en ligne pleine et projection jusqu'au 31 décembre en ligne pointillée" sx={{ display: "block", width: "100%", height: 82, overflow: "visible" }}>
+          <line x1="0" y1="58" x2="100" y2="58" stroke={HORIZON_COLORS.line} strokeWidth="0.8" />
+          {actualPoints && <polyline points={actualPoints} fill="none" stroke={HORIZON_COLORS.ink} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />}
+          {projectedPoints && <polyline points={projectedPoints} fill="none" stroke={HORIZON_COLORS.green} strokeWidth="2.4" strokeDasharray="4 4" strokeLinecap="round" strokeLinejoin="round" />}
+        </Box>
+        <Stack direction="row" spacing={2} aria-hidden="true">
+          <Stack direction="row" spacing={0.75} alignItems="center"><Box sx={{ width: 22, borderTop: `2px solid ${HORIZON_COLORS.ink}` }} /><Typography variant="caption" color="text.secondary">Historique</Typography></Stack>
+          <Stack direction="row" spacing={0.75} alignItems="center"><Box sx={{ width: 22, borderTop: `2px dashed ${HORIZON_COLORS.green}` }} /><Typography variant="caption" color="text.secondary">Projection</Typography></Stack>
+        </Stack>
+      </Box>
+    </Box>
+  );
+}
 function MonthAmountLine({ label, value, color = "text.secondary" }) {
   return (
     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="space-between" sx={{ minWidth: 0 }}>
@@ -436,6 +497,7 @@ export default function HorizonCockpit({
   onOpenInvoices = null,
   onOpenAnalysis = null,
 }) {
+  console.log("[RENDER] HorizonCockpit component");
   const {
     balance = 0,
     remaining = 0,
@@ -443,7 +505,6 @@ export default function HorizonCockpit({
     totalExpense = 0,
     monthlySavings = 0,
     recentTransactions = [],
-    yearTrend = [],
     transactionCount = 0,
     accountBalances = [],
     monthlyIncomeCategoryData = { catégories: [], total: 0 },
@@ -459,7 +520,6 @@ export default function HorizonCockpit({
 
   const { objectives = [], loading: objectivesLoading } = useObjectives();
   const objectivesList = Array.isArray(objectives) ? objectives : [];
-  const trendData = Array.isArray(yearTrend) ? yearTrend : [];
   const transactionsToShow = Array.isArray(recentTransactions) ? recentTransactions : [];
   const trajectoryRows = Array.isArray(annualTrajectory) ? annualTrajectory : [];
   const trajectoryYear = getTrajectoryYear(trajectoryRows);
@@ -706,35 +766,7 @@ export default function HorizonCockpit({
         </Grid>
 
         <Grid item xs={12} md={5}>
-          <Box sx={CARD_SX}>
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
-              <ShowChart fontSize="small" sx={{ color: HORIZON_COLORS.blue }} />
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                Tendance realisee
-              </Typography>
-            </Stack>
-            <Stack direction="row" spacing={1} alignItems="flex-end" sx={{ height: 130 }}>
-              {trendData.map((month) => {
-                const height = Math.max(18, Math.min(110, 30 + Math.abs(month.net) / 12));
-                return (
-                  <Box key={month.label} sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <Box
-                      sx={{
-                        width: "100%",
-                        height: `${height}px`,
-                        borderRadius: "999px 999px 0 0",
-                        bgcolor: month.net >= 0 ? HORIZON_COLORS.green : HORIZON_COLORS.red,
-                        opacity: month.net === 0 ? 0.35 : 0.9,
-                      }}
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                      {month.label}
-                    </Typography>
-                  </Box>
-                );
-              })}
-            </Stack>
-          </Box>
+          <NetWorthTrendCard currentBalance={balance} trajectory={trajectoryRows} />
         </Grid>
       </Grid>
 

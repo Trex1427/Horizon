@@ -5,12 +5,12 @@ import { readFile } from "node:fs/promises";
 const hookUrl = new URL("./useAccounts.js", import.meta.url);
 const serviceUrl = new URL("../services/accountsService.js", import.meta.url);
 
-test("useAccounts remains read-only on empty, cached, offline and repeated snapshots", async () => {
+test("useAccounts initializes the new-user environment before subscribing", async () => {
   const source = await readFile(hookUrl, "utf8");
 
-  assert.doesNotMatch(source, /initializeDefaultAccountsIfEmpty/);
-  assert.doesNotMatch(source, /hasAnyAccountDocuments/);
-  assert.doesNotMatch(source, /defaultAccountDefinitions|commitDefaultAccounts|batch\.set/i);
+  assert.match(source, /initializeDefaultAccountsIfEmpty/);
+  assert.match(source, /seedDefaultCategories/);
+  assert.match(source, /seedDefaultSubcategories/);
   assert.match(source, /subscribeToAccounts/);
   assert.match(source, /setAccounts\(data\)/);
 });
@@ -26,9 +26,9 @@ test("account existence decisions are server-only and never fall back to getDocs
   assert.doesNotMatch(existenceFunction, /catch\s*\(/);
 });
 
-test("default initialization is retained only as an explicitly documented service action", async () => {
+test("default initialization remains delegated to the account service", async () => {
   const source = await readFile(serviceUrl, "utf8");
 
-  assert.match(source, /Explicit onboarding\/admin action only/);
   assert.match(source, /initializeDefaultAccountsIfEmptyWithAdapter/);
+  assert.match(source, /commitDefaultAccounts/);
 });

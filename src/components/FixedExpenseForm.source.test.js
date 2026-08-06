@@ -11,7 +11,7 @@ test("FraisFixes passes active subcategory references to the visible form", asyn
   const form = await read("src/components/FixedExpenseForm.jsx");
   assert.equal(page.includes("useSubcategories()"), true);
   assert.equal(page.includes("subcategories={subcategories}"), true);
-  assert.equal(form.includes('label="Sous-catégorie (optionnelle)"'), true);
+  assert.equal(form.includes('label="Sous-catégorie"'), true);
   assert.equal(form.includes('name="subcategoryId"'), true);
   assert.equal(form.includes('subcategoryId: initialExpense.subcategoryId || ""'), true);
   assert.equal(form.includes("resetIncompatibleFixedExpenseSubcategory"), true);
@@ -19,8 +19,8 @@ test("FraisFixes passes active subcategory references to the visible form", asyn
 
 test("fixed expense form exposes service errors and prevents repeated submit", async () => {
   const form = await read("src/components/FixedExpenseForm.jsx");
-  assert.equal(form.includes('errors.submit && <Alert severity="error">'), true);
-  assert.equal(form.includes("submitting={isLoading || submitting}"), true);
+  assert.equal(form.includes('errors.submit ? <ErrorState'), true);
+  assert.equal(form.includes('{isLoading || submitting ? "Enregistrement..."'), true);
 });
 
 test("fixed expense list distinguishes category and subcategory", async () => {

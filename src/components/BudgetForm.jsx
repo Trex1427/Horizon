@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Alert,
-  MenuItem,
-  Stack,
-  TextField,
-} from "@mui/material";
 import { getSafeCategoryLabel, isTechnicalCategoryDisplayValue } from "../utils/displayTextUtils";
 import { normalizeTransactionType } from "../utils/transactionTypeUtils";
-import EntityFormDialog from "./EntityFormDialog";
 import { getBudgetSubcategoryOptions, resetIncompatibleBudgetSubcategory } from "../utils/budgetFormUtils";
+import { buildExpenseCategoryReference, getCanonicalCategoryId } from "../utils/categorySelectionModel";
+import {
+  CurrencyInput,
+  DatePicker,
+  Dialog,
+  ErrorState,
+  Input,
+  PrimaryButton,
+  SectionCard,
+  SecondaryButton,
+  Select,
+} from "./ui";
 
 const defaultForm = {
   name: "",
@@ -18,9 +23,24 @@ const defaultForm = {
   subcategoryName: "",
   accountId: "",
   amount: "",
+  periodicity: "annual",
+  rollingPeriod: false,
   startDate: "",
   endDate: "",
 };
+
+const PERIODICITY_OPTIONS = [
+  { value: "monthly", label: "Mensuelle" },
+  { value: "quarterly", label: "Trimestrielle" },
+  { value: "semiAnnual", label: "Semestrielle" },
+  { value: "annual", label: "Annuelle" },
+  { value: "custom", label: "Personnalisée" },
+];
+
+const TRACKING_OPTIONS = [
+  { value: "fixed", label: "Période fixe" },
+  { value: "rolling", label: "Période glissante" },
+];
 
 export function BudgetForm({
   open,
@@ -35,36 +55,38 @@ export function BudgetForm({
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submissionInFlightRef = useRef(false);
+  const categoryReference = useMemo(
+    () => buildExpenseCategoryReference(categories, subcategories),
+    [categories, subcategories]
+  );
   const categoryOptions = useMemo(() => {
-    const seen = new Set();
+    const canonicalOptions = categoryReference.categoryOptions;
+    if (canonicalOptions.length > 0) return canonicalOptions;
 
     return categories
       .filter((category) => normalizeTransactionType(category.type) === "depense")
-      .filter((category) => !isTechnicalCategoryDisplayValue(category.name))
-      .filter((category) => {
-        const key = String(category.name || "").trim().toLowerCase();
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
-  }, [categories]);
+      .filter((category) => !isTechnicalCategoryDisplayValue(category.name));
+  }, [categories, categoryReference]);
   const subcategoryOptions = useMemo(
-    () => getBudgetSubcategoryOptions(subcategories, formData.categoryId),
-    [formData.categoryId, subcategories]
+    () => getBudgetSubcategoryOptions(subcategories, formData.categoryId, categoryReference),
+    [categoryReference, formData.categoryId, subcategories]
   );
 
   useEffect(() => {
     if (initialBudget) {
-      const selectedCategory = categories.find((category) => category.id === initialBudget.categoryId);
+      const canonicalCategoryId = getCanonicalCategoryId(categoryReference, initialBudget.categoryId || "");
+      const selectedCategory = categoryOptions.find((category) => category.id === canonicalCategoryId);
       const selectedSubcategory = subcategories.find((subcategory) => subcategory.id === initialBudget.subcategoryId);
       setFormData({
         name: initialBudget.name || "",
-        categoryId: initialBudget.categoryId || "",
+        categoryId: canonicalCategoryId,
         categoryName: getSafeCategoryLabel(initialBudget.categoryName || selectedCategory?.name, ""),
         subcategoryId: initialBudget.subcategoryId || "",
         subcategoryName: initialBudget.subcategoryName || selectedSubcategory?.name || "",
         accountId: initialBudget.accountId || "",
         amount: String(initialBudget.amount ?? ""),
+        periodicity: initialBudget.periodicity || "annual",
+        rollingPeriod: initialBudget.rollingPeriod === true,
         startDate: initialBudget.startDate || "",
         endDate: initialBudget.endDate || "",
       });
@@ -72,11 +94,25 @@ export function BudgetForm({
       setFormData({ ...defaultForm });
     }
     setErrors({});
-  }, [categories, initialBudget, open, subcategories]);
+  }, [categories, categoryOptions, categoryReference, initialBudget, open, subcategories]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setFormData((previous) => ({ ...previous, [name]: value }));
+    setFormData((previous) => {
+      if (name === "trackingMode") {
+        return { ...previous, rollingPeriod: value === "rolling" };
+      }
+
+      if (name === "periodicity") {
+        return {
+          ...previous,
+          periodicity: value,
+          endDate: value === "custom" ? previous.endDate : "",
+        };
+      }
+
+      return { ...previous, [name]: value };
+    });
     if (errors[name] || errors.submit) {
       setErrors((previous) => ({ ...previous, [name]: null, submit: null }));
     }
@@ -90,6 +126,11 @@ export function BudgetForm({
       nextErrors.amount = "Un montant valide est requis";
     }
     if (!formData.startDate) nextErrors.startDate = "La date de début est requise";
+    if (!formData.periodicity) nextErrors.periodicity = "La périodicité est requise";
+    if (formData.periodicity === "custom" && !formData.endDate) nextErrors.endDate = "La date de fin est requise pour une période personnalisée";
+    if (formData.periodicity === "custom" && formData.endDate && formData.startDate && formData.endDate < formData.startDate) {
+      nextErrors.endDate = "La date de fin doit être postérieure ou égale à la date de début";
+    }
 
     if (formData.subcategoryId) {
       const selectedSubcategory = subcategoryOptions.find((subcategory) => subcategory.id === formData.subcategoryId);
@@ -113,8 +154,10 @@ export function BudgetForm({
       subcategoryName: selectedSubcategory?.name || null,
       accountId: formData.accountId || null,
       amount: Number(formData.amount),
+      periodicity: formData.periodicity,
+      rollingPeriod: formData.rollingPeriod,
       startDate: formData.startDate || null,
-      endDate: formData.endDate || null,
+      endDate: formData.periodicity === "custom" ? (formData.endDate || null) : null,
       typeBudget: "depense",
       periodType: initialBudget?.periodType || "mensuel",
       isActive: initialBudget?.isActive ?? true,
@@ -140,68 +183,113 @@ export function BudgetForm({
   };
 
   return (
-    <EntityFormDialog
+    <Dialog
       open={open}
-      title={initialBudget ? "Modifier un budget" : "Ajouter un budget"}
+      title={initialBudget ? "Modifier un budget" : "Créer un budget"}
+      description="Structurez votre enveloppe avec une catégorie unique et un suivi clair."
       onClose={onClose}
-      onSubmit={handleSubmit}
-      submitting={isLoading || isSubmitting}
-      submitLabel={initialBudget ? "Enregistrer" : "Créer"}
-      maxWidth="md"
+      size="lg"
+      actions={(
+        <>
+          <SecondaryButton onClick={onClose} disabled={isLoading || isSubmitting}>Annuler</SecondaryButton>
+          <PrimaryButton onClick={handleSubmit} disabled={isLoading || isSubmitting}>
+            {isLoading || isSubmitting ? "Enregistrement..." : (initialBudget ? "Enregistrer" : "Créer")}
+          </PrimaryButton>
+        </>
+      )}
     >
-      <Stack spacing={2} sx={{ mt: 1 }}>
-        {errors.submit && <Alert severity="error">{errors.submit}</Alert>}
-        <TextField label="Nom" name="name" value={formData.name} onChange={handleChange} fullWidth error={Boolean(errors.name)} helperText={errors.name} />
-        <TextField
-          label="Catégorie"
-          name="categoryId"
-          select
-          value={formData.categoryId}
-          onChange={(event) => {
-            const nextCategoryId = event.target.value;
-            const selectedCategory = categories.find((category) => category.id === nextCategoryId);
-            setFormData((previous) => ({
-              ...resetIncompatibleBudgetSubcategory(previous, nextCategoryId, subcategories),
-              categoryName: selectedCategory?.name || "",
-            }));
-            setErrors((previous) => ({ ...previous, categoryId: null, subcategoryId: null, submit: null }));
-          }}
-          fullWidth
-          error={Boolean(errors.categoryId)}
-          helperText={errors.categoryId}
-        >
-          {categoryOptions.map((category) => (
-            <MenuItem key={category.id} value={category.id}>{getSafeCategoryLabel(category.name)}</MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          label="Sous-catégorie (optionnelle)"
-          name="subcategoryId"
-          select
-          value={formData.subcategoryId}
-          onChange={(event) => {
-            const selectedSubcategory = subcategoryOptions.find((subcategory) => subcategory.id === event.target.value);
-            setFormData((previous) => ({
-              ...previous,
-              subcategoryId: selectedSubcategory?.id || "",
-              subcategoryName: selectedSubcategory?.name || "",
-            }));
-            setErrors((previous) => ({ ...previous, subcategoryId: null, submit: null }));
-          }}
-          disabled={!formData.categoryId}
-          fullWidth
-          error={Boolean(errors.subcategoryId)}
-          helperText={errors.subcategoryId || (!formData.categoryId ? "Sélectionnez d’abord une catégorie" : "Laisser vide pour un budget global de catégorie")}
-        >
-          <MenuItem value="">Aucune — budget de catégorie</MenuItem>
-          {subcategoryOptions.map((subcategory) => (
-            <MenuItem key={subcategory.id} value={subcategory.id}>{subcategory.name}</MenuItem>
-          ))}
-        </TextField>
-        <TextField label="Montant prévu (€)" name="amount" type="number" value={formData.amount} onChange={handleChange} fullWidth error={Boolean(errors.amount)} helperText={errors.amount} inputProps={{ step: "0.01", min: "0" }} />
-        <TextField label="Date de début" name="startDate" type="date" value={formData.startDate} onChange={handleChange} fullWidth error={Boolean(errors.startDate)} helperText={errors.startDate} InputLabelProps={{ shrink: true }} />
-        <TextField label="Date de fin (optionnelle)" name="endDate" type="date" value={formData.endDate} onChange={handleChange} fullWidth InputLabelProps={{ shrink: true }} />
-      </Stack>
-    </EntityFormDialog>
+      <div>
+        {errors.submit ? <ErrorState unstyled as="div" className="hui-feedback hui-feedback--danger">{errors.submit}</ErrorState> : null}
+
+        <SectionCard title="Informations" description="Décrivez le budget et son rattachement." className="hui-card--outlined">
+          <Input label="Nom" name="name" value={formData.name} onChange={handleChange} error={errors.name} />
+          <Select
+            label="Catégorie"
+            name="categoryId"
+            value={formData.categoryId}
+            onChange={(event) => {
+              const nextCategoryId = event.target.value;
+              const canonicalCategoryId = getCanonicalCategoryId(categoryReference, nextCategoryId);
+              const selectedCategory = categoryOptions.find((category) => category.id === canonicalCategoryId);
+              setFormData((previous) => ({
+                ...resetIncompatibleBudgetSubcategory(previous, canonicalCategoryId, subcategories, categoryReference),
+                categoryName: selectedCategory?.name || "",
+              }));
+              setErrors((previous) => ({ ...previous, categoryId: null, subcategoryId: null, submit: null }));
+            }}
+            error={errors.categoryId}
+          >
+            <option value="">Sélectionner une catégorie</option>
+            {categoryOptions.map((category) => (
+              <option key={category.id} value={category.id}>{getSafeCategoryLabel(category.name)}</option>
+            ))}
+          </Select>
+          <Select
+            label="Sous-catégorie"
+            name="subcategoryId"
+            value={formData.subcategoryId}
+            onChange={(event) => {
+              const selectedSubcategory = subcategoryOptions.find((subcategory) => subcategory.id === event.target.value);
+              setFormData((previous) => ({
+                ...previous,
+                subcategoryId: selectedSubcategory?.id || "",
+                subcategoryName: selectedSubcategory?.name || "",
+              }));
+              setErrors((previous) => ({ ...previous, subcategoryId: null, submit: null }));
+            }}
+            disabled={!formData.categoryId}
+            error={errors.subcategoryId}
+            hint={!formData.categoryId ? "Sélectionnez d’abord une catégorie" : "Laisser vide pour un budget global de catégorie"}
+          >
+            <option value="">Aucune</option>
+            {subcategoryOptions.map((subcategory) => (
+              <option key={subcategory.id} value={subcategory.id}>{subcategory.name}</option>
+            ))}
+          </Select>
+        </SectionCard>
+
+        <SectionCard title="Valeurs" description="Définissez le montant, la périodicité et le type de suivi." className="hui-card--outlined">
+          <CurrencyInput
+            label="Montant"
+            name="amount"
+            value={formData.amount}
+            onChange={handleChange}
+            error={errors.amount}
+            min="0"
+            step="0.01"
+          />
+          <Select label="Périodicité" name="periodicity" value={formData.periodicity} onChange={handleChange} error={errors.periodicity}>
+            {PERIODICITY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
+          <Select label="Type" name="trackingMode" value={formData.rollingPeriod ? "rolling" : "fixed"} onChange={handleChange}>
+            {TRACKING_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </Select>
+        </SectionCard>
+
+        <SectionCard title="Dates" description="Cadrez la période de référence." className="hui-card--outlined">
+          <DatePicker label="Début" name="startDate" value={formData.startDate} onChange={handleChange} error={errors.startDate} />
+          {formData.periodicity === "custom" ? (
+            <DatePicker label="Fin" name="endDate" value={formData.endDate} onChange={handleChange} error={errors.endDate} />
+          ) : null}
+        </SectionCard>
+
+        <details>
+          <summary>Options avancées</summary>
+          <SectionCard title="Options avancées" description="Paramètres secondaires du budget." className="hui-card--outlined">
+            <Input
+              label="Compte lié (optionnel)"
+              name="accountId"
+              value={formData.accountId}
+              onChange={handleChange}
+              hint="Laissez vide pour un budget transversal."
+            />
+          </SectionCard>
+        </details>
+      </div>
+    </Dialog>
   );
 }

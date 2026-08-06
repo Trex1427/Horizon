@@ -1,20 +1,22 @@
 import { useMemo, useState } from "react";
 import {
   Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Menu,
   MenuItem,
+  Stack,
   Typography,
 } from "@mui/material";
 import { formatTargetDate } from "../utils/dateFormatter";
 import CompactFinanceCard from "./CompactFinanceCard";
 import { getSafeCategoryLabel } from "../utils/displayTextUtils";
+import { buildFixedExpenseScheduleSnapshot } from "./fixedExpenseScheduleSnapshot.js";
+import {
+  buildFixedExpenseGuaranteeLines,
+  buildFixedExpenseSynchronizationMetrics,
+} from "../utils/fixedExpenseAuditViewModel.js";
+import { ConfirmDialog, SecondaryButton } from "./ui";
 
-export function FixedExpenseCard({ fixedExpense, onEdit, onDelete, accounts = [], enableDoubleClickEdit = false }) {
+export function FixedExpenseCard({ fixedExpense, onEdit, onDelete, onViewTransactions, accounts = [], transactions = [], transactionIndex = null, reconciliationSummary = null, enableDoubleClickEdit = false }) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
 
@@ -36,7 +38,18 @@ export function FixedExpenseCard({ fixedExpense, onEdit, onDelete, accounts = []
     return account?.name || "Compte non défini";
   }, [accounts, fixedExpense.accountId]);
 
-  const frequencyLabel = fixedExpense.frequency === "annual" ? "Annuel" : "Mensuel";
+  const scheduleSnapshot = useMemo(() => buildFixedExpenseScheduleSnapshot({
+    fixedExpense,
+    transactions,
+    transactionIndex,
+    referenceDate: new Date(),
+  }), [fixedExpense, transactions, transactionIndex]);
+
+  const frequencyLabel = scheduleSnapshot.frequency === "annual"
+    ? "Annuel"
+    : scheduleSnapshot.frequency === "weekly"
+      ? "Hebdomadaire"
+      : "Mensuel";
   const periodLabel = useMemo(() => {
     const start = formatTargetDate(fixedExpense.startDate);
     const end = formatTargetDate(fixedExpense.endDate);
@@ -59,38 +72,71 @@ export function FixedExpenseCard({ fixedExpense, onEdit, onDelete, accounts = []
   const statusLabel = fixedExpense.isActive === false ? "Inactif" : "Actif";
   const subtitle = `${categoryLabel} • ${accountName} • ${frequencyLabel} • ${periodLabel}`;
 
+  const nextEstimatedDateLabel = scheduleSnapshot.nextEstimatedDate
+    ? formatTargetDate(scheduleSnapshot.nextEstimatedDate)
+    : "Estimation indisponible";
+  const synchronizationMetrics = useMemo(
+    () => buildFixedExpenseSynchronizationMetrics(reconciliationSummary),
+    [reconciliationSummary]
+  );
+  const guaranteeLines = useMemo(() => buildFixedExpenseGuaranteeLines(reconciliationSummary), [reconciliationSummary]);
+  const synchronizationRatio = synchronizationMetrics.occurrenceCount > 0
+    ? Math.round((synchronizationMetrics.transactionCount / synchronizationMetrics.occurrenceCount) * 100)
+    : 0;
+
   return (
     <>
       <CompactFinanceCard
         title={fixedExpense.name || "Sans nom"}
-        metaPrimary={`${statusLabel} - ${frequencyLabel}`}
-        metaSecondary={`${accountName} - ${periodLabel}`}
-        details={subtitle}
+        subtitle={subtitle}
         amount={`${Number(fixedExpense.initialAmount || 0).toFixed(2)} €`}
         amountColor="text.primary"
         categoryIcon="◦"
         transactionKind="fixedExpense"
         badges={[
           { label: "Statut", value: statusLabel },
-          { label: "Catégorie", value: categoryLabel },
         ]}
+        onOpenClick={() => onViewTransactions?.(fixedExpense)}
         onEditClick={() => onEdit(fixedExpense)}
         onMenuClick={handleOpenMenu}
-        enableDoubleClickEdit={enableDoubleClickEdit}
+        enableDoubleClickEdit={false}
       />
 
       <Box sx={{ px: 1.25, pt: 0, pb: 0.5 }}>
-        {fixedExpense.description && (
-          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.76rem", sm: "0.8rem" } }}>
-            {fixedExpense.description}
-          </Typography>
-        )}
-
-        {Array.isArray(fixedExpense.variations) && fixedExpense.variations.length > 0 && (
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.4 }}>
-            Variations : {fixedExpense.variations.length}
-          </Typography>
-        )}
+        <Stack spacing={0.55}>
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={0.75} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }}>
+            <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.76rem", sm: "0.82rem" } }} noWrap>
+              {categoryLabel} · Prochaine échéance {nextEstimatedDateLabel}
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 800, color: scheduleSnapshot.status.color, fontSize: { xs: "0.76rem", sm: "0.82rem" } }} noWrap>
+              {scheduleSnapshot.status.label}
+            </Typography>
+          </Stack>
+          <Box sx={{ height: 8, borderRadius: 999, bgcolor: "rgba(23, 42, 47, 0.08)", overflow: "hidden" }}>
+            <Box
+              sx={{
+                width: `${Math.max(8, Math.min(100, synchronizationRatio))}%`,
+                height: "100%",
+                bgcolor: scheduleSnapshot.status.color,
+              }}
+            />
+          </Box>
+          {reconciliationSummary ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+              {synchronizationMetrics.transactionCount} transaction(s) suivie(s) · {synchronizationMetrics.forecastCount} prévision(s)
+            </Typography>
+          ) : null}
+          {reconciliationSummary && guaranteeLines.length > 0 ? (
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block" }} noWrap>
+              {guaranteeLines[0]}
+            </Typography>
+          ) : null}
+          {onViewTransactions ? (
+            <SecondaryButton onClick={() => onViewTransactions?.(fixedExpense)}>
+              Voir le détail
+            </SecondaryButton>
+          ) : null}
+        </Stack>
       </Box>
 
       <Menu
@@ -108,6 +154,16 @@ export function FixedExpenseCard({ fixedExpense, onEdit, onDelete, accounts = []
         >
           Modifier
         </MenuItem>
+        {onViewTransactions && (
+          <MenuItem
+            onClick={() => {
+              onViewTransactions(fixedExpense);
+              handleCloseMenu();
+            }}
+          >
+            Voir l'audit
+          </MenuItem>
+        )}
         <MenuItem
           onClick={() => {
             setDeleteConfirmOpen(true);
@@ -119,20 +175,16 @@ export function FixedExpenseCard({ fixedExpense, onEdit, onDelete, accounts = []
         </MenuItem>
       </Menu>
 
-      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
-        <DialogTitle>Supprimer ce frais fixe ?</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Cette action le marquera comme inactif sans supprimer la donnée immédiatement.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteConfirmOpen(false)}>Annuler</Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
-            Supprimer
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Supprimer ce frais fixe ?"
+        message="Cette action le marquera comme inactif sans supprimer la donnée immédiatement."
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        onConfirm={handleDelete}
+        onClose={() => setDeleteConfirmOpen(false)}
+        variant="danger"
+      />
     </>
   );
 }

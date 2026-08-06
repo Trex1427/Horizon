@@ -1,6 +1,7 @@
-﻿import { Alert, CircularProgress, Stack, Typography } from "@mui/material";
+﻿import { Alert, CircularProgress, Stack, Typography } from "../components/ui/foundations/MuiPrimitives";
 import { useMemo } from "react";
 import HorizonCockpit from "../components/HorizonCockpit.jsx";
+import DashboardV2 from "../components/dashboard-v2/DashboardV2.jsx";
 import { CASH_ACCOUNT_NAME, CASH_ACCOUNT_TYPE } from "../constants/cashBalanceConstants.js";
 import { useTransactionsContext } from "../context/TransactionsContext.jsx";
 import { useBudgets } from "../hooks/useBudgets.js";
@@ -19,6 +20,7 @@ import { selectAccountsForBalanceDisplay } from "../utils/accountBalanceDisplay.
 export default function FinancialHome({
   accounts = [], accountsLoading = false, accountsError = null,
   onOpenTransactions, onOpenAnalysisMonth, onOpenForecast, onOpenAccounts, onOpenQuotes, onOpenInvoices, onOpenAnalysis,
+  variant = "current", onNavigateV2,
 }) {
   const { transactions, loading: transactionsLoading, error: transactionsError } = useTransactionsContext();
   const fixedExpensesApi = useFixedExpenses();
@@ -65,17 +67,63 @@ export default function FinancialHome({
     }
   };
 
+  const logReturn = (branch, returnedComponent) => {
+    if (typeof window === "undefined") return;
+    console.log("[FINANCIAL_HOME]", {
+      branch,
+      variant,
+      returnedComponent,
+    });
+  };
+
+  if (typeof window !== "undefined") {
+    console.log("[DIAG][FinancialHome]", {
+      variant,
+      accountsCount: accounts.length,
+      pathname: window.location.pathname,
+      search: window.location.search,
+    });
+  }
+
   if (loading) {
+    console.log("[RENDER] FinancialHome loading");
+    console.log("[DIAG][FinancialHome] => branche loading");
+    logReturn(1, "Stack(CircularProgress)");
     return <Stack alignItems="center" spacing={1.5} sx={{ py: 6 }}><CircularProgress /><Typography>Chargement de votre trajectoire financière...</Typography></Stack>;
   }
 
+  if (variant === "v2") {
+    console.log("[RENDER] FinancialHome v2");
+    console.log("[RENDER] DashboardV2");
+    console.log("[DIAG][FinancialHome] => branche V2");
+    logReturn(2, "DashboardV2");
+    return <DashboardV2
+      metrics={{ ...dashboardMetrics, remaining: forecastEndOfMonth, annualTrajectory }}
+      budgets={budgetsApi.budgets}
+      notificationsCount={uncategorizedCount}
+      onNavigate={onNavigateV2}
+      onCreateTransaction={onOpenTransactions}
+    />;
+  }
+
   if (!accounts.length) {
+    console.log("[RENDER] FinancialHome legacy");
+    console.log("[RENDER] EmptyState Ajoutez un compte");
+    console.log("[DIAG][FinancialHome] => branche legacy HOME no-account");
+    logReturn(3, "Alert(info)");
     return <Alert severity="info">Ajoutez un compte pour calculer votre solde actuel et votre trajectoire prévisionnelle.</Alert>;
   }
 
   if (error) {
+    console.log("[RENDER] FinancialHome legacy error");
+    console.log("[DIAG][FinancialHome] => branche legacy HOME error");
+    logReturn(4, "Alert(error)");
     return <Alert severity="error">Impossible de calculer la trajectoire financière. {String(error)}</Alert>;
   }
+
+  console.log("[RENDER] HorizonCockpit");
+  console.log("[DIAG][FinancialHome] => branche legacy HOME cockpit");
+  logReturn(5, "HorizonCockpit");
 
   return <HorizonCockpit
     metrics={{ ...dashboardMetrics, remaining: forecastEndOfMonth, annualTrajectory, annualTrajectoryError: null,

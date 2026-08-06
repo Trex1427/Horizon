@@ -1,0 +1,8 @@
+import { cx } from '../utils';
+import '../styles/ui.css';
+
+/** @param {{columns: Array<{key: string, header: React.ReactNode, render?: Function, align?: 'start'|'center'|'end'}>, rows?: Array<object>, getRowKey?: Function, caption?: string, emptyContent?: React.ReactNode, className?: string}} props */
+export function DataTable({ columns, rows = [], getRowKey = (_, index) => index, caption, emptyContent = 'Aucune donnée.', className }) { return <div className={cx('hui-table-wrap', className)}><table className="hui-data-table">{caption && <caption>{caption}</caption>}<thead><tr>{columns.map(column => <th key={column.key} scope="col" data-align={column.align}>{column.header}</th>)}</tr></thead><tbody>{rows.length ? rows.map((row, rowIndex) => <tr key={getRowKey(row, rowIndex)}>{columns.map(column => <td key={column.key} data-label={column.header} data-align={column.align}>{column.render ? column.render(row[column.key], row, rowIndex) : row[column.key]}</td>)}</tr>) : <tr><td className="hui-data-table__empty" colSpan={columns.length}>{emptyContent}</td></tr>}</tbody></table></div>; }
+
+/** @param {{title: React.ReactNode, subtitle?: React.ReactNode, badge?: React.ReactNode, items?: Array<{label: React.ReactNode, value: React.ReactNode}>, actions?: React.ReactNode, className?: string}} props */
+export function MobileCard({ title, subtitle, badge, items = [], actions, className }) { return <article className={cx('hui-mobile-card', className)}><header><div><h3>{title}</h3>{subtitle && <p>{subtitle}</p>}</div>{badge}</header><dl>{items.map((item, index) => <div key={`${String(item.label)}-${index}`}><dt>{item.label}</dt><dd>{item.value}</dd></div>)}</dl>{actions && <footer>{actions}</footer>}</article>; }

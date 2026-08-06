@@ -1,18 +1,15 @@
-export function getBudgetSubcategoryOptions(subcategories = [], categoryId = "") {
-  return (subcategories || [])
-    .filter((subcategory) => subcategory?.isActive !== false)
-    .filter((subcategory) => String(subcategory?.categoryId || "") === String(categoryId || ""))
-    .sort((left, right) => String(left?.name || "").localeCompare(String(right?.name || ""), "fr", { sensitivity: "base" }));
+import { getCanonicalCategoryId, getSubcategoriesForCanonicalCategory } from "./categorySelectionModel.js";
+
+export function getBudgetSubcategoryOptions(subcategories = [], categoryId = "", categoryReference = {}) {
+  return getSubcategoriesForCanonicalCategory(subcategories, categoryId, categoryReference);
 }
 
-export function resetIncompatibleBudgetSubcategory(formData = {}, nextCategoryId = "", subcategories = []) {
-  const selectedSubcategory = (subcategories || []).find((subcategory) => (
-    subcategory?.id === formData.subcategoryId
-    && subcategory?.isActive !== false
-    && String(subcategory?.categoryId || "") === String(nextCategoryId || "")
-  ));
+export function resetIncompatibleBudgetSubcategory(formData = {}, nextCategoryId = "", subcategories = [], categoryReference = {}) {
+  const canonicalCategoryId = getCanonicalCategoryId(categoryReference, nextCategoryId);
+  const compatibleSubcategories = getSubcategoriesForCanonicalCategory(subcategories, canonicalCategoryId, categoryReference);
+  const selectedSubcategory = compatibleSubcategories.find((subcategory) => subcategory?.id === formData.subcategoryId);
 
   return selectedSubcategory
-    ? { ...formData, categoryId: nextCategoryId }
-    : { ...formData, categoryId: nextCategoryId, subcategoryId: "", subcategoryName: "" };
+    ? { ...formData, categoryId: canonicalCategoryId }
+    : { ...formData, categoryId: canonicalCategoryId, subcategoryId: "", subcategoryName: "" };
 }

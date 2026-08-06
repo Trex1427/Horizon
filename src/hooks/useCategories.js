@@ -7,7 +7,8 @@ import {
   updateCategory,
 } from "../services/categoriesService";
 
-export function useCategories() {
+export function useCategories(options = {}) {
+  const includeInactive = options?.includeInactive === true;
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,11 +26,12 @@ export function useCategories() {
         const message = err?.message || "Erreur lors du chargement des catégories";
         setError(message);
         setLoading(false);
-      }
+      },
+      { includeInactive }
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [includeInactive]);
 
   useEffect(() => {
     seedDefaultCategories().catch(() => {

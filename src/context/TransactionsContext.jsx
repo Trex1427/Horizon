@@ -1,4 +1,7 @@
+/* eslint-disable react-hooks/set-state-in-effect -- listener lifecycle owns loading/error state transitions */
+/* eslint-disable react-refresh/only-export-components -- provider and consumer hook intentionally share this module */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useAuth } from "../auth/useAuth";
 import {
   createTransaction,
   deleteTransaction,
@@ -9,6 +12,7 @@ import {
 const TransactionsContext = createContext(undefined);
 
 export function TransactionsProvider({ children }) {
+  const { uid } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -16,6 +20,11 @@ export function TransactionsProvider({ children }) {
   useEffect(() => {
     setLoading(true);
     setError(null);
+
+    if (!uid) {
+      setLoading(false);
+      return undefined;
+    }
 
     const unsubscribe = subscribeToTransactions(
       (data) => {
@@ -26,11 +35,12 @@ export function TransactionsProvider({ children }) {
         const message = err?.message || "Erreur lors du chargement des transactions";
         setError(message);
         setLoading(false);
-      }
+      },
+      { ownerUid: uid }
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [uid]);
 
   const addTransaction = useCallback(async (payload) => {
     try {

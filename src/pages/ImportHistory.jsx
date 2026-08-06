@@ -1,4 +1,4 @@
-﻿import { Alert, Box, Typography } from "@mui/material";
+﻿import { Alert, Box, Typography } from "../components/ui/foundations/MuiPrimitives";
 import { useAccounts } from "../hooks/useAccounts";
 import { useTransactions } from "../hooks/useTransactions";
 import ImportHistorySection from "../features/bankingImport/components/ImportHistorySection";

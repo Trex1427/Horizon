@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { Alert, Box, Button, Card, CardActions, CardContent, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from "@mui/material";
-import PaymentsOutlined from "@mui/icons-material/PaymentsOutlined";
+import { Alert, Box, Button, Card, CardActions, CardContent, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from "../components/ui/foundations/MuiPrimitives";
+import { PaymentsOutlined } from "../components/ui/icons/MuiIcons";
 import DebtReceivableForm from "../components/DebtReceivableForm.jsx";
 import DebtReceivablePaymentsDialog from "../components/DebtReceivablePaymentsDialog.jsx";
 import { PilotageEmptyState, PilotageHeader, PilotagePageShell, PilotageSection, PilotageSummary, PILOTAGE_COLORS } from "../components/PilotagePageLayout.jsx";

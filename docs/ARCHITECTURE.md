@@ -1,8 +1,32 @@
 # Architecture Horizon
 
+Version : 1.0
+Statut : Constitution officielle
+Date : 2026-08-05
+Derniere mise a jour : 2026-08-05
+
 Ce document est la reference technique officielle du projet Horizon.
 
 Il decrit l'architecture constatee dans le code actuel. Quand une information n'est pas certaine, elle est signalee explicitement.
+
+## Champ d'application
+L'Architecture definit :
+- l'organisation technique du projet ;
+- les couches applicatives ;
+- les flux de donnees ;
+- les responsabilites code, hooks, services et stockage ;
+- les contraintes d'implementation observees dans le code.
+
+L'Architecture ne definit pas :
+- la vision produit, definie dans HORIZON_PRODUCT_MANIFESTO ;
+- les parcours et comportements UX, definis dans HORIZON_UX_GUIDELINES ;
+- la composition visuelle et les composants, definis dans HORIZON_DESIGN_SYSTEM_V3 ;
+- la priorisation des chantiers, definie dans HORIZON_PRODUCT_ROADMAP.
+
+## Relation avec la hierarchie documentaire
+L'Architecture est le rang 5 de la hierarchie documentaire Horizon. Elle applique les decisions produit, UX, design et roadmap sans les remplacer.
+
+Toute exception technique necessaire a une regle produit, UX ou design doit etre documentee dans HORIZON_DECISION_RECORDS.md.
 
 ## 1. Objectifs
 
@@ -188,6 +212,18 @@ Cette section distingue:
 - Objectif: definir les charges recurrentes attendues cote depense.
 - Principaux champs observes: `name`, `categoryId`, `categoryName`, `category`, `accountId`, `frequency`, `initialAmount`, `startDate`, `endDate`, `variations`, `isActive`, `createdAt`, `updatedAt`.
 - Relations: vers `categories` et `accounts`.
+
+#### Reconciliation des frais fixes par echeance
+
+- La reconciliation des frais fixes est centralisee dans `src/services/reconciliationService.js`.
+- Le moteur construit un ledger d'echeances a partir des fiches `fixedExpenses` sur une periode donnee.
+- Une echeance porte une seule valeur comptable de reference:
+  - soit une `forecast` si aucune transaction n'est affectee ;
+  - soit une `transaction` si une seule transaction est retenue ;
+  - soit une `anomaly` si plusieurs transactions ciblent la meme echeance.
+- L'affectation transaction -> echeance est globale sur la periode et a usage unique: une meme transaction ne peut pas couvrir deux echeances ni deux frais fixes simultanement dans le moteur de prevision.
+- `annualTrajectoryService` et `forecastService` consomment ce ledger pour supprimer le double comptage entre reel et prevision.
+- La page `FraisFixes` affiche les compteurs de preuve et le detail des echeances a partir de ce meme ledger, sans logique parallele cote interface.
 
 #### `recurringIncome`
 

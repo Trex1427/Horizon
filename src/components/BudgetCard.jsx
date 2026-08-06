@@ -1,23 +1,19 @@
 import { useMemo, useState } from "react";
 import {
   Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Menu,
   MenuItem,
-  LinearProgress,
+  Stack,
   Typography,
 } from "@mui/material";
 import { formatTargetDate } from "../utils/dateFormatter";
 import { calculateBudgetMetrics } from "../services/budgetsService";
+import { getBudgetPeriodicityLabel, getBudgetTrackingLabel } from "../services/budgetModel.js";
 import CompactFinanceCard from "./CompactFinanceCard";
 import { getSafeCategoryLabel } from "../utils/displayTextUtils";
-import { PILOTAGE_PROGRESS_SX } from "./PilotagePageLayout";
+import { ConfirmDialog } from "./ui";
 
-export function BudgetCard({ budget, onEdit, onDelete, transactions = [], enableDoubleClickEdit = false }) {
+export function BudgetCard({ budget, onEdit, onDelete, onOpenDetails, transactions = [], enableDoubleClickEdit = false }) {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [actionMenuAnchor, setActionMenuAnchor] = useState(null);
 
@@ -55,7 +51,12 @@ export function BudgetCard({ budget, onEdit, onDelete, transactions = [], enable
     getSafeCategoryLabel(budget.categoryName || budget.name, "Catégorie non définie"),
     budget.subcategoryName,
   ].filter(Boolean).join(" · ");
-  const subtitle = `${budget.name || "Budget"} • ${periodLabel}`;
+  const subtitle = budget.name || "Budget";
+  const periodicityLabel = getBudgetPeriodicityLabel(budget.periodicity || "annual");
+  const trackingLabel = getBudgetTrackingLabel(budget.rollingPeriod);
+  const progressValue = Math.max(0, Math.min(Number(metrics.consumedPercent || 0), 100));
+  const statusTone = metrics.consumedPercent > 100 ? "error.main" : metrics.consumedPercent >= 75 ? "warning.main" : "success.main";
+  const statusLabel = metrics.consumedPercent > 100 ? "Dépassement" : metrics.consumedPercent >= 75 ? "Surveillance" : "Maîtrisé";
 
   return (
     <>
@@ -65,31 +66,36 @@ export function BudgetCard({ budget, onEdit, onDelete, transactions = [], enable
         amount={`${Number(metrics.plannedAmount || 0).toFixed(2)} €`}
         amountColor={metrics.color}
         categoryIcon="◦"
+        transactionKind="expense"
+        badges={[
+          { label: "Statut", value: statusLabel },
+        ]}
+        onOpenClick={() => onOpenDetails?.(budget)}
         onEditClick={() => onEdit(budget)}
         onMenuClick={handleOpenMenu}
-        enableDoubleClickEdit={enableDoubleClickEdit}
+        enableDoubleClickEdit={false}
       />
 
       <Box sx={{ px: 1.25, pt: 0, pb: 0.5 }}>
-        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" }, gap: 0.75, mb: 0.9 }}>
-          <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: { xs: "0.74rem", sm: "0.8rem" } }}>
-            Dépensé : {Number(metrics.spentAmount || 0).toFixed(2)} €
+        <Stack spacing={0.45}>
+          <Box sx={{ height: 8, borderRadius: 999, bgcolor: "rgba(23, 42, 47, 0.08)", overflow: "hidden" }} aria-label={`Progression du budget ${budgetScopeLabel}`}>
+            <Box
+              sx={{
+                width: `${progressValue}%`,
+                height: "100%",
+                borderRadius: 999,
+                bgcolor: statusTone,
+                transition: "width 240ms ease",
+              }}
+            />
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: "0.76rem", sm: "0.82rem" } }} noWrap>
+            {periodicityLabel} · {trackingLabel} · Consommé {Number(metrics.spentAmount || 0).toFixed(2)} €
           </Typography>
-          <Typography variant="body2" color="text.secondary" noWrap sx={{ fontSize: { xs: "0.74rem", sm: "0.8rem" } }}>
-            Restant : {Number(metrics.remainingAmount || 0).toFixed(2)} €
+          <Typography variant="body2" sx={{ color: statusTone, fontWeight: 800, fontSize: { xs: "0.76rem", sm: "0.82rem" } }} noWrap>
+            {metrics.consumedPercent.toFixed(0)} % · Restant {Number(metrics.remainingAmount || 0).toFixed(2)} €
           </Typography>
-          <Typography variant="body2" sx={{ color: metrics.color, fontSize: { xs: "0.74rem", sm: "0.8rem" } }} noWrap>
-            Consommé : {metrics.consumedPercent.toFixed(0)} %
-          </Typography>
-        </Box>
-
-        <LinearProgress
-          variant="determinate"
-          value={Math.min(metrics.consumedPercent, 100)}
-          color={metrics.color === "error.main" ? "error" : metrics.color === "warning.main" ? "warning" : "success"}
-          aria-label={`Progression du budget ${budgetScopeLabel}`}
-          sx={PILOTAGE_PROGRESS_SX}
-        />
+        </Stack>
       </Box>
 
       <Menu
@@ -118,20 +124,16 @@ export function BudgetCard({ budget, onEdit, onDelete, transactions = [], enable
         </MenuItem>
       </Menu>
 
-      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
-        <DialogTitle>Supprimer ce budget ?</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Cette action le marquera comme inactif sans supprimer la donnée immédiatement.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteConfirmOpen(false)}>Annuler</Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
-            Supprimer
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Supprimer ce budget ?"
+        message="Cette action le marquera comme inactif sans supprimer la donnée immédiatement."
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        onConfirm={handleDelete}
+        onClose={() => setDeleteConfirmOpen(false)}
+        variant="danger"
+      />
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { getBudgetPeriodIdentity } from "./budgetModel.js";
+import { getBudgetPeriodIdentity, resolveBudgetDateRange } from "./budgetModel.js";
 function toNumber(value) {
   return Number(value) || 0;
 }
@@ -80,8 +80,9 @@ export function matchesBudgetPeriod(budget, transaction, options = {}) {
     return false;
   }
 
-  const startDate = options.startDate ?? budget?.startDate;
-  const endDate = options.endDate ?? budget?.endDate;
+  const resolvedRange = resolveBudgetDateRange(budget, options.referenceDate || transactionDate || new Date());
+  const startDate = options.startDate ?? resolvedRange.startDate ?? budget?.startDate;
+  const endDate = options.endDate ?? resolvedRange.endDate ?? budget?.endDate;
 
   return isDateInRange(transactionDate, startDate, endDate);
 }

@@ -17,6 +17,17 @@ import {
 
 export const AuthContext = createContext(null);
 
+function traceAuth(event, details = {}) {
+  if (typeof window === "undefined") return;
+  console.log("[NAV_TRACE]", new Date().toISOString(), `AuthProvider:${event}`, {
+    href: window.location.href,
+    pathname: window.location.pathname,
+    search: window.location.search,
+    hash: window.location.hash,
+    ...details,
+  });
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,8 +46,11 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let active = true;
 
+    traceAuth("effect:start", { loading });
+
     getRedirectResult(auth).catch((error) => {
       if (active) {
+        traceAuth("getRedirectResult:error", { message: mapAuthError(error) });
         setAuthError(mapAuthError(error));
       }
     });
@@ -48,6 +62,11 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        traceAuth("onAuthStateChanged:next", {
+          nextUid: nextUser?.uid || "",
+          nextEmail: nextUser?.email || "",
+        });
+
         setUser(nextUser);
         setLoading(false);
         setSigningIn(false);
@@ -57,6 +76,7 @@ export function AuthProvider({ children }) {
           return;
         }
 
+        traceAuth("onAuthStateChanged:error", { message: mapAuthError(error) });
         setAuthError(mapAuthError(error));
         setLoading(false);
         setSigningIn(false);
@@ -64,10 +84,21 @@ export function AuthProvider({ children }) {
     );
 
     return () => {
+      traceAuth("effect:cleanup");
       active = false;
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    traceAuth("state", {
+      loading,
+      signingIn,
+      isAuthenticated: Boolean(user),
+      isAuthorized: authorization.isAuthorized,
+      uid: user?.uid || "",
+    });
+  }, [authorization.isAuthorized, loading, signingIn, user]);
 
   const logout = useCallback(async () => {
     setAuthError("");

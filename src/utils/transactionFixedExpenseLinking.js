@@ -1,4 +1,5 @@
 import { matchesExpectedTransaction } from "../services/financeCalculations.js";
+import { RECONCILIATION_DECISIONS, scoreTransactionAgainstFixedExpense } from "../services/reconciliationService.js";
 
 function toDateValue(value) {
   if (!value) {
@@ -66,7 +67,40 @@ export function findMatchingFixedExpenseForTransaction(transaction = {}, fixedEx
     if (linkedFixedExpense) return linkedFixedExpense;
   }
 
-  for (const fixedExpense of candidates) {
+  const compatibleCandidates = candidates.filter((fixedExpense) => {
+    if (fixedExpense?.isActive === false) return false;
+
+    const fixedExpenseSubcategoryId = String(fixedExpense?.subcategoryId || "").trim();
+    const transactionSubcategoryId = String(transaction?.subcategoryId || "").trim();
+    if (fixedExpenseSubcategoryId && fixedExpenseSubcategoryId !== transactionSubcategoryId) {
+      return false;
+    }
+
+    const fixedExpenseAccountId = String(fixedExpense?.accountId || "").trim();
+    const transactionAccountId = String(transaction?.accountId || "").trim();
+    if (fixedExpenseAccountId && transactionAccountId && fixedExpenseAccountId !== transactionAccountId) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const scoredCandidates = compatibleCandidates.map((fixedExpense) => {
+    const expectedAmount = getFixedExpenseApplicableAmount(fixedExpense, monthRange.monthEnd);
+    const score = scoreTransactionAgainstFixedExpense(transaction, fixedExpense, {
+      monthStart: monthRange.monthStart,
+      monthEnd: monthRange.monthEnd,
+      expectedAmount,
+    });
+    return { fixedExpense, expectedAmount, score };
+  }).sort((left, right) => right.score.score - left.score.score);
+
+  const bestScoredCandidate = scoredCandidates[0];
+  if (bestScoredCandidate?.score?.decision === RECONCILIATION_DECISIONS.AUTO) {
+    return bestScoredCandidate.fixedExpense;
+  }
+
+  for (const fixedExpense of compatibleCandidates) {
     const expectedAmount = getFixedExpenseApplicableAmount(fixedExpense, monthRange.monthEnd);
 
     if (expectedAmount <= 0) {
@@ -121,6 +155,7 @@ export function buildQuickFixedExpensePayload(form = {}, draft = {}) {
 
   return {
     name: String(draft?.name || "").trim(),
+    amountType: String(draft?.amountType || "fixed").trim() === "variable" ? "variable" : "fixed",
     categoryId: form?.categoryId || "",
     categoryName,
     category: categoryName,

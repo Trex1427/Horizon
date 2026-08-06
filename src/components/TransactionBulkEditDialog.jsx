@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Divider,
@@ -115,6 +115,7 @@ export default function TransactionBulkEditDialog({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingPatch, setPendingPatch] = useState(null);
   const [suggestionApplied, setSuggestionApplied] = useState(false);
+  const dialogContentRef = useRef(null);
   const isMobile = useMediaQuery("(max-width:600px)");
   const isClassificationMode = mode === "classification";
 
@@ -243,42 +244,154 @@ export default function TransactionBulkEditDialog({
 
   const applyDisabled = selectedTransactionsCount === 0 || Boolean(localError) || (incompatibleSubcategoryCount > 0 && !draft.clearIncompatibleSubcategories);
 
+  function restoreDialogContext(focusFieldName = "") {
+    const savedScrollPosition = dialogContentRef.current?.scrollTop || 0;
+
+    return () => {
+      window.requestAnimationFrame(() => {
+        if (dialogContentRef.current) {
+          dialogContentRef.current.scrollTop = savedScrollPosition;
+        }
+
+        if (!focusFieldName || !dialogContentRef.current) {
+          return;
+        }
+
+        const target = dialogContentRef.current.querySelector(`[name="${focusFieldName}"]`);
+        if (target && typeof target.focus === "function") {
+          target.focus();
+        }
+      });
+    };
+  }
+
+  function requestQuickCreate(kind) {
+    if (kind === "category") {
+      const restore = restoreDialogContext("categoryId");
+      onRequestCreateCategory?.({
+        type: draft.type || "depense",
+        onCreated: (category = {}) => {
+          setDraft((previous) => ({
+            ...previous,
+            categoryId: category.id || "",
+            subcategoryId: "",
+          }));
+          setSuggestionApplied(false);
+          setLocalError("");
+          restore();
+        },
+      });
+      return;
+    }
+
+    if (kind === "subcategory") {
+      const restore = restoreDialogContext("subcategoryId");
+      onRequestCreateSubcategory?.({
+        categoryId: draft.categoryId || "",
+        type: draft.type || "depense",
+        onCreated: (subcategory = {}) => {
+          setDraft((previous) => ({
+            ...previous,
+            subcategoryId: subcategory.id || "",
+          }));
+          setLocalError("");
+          restore();
+        },
+      });
+      return;
+    }
+
+    if (kind === "activity") {
+      const restore = restoreDialogContext("activityId");
+      onRequestCreateActivity?.({
+        onCreated: (activity = {}) => {
+          setDraft((previous) => ({
+            ...previous,
+            activityId: activity.id || "",
+          }));
+          setLocalError("");
+          restore();
+        },
+      });
+      return;
+    }
+
+    if (kind === "thirdParty") {
+      const restore = restoreDialogContext("thirdPartyId");
+      onRequestCreateThirdParty?.({
+        onCreated: (thirdParty = {}) => {
+          setDraft((previous) => ({
+            ...previous,
+            thirdPartyId: thirdParty.id || "",
+          }));
+          setLocalError("");
+          restore();
+        },
+      });
+      return;
+    }
+
+    if (kind === "project") {
+      const restore = restoreDialogContext("projectId");
+      onRequestCreateProject?.({
+        activityId: draft.activityId || "",
+        onCreated: (project = {}) => {
+          setDraft((previous) => ({
+            ...previous,
+            projectId: project.id || "",
+          }));
+          setLocalError("");
+          restore();
+        },
+      });
+      return;
+    }
+
+    if (kind === "account") {
+      const restore = restoreDialogContext("accountId");
+      onRequestCreateAccount?.({
+        onCreated: (account = {}) => {
+          setDraft((previous) => ({
+            ...previous,
+            accountId: account.id || previous.accountId,
+          }));
+          setLocalError("");
+          restore();
+        },
+      });
+    }
+  }
+
   function handleChange(event) {
     const { name, value } = event.target;
 
     if (name === "categoryId" && value === CREATE_CATEGORY_VALUE) {
-      onClose?.();
-      onRequestCreateCategory?.(draft.type || "depense");
+      requestQuickCreate("category");
       return;
     }
 
     if (name === "subcategoryId" && value === CREATE_SUBCATEGORY_VALUE) {
-      onClose?.();
-      onRequestCreateSubcategory?.(draft.categoryId || "", draft.type || "depense");
+      requestQuickCreate("subcategory");
       return;
     }
 
     if (name === "activityId" && value === CREATE_ACTIVITY_VALUE) {
-      onClose?.();
-      onRequestCreateActivity?.();
+      requestQuickCreate("activity");
       return;
     }
 
     if (name === "thirdPartyId" && value === CREATE_THIRD_PARTY_VALUE) {
-      onClose?.();
-      onRequestCreateThirdParty?.();
+      requestQuickCreate("thirdParty");
       return;
     }
 
     if (name === "projectId" && value === CREATE_PROJECT_VALUE) {
-      onClose?.();
-      onRequestCreateProject?.(draft.activityId || "");
+      requestQuickCreate("project");
       return;
     }
 
     if (name === "accountId" && value === CREATE_ACCOUNT_VALUE) {
-      onClose?.();
-      onRequestCreateAccount?.();
+      requestQuickCreate("account");
       return;
     }
 
@@ -429,7 +542,7 @@ export default function TransactionBulkEditDialog({
         }}
       >
         <DialogTitle>{isClassificationMode ? "Classement de masse" : "Actions de masse"}</DialogTitle>
-        <DialogContent sx={{ pt: 1.5, overflowX: "hidden", overflowY: "auto", flex: 1, minHeight: 0 }}>
+        <DialogContent ref={dialogContentRef} sx={{ pt: 1.5, overflowX: "hidden", overflowY: "auto", flex: 1, minHeight: 0 }}>
           <Stack spacing={1.25}>
             <Alert severity="info">
               Vous allez classer {selectedTransactionsLabel}.

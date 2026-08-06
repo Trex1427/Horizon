@@ -1,5 +1,5 @@
 ﻿import { useMemo, useRef, useState } from "react";
-import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography, useMediaQuery, useTheme } from "@mui/material";
+import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography, useMediaQuery, useTheme } from "../components/ui/foundations/MuiPrimitives";
 import OpportunityCard from "../components/OpportunityCard";
 import OpportunityForm from "../components/OpportunityForm";
 import TransactionEditorDialog from "../components/TransactionEditorDialog";

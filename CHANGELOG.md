@@ -8,7 +8,15 @@ projet suit [Semantic Versioning](https://semver.org/lang/fr/).
 Toutes les évolutions destinées aux utilisateurs doivent être ajoutées ici jusqu'à la prochaine release.
 ### Ajouté
 
+- Moteur d'échéances pour les frais fixes avec statuts `transaction`, `forecast` et `anomaly`.
+- Bouton de recalcul complet des associations de frais fixes.
+- Tableau de santé global, timeline d'audit, mode preuve et export CSV pour l'audit visuel des frais fixes.
+
 ### Modifié
+
+- Les prévisions de frais fixes ne s'additionnent plus à une transaction réelle sur la même échéance.
+- Chaque frais fixe affiche désormais une preuve de réconciliation: nombre d'échéances, transactions, prévisions et anomalies.
+- La page Frais fixes expose maintenant la transaction retenue, l'écart cumulé, les indicateurs de synchronisation et l'absence de doublon comptable en lecture immédiate.
 
 ### Corrigé
 

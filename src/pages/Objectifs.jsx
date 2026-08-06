@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Alert, Box, CircularProgress, Stack, useMediaQuery } from "@mui/material";
+import { Alert, Box, CircularProgress, Stack, useMediaQuery } from "../components/ui/foundations/MuiPrimitives";
 import { useObjectives } from "../hooks/useObjectives";
 import { ObjectiveCard } from "../components/ObjectiveCard";
 import { ObjectiveForm } from "../components/ObjectiveForm";

@@ -19,3 +19,12 @@ test("Accueil reuses the annual forecast and exposes the mobile-first financial 
   assert.doesNotMatch(cockpit, /<Table/);
   assert.match(cockpit, /Solde négatif|Solde negatif/);
 });
+
+test("Dashboard V2 branch renders before no-account guard", async () => {
+  const home = await readFile(resolve(process.cwd(), "src/pages/FinancialHome.jsx"), "utf8");
+  const v2Index = home.indexOf('if (variant === "v2")');
+  const noAccountIndex = home.indexOf("if (!accounts.length)");
+  assert.notEqual(v2Index, -1);
+  assert.notEqual(noAccountIndex, -1);
+  assert.equal(v2Index < noAccountIndex, true);
+});

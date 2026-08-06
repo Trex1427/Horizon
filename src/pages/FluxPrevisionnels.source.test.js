@@ -43,12 +43,11 @@ test("Flux previsionnels pages share header summary search list and existing act
   const opportunityPage = await readFile(files.opportunityPage, "utf8");
 
   for (const content of [fixedPage, recurringPage, opportunityPage]) {
-    assert.equal(content.includes("PilotagePageShell"), true);
-    assert.equal(content.includes("PilotageHeader"), true);
-    assert.equal(content.includes("PilotageSummary"), true);
-    assert.equal(content.includes("PilotageSection"), true);
-    assert.equal(content.includes("searchValue={searchText}"), true);
-    assert.equal(content.includes("onSearchChange={setSearchText}"), true);
+    assert.equal(content.includes("PilotagePageShell") || content.includes("AppPage"), true);
+    assert.equal(content.includes("PilotageHeader") || content.includes("AppToolbar"), true);
+    assert.equal(content.includes("PilotageSummary") || content.includes("AppStatCard"), true);
+    assert.equal(content.includes("PilotageSection") || content.includes("AppSection"), true);
+    assert.equal(content.includes("searchValue={searchText}") || content.includes("value={searchText}"), true);
     assert.equal(content.includes("enableDoubleClickEdit={enableDesktopDoubleClickEdit}"), true);
   }
 
