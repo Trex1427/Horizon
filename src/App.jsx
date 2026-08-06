@@ -82,6 +82,9 @@ import Logout from "@mui/icons-material/Logout";
 import Work from "@mui/icons-material/Work";
 import DirectionsCar from "@mui/icons-material/DirectionsCar";
 
+void Budgets;
+void FraisFixes;
+
 function getCurrentUrlSnapshot() {
   if (typeof window === "undefined") {
     return { href: "", pathname: "", search: "", hash: "" };
@@ -480,7 +483,7 @@ function AppContent() {
   }
   if (page === PAGES.BUDGETS_V2) {
     logAppRender("BudgetsV2", { source: "PAGES.BUDGETS_V2" });
-    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><BudgetsV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><BudgetsV2 accounts={accounts} onNavigate={openDashboardV2Destination} onOpenTransactionsFiltered={openTransactionsWithContext} /></Suspense>;
   }
   if (page === PAGES.FORECAST_V2) {
     logAppRender("ForecastV2", { source: "PAGES.FORECAST_V2" });
@@ -504,7 +507,7 @@ function AppContent() {
   }
   if (page === PAGES.FIXED_EXPENSES_V2) {
     logAppRender("FixedExpensesV2", { source: "PAGES.FIXED_EXPENSES_V2" });
-    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><FixedExpensesV2 onNavigate={openDashboardV2Destination} /></Suspense>;
+    return <Suspense fallback={<Box role="status" sx={{ minHeight: "100dvh", display: "grid", placeItems: "center" }}><CircularProgress size={32} /></Box>}><FixedExpensesV2 onNavigate={openDashboardV2Destination} onOpenTransactionsFiltered={openTransactionsWithContext} /></Suspense>;
   }
   if (page === PAGES.DEBTS_CLAIMS_V2) {
     logAppRender("DebtsClaimsV2", { source: "PAGES.DEBTS_CLAIMS_V2" });
@@ -681,7 +684,9 @@ function AppContent() {
 
         {page === PAGES.OBJECTIFS && <Objectifs />}
 
-        {page === PAGES.FRAIS_FIXES && <FraisFixes onOpenTransactionsFiltered={openTransactionsWithContext} />}
+        {page === PAGES.FRAIS_FIXES && (
+          <FixedExpensesV2 onNavigate={openDashboardV2Destination} onOpenTransactionsFiltered={openTransactionsWithContext} />
+        )}
 
         {page === PAGES.REVENUS_RECURRENTS && <RevenusRecurrents />}
 
@@ -700,7 +705,13 @@ function AppContent() {
           />
         )}
 
-        {page === PAGES.BUDGETS && <Budgets accounts={accounts} onOpenTransactionsFiltered={openTransactionsWithContext} />}
+        {page === PAGES.BUDGETS && (
+          <BudgetsV2
+            accounts={accounts}
+            onNavigate={openDashboardV2Destination}
+            onOpenTransactionsFiltered={openTransactionsWithContext}
+          />
+        )}
 
         {page === PAGES.PREVISIONS && <Previsions />}
 

@@ -1,1 +1,22 @@
-import test from"node:test";import assert from"node:assert/strict";import{readFile}from"node:fs/promises";import{resolve}from"node:path";const component=resolve(process.cwd(),"src/components/budgets-v2/BudgetsV2.jsx"),styles=resolve(process.cwd(),"src/components/budgets-v2/BudgetsV2.css");test("BudgetsV2 reuses existing metrics and mutations",async()=>{const content=await readFile(component,"utf8");assert.match(content,/calculateBudgetMetrics/);assert.match(content,/selectNonOverlappingBudgetsForForecast/);for(const item of["addBudget","updateBudget","deleteBudget","BudgetForm"])assert.equal(content.includes(item),true);assert.doesNotMatch(content,/firebase|Firestore/)});test("BudgetsV2 exposes required premium states and responsive cards",async()=>{const[content,css]=await Promise.all([readFile(component,"utf8"),readFile(styles,"utf8")]);for(const label of["Nombre de budgets","Budget total","Dépenses du mois","Reste à dépenser","Maîtrisé","À surveiller","Dépassé","Créer mon premier budget"])assert.equal(content.includes(label),true);assert.match(css,/grid-template-columns:repeat\(3/);assert.match(css,/@media\(max-width:620px\)/);assert.match(css,/min-height:44px/)});
+import test from"node:test";import assert from"node:assert/strict";import{readFile}from"node:fs/promises";import{resolve}from"node:path";
+
+const component=resolve(process.cwd(),"src/components/budgets-v2/BudgetsV2.jsx");
+
+test("BudgetsV2 wraps legacy Budgets in the Transactions visual shell",async()=>{
+	const content=await readFile(component,"utf8");
+	for(const token of[
+		"../../pages/Budgets.jsx",
+		"../transactions-v2/TransactionsV2.css",
+		"transactions-v2",
+		"transactions-v2-main",
+		"transactions-v2-header",
+		"transactions-v2-engine",
+		"DashboardV2Sidebar active=\"budgets\"",
+		"DashboardV2MobileNavigation active=\"budgets\"",
+		"Budgets accounts={accounts} onOpenTransactionsFiltered={onOpenTransactionsFiltered}",
+		"Choisir la période",
+	]){
+		assert.equal(content.includes(token),true);
+	}
+	assert.doesNotMatch(content,/firebase|Firestore|addDoc|updateDoc|deleteDoc/);
+});

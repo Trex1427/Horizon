@@ -1,7 +1,7 @@
-import { addDoc, collection, doc, getDocs, limit, onSnapshot, query, updateDoc, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDocs, onSnapshot, query, updateDoc, where, writeBatch } from "firebase/firestore";
 import { auth, db } from "../firebase";
 import { requireCurrentUid, sanitizeUserPayload, withOwnerUidForCreate } from "../auth/requireCurrentUid";
-import { DEFAULT_CATEGORY_DEFINITIONS } from "../constants/categoryDefaults";
+import { buildDefaultCategoryDocuments } from "./categoriesDefaults";
 
 const CATEGORIES_COLLECTION = "categories";
 let seedDefaultCategoriesPromise = null;
@@ -71,24 +71,25 @@ export async function seedDefaultCategories() {
   }
 
   seedDefaultCategoriesPromise = (async () => {
-  const ownerUid = requireCurrentUid(auth);
-  const anyCategorySnapshot = await getDocs(query(collection(db, CATEGORIES_COLLECTION), where("ownerUid", "==", ownerUid), limit(1)));
+    const ownerUid = requireCurrentUid(auth);
+    const snapshot = await getDocs(query(collection(db, CATEGORIES_COLLECTION), where("ownerUid", "==", ownerUid)));
+    const existingCategories = snapshot.docs.map((docSnapshot) => ({
+      id: docSnapshot.id,
+      ...docSnapshot.data(),
+    }));
+    const documents = buildDefaultCategoryDocuments({ ownerUid, existingCategories });
 
-  if (!anyCategorySnapshot.empty) {
-    return { success: true, created: false };
-  }
+    if (documents.length === 0) {
+      return { success: true, created: false, createdCount: 0 };
+    }
 
-  const batchPromises = DEFAULT_CATEGORY_DEFINITIONS.map((category) =>
-    addDoc(collection(db, CATEGORIES_COLLECTION), withOwnerUidForCreate({
-      ...category,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }, { auth }))
-  );
+    const batch = writeBatch(db);
+    for (const document of documents) {
+      batch.set(doc(db, CATEGORIES_COLLECTION, document.id), withOwnerUidForCreate(document.data, { auth }));
+    }
 
-  await Promise.all(batchPromises);
-  return { success: true, created: true };
+    await batch.commit();
+    return { success: true, created: true, createdCount: documents.length };
   })();
 
   try {

@@ -15,6 +15,10 @@ import {
   buildReconciliationTransactionIndex,
 } from "../services/reconciliationService";
 import {
+  associateTransactionsWithFixedExpense,
+  dissociateTransactionsFromFixedExpense,
+} from "../services/transactionFixedExpenseAssociationService";
+import {
   AppEmptyState,
   AppPage,
   AppPrimaryAction,
@@ -107,6 +111,7 @@ export default function FraisFixes({ onOpenTransactionsFiltered = null }) {
   const [linkedTransactionId, setLinkedTransactionId] = useState("");
   const [linkedDialogError, setLinkedDialogError] = useState("");
   const [reconciliationReferenceDate, setReconciliationReferenceDate] = useState(() => new Date());
+  const [reconciliationRunning, setReconciliationRunning] = useState(false);
 
   const accountMap = useMemo(
     () => new Map((accounts || []).map((account) => [account.id, account.name || ""])),
@@ -268,6 +273,63 @@ export default function FraisFixes({ onOpenTransactionsFiltered = null }) {
     setEditingExpense(null);
   };
 
+  const handleRecalculateAssociations = async () => {
+    if (reconciliationRunning) {
+      return;
+    }
+
+    setReconciliationRunning(true);
+
+    try {
+      const associationsByFixedExpenseId = new Map();
+      const transactionIdsToDissociate = [];
+
+      for (const transaction of transactions) {
+        if (String(transaction.type || "").toLowerCase() !== "depense") {
+          continue;
+        }
+
+        const matchedFixedExpense = findMatchingFixedExpenseForTransaction({ ...transaction, fixedExpenseId: "" }, fixedExpenses);
+        const nextFixedExpenseId = String(matchedFixedExpense?.id || "").trim();
+        const currentFixedExpenseId = String(transaction.fixedExpenseId || "").trim();
+
+        if (!nextFixedExpenseId) {
+          if (currentFixedExpenseId) {
+            transactionIdsToDissociate.push(transaction.id);
+          }
+          continue;
+        }
+
+        if (!associationsByFixedExpenseId.has(nextFixedExpenseId)) {
+          associationsByFixedExpenseId.set(nextFixedExpenseId, []);
+        }
+
+        associationsByFixedExpenseId.get(nextFixedExpenseId).push(transaction.id);
+      }
+
+      const associationResults = await Promise.all(
+        [...associationsByFixedExpenseId.entries()].map(([fixedExpenseId, transactionIds]) => (
+          associateTransactionsWithFixedExpense({ transactionIds, fixedExpenseId })
+        ))
+      );
+
+      const dissociationResult = transactionIdsToDissociate.length > 0
+        ? await dissociateTransactionsFromFixedExpense({ transactionIds: transactionIdsToDissociate })
+        : { failedCount: 0 };
+
+      const hasFailures = associationResults.some((result) => result.failedCount > 0) || dissociationResult.failedCount > 0;
+      if (hasFailures) {
+        setLinkedDialogError("Impossible de recalculer certaines associations.");
+        return;
+      }
+
+      setLinkedDialogError("");
+      setReconciliationReferenceDate(new Date());
+    } finally {
+      setReconciliationRunning(false);
+    }
+  };
+
   const handleExportAudit = () => {
     if (!linkedExpenseReconciliation || !linkedExpense) return;
     const report = buildFixedExpenseAuditCsv(linkedExpenseReconciliation);
@@ -349,9 +411,10 @@ export default function FraisFixes({ onOpenTransactionsFiltered = null }) {
           <>
             <SecondaryButton
               aria-label="Recalculer les associations avec le service de réconciliation"
-              onClick={() => setReconciliationReferenceDate(new Date())}
+              onClick={handleRecalculateAssociations}
+              disabled={reconciliationRunning}
             >
-              Recalculer les associations
+              {reconciliationRunning ? "Recalcul en cours..." : "Recalculer les associations"}
             </SecondaryButton>
             <AppPrimaryAction
               onClick={() => {

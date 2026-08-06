@@ -1,3 +1,22 @@
-import test from"node:test";import assert from"node:assert/strict";import{readFile}from"node:fs/promises";import{resolve}from"node:path";const component=resolve(process.cwd(),"src/components/fixed-expenses-v2/FixedExpensesV2.jsx"),styles=resolve(process.cwd(),"src/components/fixed-expenses-v2/FixedExpensesV2.css");
-test("FixedExpensesV2 consumes existing hooks, utility and mutations",async()=>{const content=await readFile(component,"utf8");for(const item of["useFixedExpenses","useAccounts","useCategories","useSubcategories","getFixedExpenseApplicableAmount","addFixedExpense","updateFixedExpense","deleteFixedExpense","FixedExpenseForm"])assert.equal(content.includes(item),true);assert.doesNotMatch(content,/firebase|Firestore|addDoc|updateDoc|deleteDoc/)});
-test("FixedExpensesV2 mirrors the recurring income V2 structure responsively",async()=>{const[content,css]=await Promise.all([readFile(component,"utf8"),readFile(styles,"utf8")]);for(const label of["Gestion financière","Frais fixes","Montant mensuel","Prochaine échéance","Projection annuelle","Ajouter un frais fixe","Dépenses prévues","Répartition","Mensuel","Hebdomadaire","Trimestriel","Annuel","Autre","Actif","Suspendu","Aucun frais fixe.","Créer un frais fixe"])assert.equal(content.includes(label),true);assert.match(css,/RecurringIncomeV2\.css/);assert.match(css,/prefers-reduced-motion:reduce/);assert.match(content,/recurring-v2-actions/);assert.doesNotMatch(css,/overflow-x:auto|min-width:620px/)});
+import test from"node:test";import assert from"node:assert/strict";import{readFile}from"node:fs/promises";import{resolve}from"node:path";
+
+const component=resolve(process.cwd(),"src/components/fixed-expenses-v2/FixedExpensesV2.jsx");
+
+test("FixedExpensesV2 wraps legacy FraisFixes in the Transactions visual shell",async()=>{
+	const content=await readFile(component,"utf8");
+	for(const token of[
+		"../../pages/FraisFixes.jsx",
+		"../transactions-v2/TransactionsV2.css",
+		"transactions-v2",
+		"transactions-v2-main",
+		"transactions-v2-header",
+		"transactions-v2-engine",
+		"DashboardV2Sidebar active=\"fixed-expenses\"",
+		"DashboardV2MobileNavigation active=\"fixed-expenses\"",
+		"FraisFixes onOpenTransactionsFiltered={onOpenTransactionsFiltered}",
+		"Choisir la période",
+	]){
+		assert.equal(content.includes(token),true);
+	}
+	assert.doesNotMatch(content,/firebase|Firestore|addDoc|updateDoc|deleteDoc/);
+});

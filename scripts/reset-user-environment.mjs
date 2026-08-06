@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
+import { buildDefaultCategoryDocumentId } from "../src/services/categoriesDefaults.js";
 
 export const MAX_BATCH_SIZE = 400;
 
@@ -158,9 +159,9 @@ export function buildSeedDocuments(db, uid, timestamp = new Date()) {
     data: { name: "Compte courant", initialBalance: 0, type: "standard", color: "#1976d2", isActive: true, isDefault: true, displayOrder: 0, ownerUid: uid, createdAt: timestamp, updatedAt: timestamp },
   });
   for (const category of REFERENCE_CATEGORIES) {
-    const ref = db.collection("categories").doc(`${prefix}-${slug(category.name)}`);
+    const ref = db.collection("categories").doc(buildDefaultCategoryDocumentId(uid, category.name));
     categoryRefs.set(category.name, ref);
-    documents.push({ ref, data: { ...category, isActive: true, ownerUid: uid, createdAt: timestamp, updatedAt: timestamp } });
+    documents.push({ ref, data: { ...category, nameNormalized: normalizeBusinessName(category.name), isActive: true, ownerUid: uid, createdAt: timestamp, updatedAt: timestamp } });
   }
   for (const [categoryName, name] of REFERENCE_SUBCATEGORIES) {
     const category = REFERENCE_CATEGORIES.find((item) => item.name === categoryName);

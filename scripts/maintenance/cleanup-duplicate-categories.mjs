@@ -1,6 +1,7 @@
 import process from "node:process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { initializeApp as initializeClientApp } from "firebase/app";
 import { collection as clientCollection, getDocs as clientGetDocs, getFirestore as clientGetFirestore, query as clientQuery } from "firebase/firestore";
 import { assertAutomatedWriteAllowed } from "../safety/automatedWriteGuard.mjs";
@@ -10,6 +11,14 @@ const DUPLICATE_REASON = "duplicate-category-cleanup";
 
 function normalizeCategoryName(value) {
   return (value || "").trim().toLowerCase();
+}
+
+function normalizeCategoryType(value) {
+  return normalizeCategoryName(value || "depense") || "depense";
+}
+
+function isResetCategoryId(id) {
+  return String(id || "").startsWith("reset-");
 }
 
 function toMillis(value) {
@@ -74,9 +83,15 @@ function groupCategories(categories) {
   const groups = new Map();
 
   for (const category of categories) {
+    const ownerUid = String(category.ownerUid || "").trim();
     const nameKey = normalizeCategoryName(category.name);
-    const typeKey = normalizeCategoryName(category.type || "depense");
-    const groupKey = `${nameKey}::${typeKey}`;
+    const typeKey = normalizeCategoryType(category.type || "depense");
+
+    if (!ownerUid || !nameKey) {
+      continue;
+    }
+
+    const groupKey = `${ownerUid}::${nameKey}::${typeKey}`;
 
     if (!groups.has(groupKey)) {
       groups.set(groupKey, []);
@@ -88,28 +103,29 @@ function groupCategories(categories) {
   return groups;
 }
 
-function buildDuplicatePlan(categories) {
+export function buildDuplicatePlan(categories) {
   const groups = groupCategories(categories);
   const duplicateGroups = [];
-  const toDisable = [];
+  const toDelete = [];
+  const remapByCategoryId = new Map();
 
   for (const [groupKey, groupCategoriesItems] of groups.entries()) {
     if (groupCategoriesItems.length < 2) {
       continue;
     }
 
-    const sorted = [...groupCategoriesItems].sort(compareDocumentAges);
-    const keeper = sorted[0];
-    const candidates = sorted.slice(1).filter((category) => category.isActive !== false);
+    const sorted = [...groupCategoriesItems].sort((left, right) => {
+      const leftReset = isResetCategoryId(left.id);
+      const rightReset = isResetCategoryId(right.id);
 
-    if (candidates.length === 0) {
-      duplicateGroups.push({
-        key: groupKey,
-        keeper,
-        candidates: [],
-      });
-      continue;
-    }
+      if (leftReset !== rightReset) {
+        return leftReset ? 1 : -1;
+      }
+
+      return compareDocumentAges(left, right);
+    });
+    const keeper = sorted[0];
+    const candidates = sorted.slice(1);
 
     duplicateGroups.push({
       key: groupKey,
@@ -117,10 +133,33 @@ function buildDuplicatePlan(categories) {
       candidates,
     });
 
-    toDisable.push(...candidates);
+    for (const candidate of candidates) {
+      toDelete.push(candidate);
+      remapByCategoryId.set(candidate.id, {
+        keeperId: keeper.id,
+        keeperName: keeper.name || candidate.name || "",
+        ownerUid: String(keeper.ownerUid || candidate.ownerUid || "").trim(),
+      });
+    }
   }
 
-  return { duplicateGroups, toDisable };
+  return { duplicateGroups, toDelete, remapByCategoryId };
+}
+
+export function buildReferencePatch(documentData = {}, remap = {}) {
+  const patch = {};
+
+  if (Object.prototype.hasOwnProperty.call(documentData, "categoryId")) {
+    patch.categoryId = remap.keeperId;
+  }
+  if (Object.prototype.hasOwnProperty.call(documentData, "categoryName")) {
+    patch.categoryName = remap.keeperName;
+  }
+  if (Object.prototype.hasOwnProperty.call(documentData, "categorie")) {
+    patch.categorie = remap.keeperName;
+  }
+
+  return patch;
 }
 
 function formatDate(value) {
@@ -204,12 +243,10 @@ async function main() {
   }
 
   let db;
-  let FieldValue = null;
-  let collectionRef = null;
   let useAdminBackend = false;
 
   if (apply) {
-    const { initializeApp, getApps, applicationDefault, cert, getFirestore, FieldValue: AdminFieldValue } = await loadFirebaseAdmin();
+    const { initializeApp, getApps, applicationDefault, cert, getFirestore } = await loadFirebaseAdmin();
     const options = {};
 
     if (clientConfig.projectId) {
@@ -225,8 +262,6 @@ async function main() {
 
     const app = getApps().length > 0 ? getApps()[0] : initializeApp(options);
     db = getFirestore(app);
-    FieldValue = AdminFieldValue;
-    collectionRef = (name) => db.collection(name);
     useAdminBackend = true;
   } else {
     if (!clientConfig.projectId || !clientConfig.apiKey || !clientConfig.appId) {
@@ -236,7 +271,6 @@ async function main() {
 
     const app = initializeClientApp(clientConfig);
     db = clientGetFirestore(app);
-    collectionRef = (name) => clientCollection(db, name);
   }
 
   const snapshot = useAdminBackend
@@ -248,11 +282,12 @@ async function main() {
     ...document.data(),
   }));
 
-  const { duplicateGroups, toDisable } = buildDuplicatePlan(categories);
+  const { duplicateGroups, toDelete, remapByCategoryId } = buildDuplicatePlan(categories);
 
   console.log(`Categories scanned: ${categories.length}`);
   console.log(`Duplicate groups detected: ${duplicateGroups.length}`);
-  console.log(`Documents to soft delete: ${toDisable.length}`);
+  console.log(`Documents to delete: ${toDelete.length}`);
+  console.log(`Reference updates required: ${remapByCategoryId.size}`);
   console.log("");
 
   if (duplicateGroups.length === 0) {
@@ -265,15 +300,9 @@ async function main() {
     console.log(`Group: ${group.key}`);
     console.log(`  Keep: ${group.keeper.id} (${keeperLabel}) createdAt=${formatDate(group.keeper.createdAt)}`);
 
-    if (group.candidates.length === 0) {
-      console.log("  Would disable: none (duplicates already inactive)");
-      console.log("");
-      continue;
-    }
-
     for (const candidate of group.candidates) {
       console.log(
-        `  Would disable: ${candidate.id} (${candidate.name || "(no-name)"} / ${candidate.type || "depense"}) createdAt=${formatDate(candidate.createdAt)}`
+        `  Would delete: ${candidate.id} (${candidate.name || "(no-name)"} / ${candidate.type || "depense"}) createdAt=${formatDate(candidate.createdAt)}`
       );
     }
 
@@ -281,23 +310,18 @@ async function main() {
   }
 
   if (!apply) {
-    console.log("Dry-run only. Re-run with --apply to soft delete the listed duplicate categories.");
+    console.log("Dry-run only. Re-run with --apply to remap references and delete the listed duplicate categories.");
     return;
   }
 
-  if (toDisable.length === 0) {
+  if (toDelete.length === 0) {
     console.log("No active duplicate categories to update.");
-    return;
-  }
-
-  if (!useAdminBackend) {
-    console.log("Dry-run completed. Re-run with --apply after providing admin credentials to perform the soft delete.");
     return;
   }
 
   let batch = db.batch();
   let batchSize = 0;
-  let updatedCount = 0;
+  let updatedReferenceCount = 0;
 
   const commitBatch = async () => {
     if (batchSize === 0) return;
@@ -306,29 +330,75 @@ async function main() {
     batchSize = 0;
   };
 
-  for (const category of toDisable) {
-    batch.update(db.collection(COLLECTION_NAME).doc(category.id), {
-      isActive: false,
-      deletedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      deletedReason: DUPLICATE_REASON,
-    });
+  for (const collection of useAdminBackend ? await db.listCollections() : []) {
+    if (collection.id === COLLECTION_NAME) {
+      continue;
+    }
 
-    batchSize += 1;
-    updatedCount += 1;
+    const snapshotForCollection = await collection.get();
 
-    if (batchSize === 450) {
-      await commitBatch();
+    for (const document of snapshotForCollection.docs) {
+      const data = document.data() || {};
+      const ownerUid = String(data.ownerUid || "").trim();
+      const categoryId = String(data.categoryId || "").trim();
+      const remap = remapByCategoryId.get(categoryId);
+
+      if (!ownerUid || !remap || (remap.ownerUid && remap.ownerUid !== ownerUid)) {
+        continue;
+      }
+
+      const patch = buildReferencePatch(data, remap);
+
+      if (Object.keys(patch).length === 0) {
+        continue;
+      }
+
+      batch.update(document.ref, patch);
+      batchSize += 1;
+      updatedReferenceCount += 1;
+
+      if (batchSize === 450) {
+        await commitBatch();
+      }
     }
   }
 
   await commitBatch();
 
-  console.log(`Soft-deleted ${updatedCount} duplicate categories.`);
+  batch = db.batch();
+  batchSize = 0;
+  let deletedCount = 0;
+
+  const commitDeleteBatch = async () => {
+    if (batchSize === 0) return;
+    await batch.commit();
+    batch = db.batch();
+    batchSize = 0;
+  };
+
+  for (const category of toDelete) {
+    batch.delete(db.collection(COLLECTION_NAME).doc(category.id));
+
+    batchSize += 1;
+    deletedCount += 1;
+
+    if (batchSize === 450) {
+      await commitDeleteBatch();
+    }
+  }
+
+  await commitDeleteBatch();
+
+  console.log(`Updated ${updatedReferenceCount} category references.`);
+  console.log(`Deleted ${deletedCount} duplicate categories.`);
 }
 
-main().catch((error) => {
-  console.error("Duplicate category cleanup failed:");
-  console.error(error);
-  process.exitCode = 1;
-});
+const SCRIPT_PATH = resolve(fileURLToPath(import.meta.url));
+
+if (process.argv[1] && resolve(process.argv[1]) === SCRIPT_PATH) {
+  main().catch((error) => {
+    console.error("Duplicate category cleanup failed:");
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
