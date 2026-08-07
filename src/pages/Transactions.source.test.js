@@ -222,6 +222,7 @@ test("Transactions bulk classification quick-create reuses import flow without c
 test("Transactions quick fixed-expense dialog supports full classification and optional propagation", async () => {
   const content = await readFile(transactionsPath, "utf8");
 
+  assert.equal(content.includes('import { associateTransactionsWithFixedExpense } from "../services/transactionFixedExpenseAssociationService";'), true);
   assert.equal(content.includes('label="Catégorie"'), true);
   assert.equal(content.includes('label="Sous-catégorie"'), true);
   assert.equal(content.includes('label="Tiers"'), true);

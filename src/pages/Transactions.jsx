@@ -57,6 +57,7 @@ import ImportHistorySection from "../features/bankingImport/components/ImportHis
 import TransferForm from "../features/transfers/components/TransferForm";
 import { createTransfer, deleteTransfer as deleteTransferById, updateTransfer as updateTransferById } from "../features/transfers/services/transfersService";
 import { bulkDeleteTransactions, bulkUpdateTransactions } from "../services/transactionBulkUpdateService";
+import { associateTransactionsWithFixedExpense } from "../services/transactionFixedExpenseAssociationService";
 import { RECEIPT_INTELLIGENCE_DEFAULTS } from "../utils/receiptDraftIntelligence";
 import { buildTransactionPayload, validateTransactionForm } from "../utils/transactionDraftMapper";
 import {
