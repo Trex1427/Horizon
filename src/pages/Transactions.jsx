@@ -99,6 +99,7 @@ import {
   buildQuickFixedExpensePayload,
   findMatchingFixedExpenseForTransaction,
 } from "../utils/transactionFixedExpenseLinking";
+import { buildFixedExpenseDraftFromTransactions } from "../utils/fixedExpenseDraftFromTransactions";
 import { TRANSACTION_EDITOR_FOCUS_TARGETS } from "../constants/transactionEditorFocusTargets";
 import {
   buildChangedClassificationPatch,
